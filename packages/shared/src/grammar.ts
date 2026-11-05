@@ -253,20 +253,22 @@ export type RefusalReason =
   | "budget";
 
 export interface ValidationInput {
-  template: Template<any>;
+  template: { id: string; safety: "game" | "behaviour"; steerability: number; steerabilityReason: string; requires: readonly string[] };
   pYes: number;
   sources: [string, string];
   vetoedCategories: string[];
+  /** vision markets: whether both readers currently see the fields the template needs */
+  fieldsOk?: boolean;
 }
 
 /** The engine's rules for a valid market. Returns null if the market may be listed. */
-export function validate({ template, pYes, sources, vetoedCategories }: ValidationInput): { reason: RefusalReason; detail: string } | null {
+export function validate({ template, pYes, sources, vetoedCategories, fieldsOk }: ValidationInput): { reason: RefusalReason; detail: string } | null {
   if (template.safety !== "game") return { reason: "unsafe", detail: "Markets about a person's behaviour are never listed." };
   if (vetoedCategories.includes(template.id)) return { reason: "vetoed", detail: "The streamer vetoed this category." };
   if (template.steerability > STEERABILITY_LIMIT)
     return { reason: "steerable", detail: `${template.steerabilityReason} (steerability ${template.steerability.toFixed(2)} > ${STEERABILITY_LIMIT})` };
-  const covered = (s: string) => template.requires.every((f) => SOURCE_FIELDS[s]?.includes(f));
-  if (!covered(sources[0]) || !covered(sources[1]))
+  const covered = (s: string) => (template.requires as string[]).every((f) => SOURCE_FIELDS[s]?.includes(f as FactField));
+  if (fieldsOk === false || (fieldsOk === undefined && (!covered(sources[0]) || !covered(sources[1]))))
     return { reason: "not-resolvable", detail: `Both sources must emit ${template.requires.join(", ")}.` };
   if (pYes < 0.15 || pYes > 0.85)
     return { reason: "not-uncertain", detail: `Opening probability ${(pYes * 100).toFixed(0)}% is outside 15–85%.` };

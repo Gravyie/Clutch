@@ -99,12 +99,24 @@ function ReceiptView({ r }: { r: Receipt }) {
           </div>
           <HashCheck rule={r.rule} hash={r.ruleHash} />
         </Step>
-        <Step n={2} title="Two independent sources" ok={r.verdict !== "VOID"}>
+        <Step n={2} title={r.rule.adapter === "vision" ? "Two independent readers of the stream" : "Two independent sources"} ok={r.verdict !== "VOID"}>
           <div className="grid gap-3 md:grid-cols-2">
             {r.readings.map((rd, i) => (
-              <Reading key={rd.source} rd={rd} label={i === 0 ? "Source A" : "Source B"} />
+              <Reading key={rd.source} rd={rd} unit={r.rule.adapter === "vision" ? "frames" : "plies"} label={i === 0 ? (r.rule.adapter === "vision" ? "Reader A" : "Source A") : r.rule.adapter === "vision" ? "Reader B" : "Source B"} />
             ))}
           </div>
+          {r.frames && r.frames.length > 0 && (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {r.frames.map((f) => (
+                <figure key={f.url} className="overflow-hidden rounded-xl border border-border">
+                  <img src={`${ENGINE_URL}${f.url}`} alt={f.summary} className="aspect-video w-full object-cover" loading="lazy" />
+                  <figcaption className="px-3 py-2 text-[11px] text-muted-foreground">
+                    {new Date(f.at).toLocaleTimeString()} · {f.reader}: {f.summary}
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
         </Step>
         <Step n={3} title="Evidence and settlement" ok>
           <div className="space-y-2 text-sm">
@@ -157,7 +169,7 @@ function Step({ n, title, ok, children }: { n: number; title: string; ok: boolea
   );
 }
 
-function Reading({ rd, label }: { rd: SourceReading; label: string }) {
+function Reading({ rd, label, unit }: { rd: SourceReading; label: string; unit: string }) {
   return (
     <div className="rounded-xl border border-border bg-sunk p-3.5">
       <div className="flex items-center justify-between">
@@ -168,7 +180,7 @@ function Reading({ rd, label }: { rd: SourceReading; label: string }) {
         <span className={cn("rounded-md px-2 py-0.5 text-[11px] font-semibold", rd.evaluation === "YES" ? "bg-yes-soft text-yes" : rd.evaluation === "NO" ? "bg-no-soft text-no" : "bg-void-soft text-void")}>{rd.evaluation}</span>
       </div>
       <div className="mt-2 text-[11px] text-faint">
-        {rd.plies} plies · {rd.status}
+        {rd.plies} {unit} · {rd.status}
         {rd.winner ? ` · ${rd.winner} won` : ""}
       </div>
       {rd.excerpt.length > 0 && (

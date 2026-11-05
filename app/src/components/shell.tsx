@@ -24,6 +24,7 @@ import {
   WarningIcon,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import type { StreamSummary } from "@clutch/shared";
 import { Avatar, LiveBadge, Logo } from "@/components/brand";
 import { Onboarding } from "@/components/onboarding";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,12 @@ const NAV = [
   { href: "/portfolio", label: "Portfolio", icon: ChartLineUpIcon },
   { href: "/leaderboard", label: "Leaderboard", icon: TrophyIcon },
 ];
+
+/** Live markets first, then live video, then live chess, then offline; audience breaks ties. */
+export function channelRank(a: StreamSummary, b: StreamSummary) {
+  const score = (s: StreamSummary) => (s.market?.phase === "trading" ? 1000 : 0) + (s.live && !s.rerun ? 100 : 0) + (s.media?.kind === "video" ? 50 : 0) + (s.live ? 10 : 0) + s.watching;
+  return score(b) - score(a);
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -168,7 +175,7 @@ function AccountMenu() {
 function SideRail() {
   const path = usePathname();
   const streams = useLive((s) => s.streams);
-  const list = Object.values(streams).sort((a, b) => Number(b.live) - Number(a.live) || b.watching - a.watching);
+  const list = Object.values(streams).sort(channelRank);
   return (
     <aside className="sticky top-14 hidden h-[calc(100dvh-3.5rem)] w-[240px] shrink-0 flex-col border-r border-border lg:flex">
       <nav className="space-y-0.5 p-3">
@@ -205,7 +212,7 @@ function SideRail() {
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[13px] font-medium leading-tight">{s.title}</span>
-                <span className="block truncate text-xs text-faint">{s.market && s.market.phase === "trading" ? s.market.question : s.live ? `${s.white.name || "…"} vs ${s.black.name || "…"}` : "Offline"}</span>
+                <span className="block truncate text-xs text-faint">{s.market && s.market.phase === "trading" ? s.market.question : !s.live ? "Offline" : s.media?.kind === "video" ? (s.rerun ? `Rerun · ${s.game ?? ""}` : (s.game ?? s.streamTitle ?? "Live")) : `${s.white.name || "…"} vs ${s.black.name || "…"}`}</span>
               </span>
               {s.market && s.market.phase === "trading" ? (
                 <span className="rounded-full bg-yes-soft px-1.5 py-0.5 font-mono text-[11px] font-medium text-yes tabular">{cents(s.market.priceYes)}</span>

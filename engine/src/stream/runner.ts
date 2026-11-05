@@ -72,6 +72,9 @@ export class StreamRunner extends EventEmitter {
       kind: row.kind,
       title: row.title,
       subtitle: row.subtitle,
+      media: { kind: "chess" },
+      category: "chess",
+      game: "Chess",
       owner: row.owner_address && row.kind === "lichess-user"
         ? { address: row.owner_address as `0x${string}`, lichess: row.lichess_user ?? undefined, twitch: row.twitch_channel ?? undefined, verified: true }
         : undefined,

@@ -34,6 +34,15 @@ export const HOUSE_CHANNELS = [
   { slug: "classical", channel: "classical", title: "Lichess Classical", subtitle: "Top classical game, live" },
 ];
 
+/**
+ * House video channels: well-known channels across categories, probed for liveness. Streamers add their own from the
+ * studio. With TWITCH_CLIENT_ID/SECRET the engine could discover live channels by category instead.
+ */
+export const VIDEO_SEEDS = (process.env.VIDEO_CHANNELS ??
+  "twitch:eslcs,twitch:blastpremier,twitch:pgl,twitch:ohnepixel,twitch:valorant,twitch:tarik,twitch:riotgames,twitch:caedrel,twitch:fortnite,twitch:clix,twitch:rocketleague,kick:xqc,kick:adinross")
+  .split(",")
+  .filter(Boolean);
+
 export const config = {
   root,
   port: Number(env("PORT", env("ENGINE_PORT", "8787"))),
@@ -69,6 +78,11 @@ export const config = {
   zgApiKey: env("ZG_API_KEY"),
   zgModel: env("ZG_MODEL", "claude-haiku-5.5")!,
   zgDailyCapUsd: Number(env("ZG_DAILY_CAP_USD", "5")),
+  zgVisionModel: env("ZG_VISION_MODEL", "claude-haiku-5.5")!,
+  // Local open-weights vision model (llama.cpp's llama-server, OpenAI-compatible): the independent second reader.
+  localVisionUrl: env("LOCAL_VISION_URL", "http://127.0.0.1:8090/v1")!,
+  localVisionModel: env("LOCAL_VISION_MODEL", "qwen2.5-vl-3b")!,
+  maxVideoStreams: Number(env("MAX_VIDEO_STREAMS", "2")),
   zgStorageRpc: env("ZG_STORAGE_RPC", "https://evmrpc-testnet.0g.ai")!,
   zgIndexer: env("ZG_INDEXER", "https://indexer-storage-testnet-turbo.0g.ai")!,
   zgStorageKey: env("ZG_STORAGE_PRIVATE_KEY"),

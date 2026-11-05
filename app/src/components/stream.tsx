@@ -4,10 +4,11 @@ import Link from "next/link";
 import { memo, useEffect, useRef, useState } from "react";
 import { Chessboard } from "react-chessboard";
 import { useTheme } from "next-themes";
-import { EyeIcon } from "@phosphor-icons/react";
+import { EyeIcon, ArrowSquareOutIcon, ScanIcon, LightningIcon, TwitchLogoIcon, YoutubeLogoIcon, BroadcastIcon } from "@phosphor-icons/react";
 import type { Player, StreamState, StreamSummary } from "@clutch/shared";
 import { Avatar, LiveBadge } from "@/components/brand";
 import { api, useNow } from "@/lib/live";
+import { ENGINE_URL } from "@/lib/env";
 import { cents, clock, compactUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -77,7 +78,8 @@ export function PlayerStrip({ p, side, toMove }: { p: Player; side: "white" | "b
 
 /** The stage: the live game on a broadcast backdrop, or the streamer's Twitch with the board picture-in-picture. */
 export function StreamStage({ stream, overlay, compact }: { stream?: StreamState; overlay?: React.ReactNode; compact?: boolean }) {
-  if (!stream) return <div className="aspect-[4/3] w-full rounded-2xl bg-surface shimmer" />;
+  if (!stream) return <div className="aspect-video w-full rounded-2xl bg-surface shimmer" />;
+  if (stream.media?.kind === "video") return <VideoStage stream={stream} />;
   const playing = stream.status === "started";
   const whiteToMove = playing && stream.plies % 2 === 0;
   const blackToMove = playing && stream.plies % 2 === 1;
@@ -155,19 +157,123 @@ function TwitchPlayer({ channel, slug }: { channel: string; slug: string }) {
   return <div ref={ref} className="aspect-video w-full overflow-hidden rounded-xl bg-black" />;
 }
 
+export const PlatformIcon = ({ p, size = 14 }: { p?: string; size?: number }) =>
+  p === "kick" ? <LightningIcon size={size} weight="fill" /> : p === "youtube" ? <YoutubeLogoIcon size={size} weight="fill" /> : p === "twitch" ? <TwitchLogoIcon size={size} weight="fill" /> : <BroadcastIcon size={size} />;
+
+export const platformUrl = (s: StreamSummary) =>
+  s.media?.kind !== "video" ? undefined : s.media.platform === "twitch" ? `https://twitch.tv/${s.media.channel}` : s.media.platform === "kick" ? `https://kick.com/${s.media.channel}` : s.media.channel.startsWith("@") ? `https://youtube.com/${s.media.channel}/live` : `https://youtube.com/watch?v=${s.media.channel}`;
+
+/** The engine's latest captured frame: literally what the AI is looking at. */
+export const frameUrl = (s: StreamSummary) => (s.frameAt ? `${ENGINE_URL}/frames/${s.slug}.jpg?t=${Math.floor(s.frameAt / 3000)}` : undefined);
+
+/** A live video channel: the platform's own player, with what the AI reads from it underneath. */
+function VideoStage({ stream }: { stream: StreamState }) {
+  const m = stream.media as Extract<StreamState["media"], { kind: "video" }>;
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-black">
+      <div className="relative aspect-video w-full">
+        {!stream.live ? (
+          <Offline s={stream} />
+        ) : m.platform === "twitch" ? (
+          <TwitchPlayer channel={m.channel} slug={stream.slug} />
+        ) : m.platform === "kick" ? (
+          <iframe src={`https://player.kick.com/${m.channel}?autoplay=true&muted=true`} className="absolute inset-0 size-full" allow="autoplay; fullscreen" allowFullScreen title={`${m.channel} on Kick`} />
+        ) : /^[\w-]{11}$/.test(m.channel) ? (
+          <iframe src={`https://www.youtube.com/embed/${m.channel}?autoplay=1&mute=1`} className="absolute inset-0 size-full" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen title="YouTube live" />
+        ) : (
+          <Offline s={stream} message="Watch on YouTube" />
+        )}
+        <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2">
+          {stream.live && <LiveBadge />}
+          {stream.rerun && <span className="rounded-[5px] bg-warn px-1.5 py-px text-[10.5px] font-semibold text-black">RERUN · NO MARKETS</span>}
+        </div>
+      </div>
+      <VisionBar s={stream} />
+    </div>
+  );
+}
+
+function Offline({ s, message }: { s: StreamSummary; message?: string }) {
+  const f = frameUrl(s);
+  return (
+    <div className="absolute inset-0 grid place-items-center bg-[radial-gradient(120%_80%_at_50%_0%,var(--raised),var(--sunk))]">
+      {f && <img src={f} alt="" className="absolute inset-0 size-full object-cover opacity-30 blur-sm" />}
+      <div className="relative text-center">
+        <div className="mx-auto grid size-12 place-items-center rounded-full bg-raised">
+          <PlatformIcon p={s.media?.kind === "video" ? s.media.platform : undefined} size={22} />
+        </div>
+        <div className="mt-3 text-sm font-semibold">{message ?? `${s.title} is offline`}</div>
+        <div className="mt-1 text-xs text-muted-foreground">Markets open automatically when they go live.</div>
+        {platformUrl(s) && (
+          <a href={platformUrl(s)} target="_blank" rel="noreferrer" className="pointer-events-auto mt-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+            Open channel <ArrowSquareOutIcon size={12} />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** "AI vision": the engine's reading of the latest frame, so viewers can see exactly what markets are judged on. */
+export function VisionBar({ s }: { s: StreamSummary }) {
+  const v = s.vision;
+  const now = useNow(1000);
+  const st = v?.state;
+  const score = st && st.scoreA !== null && st.scoreB !== null ? `${st.teamA ?? "Left"} ${st.scoreA} : ${st.scoreB} ${st.teamB ?? "Right"}` : st?.remaining !== null && st?.remaining !== undefined ? `${st.remaining} left` : null;
+  const clockText = st?.clock !== null && st?.clock !== undefined ? `${Math.floor(st.clock / 60)}:${String(st.clock % 60).padStart(2, "0")}` : null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-white/10 bg-surface px-4 py-2.5 text-xs">
+      <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
+        <ScanIcon size={15} className={cn(v && now * 1000 - v.at < 20_000 ? "text-yes" : "text-faint")} /> AI vision
+      </span>
+      {!v ? (
+        <span className="text-faint">{s.live ? (s.rerun ? "Not reading reruns: the result already happened." : "Waiting for a reader slot…") : "Offline"}</span>
+      ) : (
+        <>
+          <span className={cn("rounded-md px-1.5 py-0.5 font-medium", st?.mode === "gameplay" ? "bg-yes-soft text-yes" : "bg-raised text-muted-foreground")}>{st?.mode}</span>
+          {score && <span className="font-mono font-medium tabular text-foreground">{score}</span>}
+          {clockText && <span className="font-mono tabular text-muted-foreground">{clockText}</span>}
+          {st?.bomb === "planted" && <span className="rounded-md bg-no-soft px-1.5 py-0.5 font-medium text-no">bomb planted</span>}
+          <span className="min-w-0 flex-1 truncate text-faint">{st?.summary}</span>
+          <span className="text-faint tabular">{Math.max(0, Math.round(now - v.at / 1000))}s ago</span>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Browse card: a live miniature of the game, the channel, and its market if one is open. */
 export function ChannelCard({ s, size = "md" }: { s: StreamSummary; size?: "md" | "lg" }) {
   const m = s.market && (s.market.phase === "trading" || s.market.phase === "locked" || s.market.phase === "window") ? s.market : undefined;
   return (
     <Link href={`/c/${s.slug}`} className="group block">
       <div className="relative overflow-hidden rounded-2xl border border-border bg-[radial-gradient(120%_80%_at_50%_0%,var(--raised),var(--sunk))] transition group-hover:border-border-strong">
-        <div className={cn("mx-auto py-4", size === "lg" ? "w-[62%]" : "w-[58%]")}>
-          <div className={cn("pointer-events-none transition duration-300 group-hover:scale-[1.02]", !s.live && "opacity-40 grayscale")}>
-            <LiveBoard id={`thumb-${s.slug}`} fen={s.fen} lastMove={s.lastMove} orientation={s.orientation} animate={false} />
+        {s.media?.kind === "video" ? (
+          <div className="relative aspect-video">
+            {s.live && (frameUrl(s) || s.media.platform === "twitch") ? (
+              <img
+                src={frameUrl(s) ?? `https://static-cdn.jtvnw.net/previews-ttv/live_user_${s.media.channel}-640x360.jpg`}
+                alt=""
+                className="absolute inset-0 size-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                loading="lazy"
+              />
+            ) : (
+              <div className="absolute inset-0 grid place-items-center text-faint">
+                <PlatformIcon p={s.media.platform} size={28} />
+              </div>
+            )}
+            <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/60 to-transparent" />
           </div>
-        </div>
+        ) : (
+          <div className={cn("mx-auto py-4", size === "lg" ? "w-[62%]" : "w-[58%]")}>
+            <div className={cn("pointer-events-none transition duration-300 group-hover:scale-[1.02]", !s.live && "opacity-40 grayscale")}>
+              <LiveBoard id={`thumb-${s.slug}`} fen={s.fen} lastMove={s.lastMove} orientation={s.orientation} animate={false} />
+            </div>
+          </div>
+        )}
         <div className="absolute left-3 top-3 flex items-center gap-1.5">
           {s.live && <LiveBadge />}
+          {s.rerun && <span className="rounded-[5px] bg-warn px-1.5 py-px text-[10.5px] font-semibold text-black">RERUN</span>}
           {s.live && (
             <span className="flex items-center gap-1 rounded-full bg-background/75 px-1.5 py-0.5 text-[11px] text-muted-foreground backdrop-blur">
               <EyeIcon size={12} /> {s.watching}
@@ -187,7 +293,11 @@ export function ChannelCard({ s, size = "md" }: { s: StreamSummary; size?: "md" 
         <Avatar name={s.title} size={36} />
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold leading-tight">{s.title}</div>
-          <div className="truncate text-xs text-muted-foreground">{s.live && s.white.name ? `${s.white.name} vs ${s.black.name}` : s.subtitle}</div>
+          <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+            {s.media?.kind === "video" && <PlatformIcon p={s.media.platform} size={12} />}
+            <span className="truncate">{s.media?.kind === "video" ? (s.live ? (s.streamTitle ?? s.game ?? s.subtitle) : "Offline") : s.live && s.white.name ? `${s.white.name} vs ${s.black.name}` : s.subtitle}</span>
+          </div>
+          {s.game && s.media?.kind === "video" && <div className="truncate text-xs text-faint">{s.game}</div>}
           <div className="mt-0.5 text-xs text-faint">
             {s.settledToday} markets today{s.volumeToday > 0 ? ` · ${compactUsd(s.volumeToday)} traded` : ""}
           </div>

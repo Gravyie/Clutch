@@ -1,4 +1,5 @@
 import type { ChessFacts, Evaluation, RefusalReason, Side } from "./grammar";
+import type { Category, SceneState } from "./vision";
 
 export type MarketPhase = "trading" | "locked" | "window" | "resolving" | "settled" | "void";
 export type Outcome = "YES" | "NO" | "VOID";
@@ -6,10 +7,10 @@ export type Outcome = "YES" | "NO" | "VOID";
 /** The committed rule. Its keccak256 (over canonical JSON) is stored onchain before any trade. */
 export interface Rule {
   v: 1;
-  adapter: "chess";
+  adapter: "chess" | "vision";
   template: string;
   params: Record<string, unknown>;
-  subject: { gameId: string; white: string; black: string };
+  subject: { gameId: string; white: string; black: string } | { stream: string; scene: string; teams: string[] };
   question: string;
   resolution: string;
   sources: [string, string];
@@ -17,7 +18,7 @@ export interface Rule {
   lockTime: number;
   windowStart: number;
   windowEnd: number;
-  agreement: "Both sources must report the same moves and status over the window, and yield the same verdict. Otherwise VOID.";
+  agreement: string;
 }
 
 export interface AiDecision {
@@ -81,6 +82,8 @@ export interface Receipt {
   resolvedAt: number;
   tx?: `0x${string}`;
   ai: AiDecision;
+  /** vision markets: the frames the second reader judged */
+  frames?: { at: number; url: string; reader: string; summary: string }[];
 }
 
 export interface Refusal {
@@ -99,7 +102,8 @@ export interface Player {
   ms?: number;
 }
 
-export type StreamKind = "lichess-tv" | "lichess-user" | "replay";
+export type StreamKind = "lichess-tv" | "lichess-user" | "replay" | "video";
+export type Media = { kind: "chess" } | { kind: "video"; platform: "twitch" | "kick" | "youtube"; channel: string };
 
 /** What a channel card needs: enough to render the browse grid and the live rail. */
 export interface StreamSummary {
@@ -108,6 +112,17 @@ export interface StreamSummary {
   title: string;
   /** "Blitz 3+0", "Bullet 1+0", streamer's tagline */
   subtitle: string;
+  media: Media;
+  category: Category | "chess";
+  /** the platform's game/category name */
+  game?: string;
+  /** the platform's live stream title */
+  streamTitle?: string;
+  /** reruns are watchable but never get markets */
+  rerun?: boolean;
+  /** what the AI currently sees (vision channels) */
+  vision?: { state: SceneState; at: number; reader: string; ms: number };
+  frameAt?: number;
   owner?: { address: `0x${string}`; lichess?: string; twitch?: string; verified: boolean };
   live: boolean;
   watching: number;

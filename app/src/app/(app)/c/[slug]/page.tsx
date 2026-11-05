@@ -9,7 +9,7 @@ import type { MarketView, Refusal, StreamState } from "@clutch/shared";
 import { Avatar, LiveBadge } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StreamStage } from "@/components/stream";
+import { PlatformIcon, StreamStage, platformUrl } from "@/components/stream";
 import { MarketPanel, TradeTape, isOpen } from "@/components/market";
 import { api, useChannel, useLive } from "@/lib/live";
 import { ago, cents, compactUsd } from "@/lib/format";
@@ -106,8 +106,16 @@ function ChannelHeader({ s }: { s: StreamState }) {
           )}
           {s.live && <LiveBadge />}
         </div>
+        {s.streamTitle && s.media?.kind === "video" && <p className="mt-0.5 line-clamp-1 text-sm">{s.streamTitle}</p>}
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-          <span>{s.subtitle}</span>
+          {s.media?.kind === "video" ? (
+            <a href={platformUrl(s)} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-foreground">
+              <PlatformIcon p={s.media.platform} /> {s.media.channel}
+            </a>
+          ) : (
+            <span>{s.subtitle}</span>
+          )}
+          {s.game && s.media?.kind === "video" && <span>{s.game}</span>}
           <span className="flex items-center gap-1">
             <EyeIcon size={14} /> {s.watching} watching
           </span>

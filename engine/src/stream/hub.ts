@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { Hex } from "viem";
 import type { AgentState, ChainState, ServerMessage, StreamKind } from "@clutch/shared";
-import { HOUSE_CHANNELS, config } from "../config";
+import { HOUSE_CHANNELS, VIDEO_SEEDS, config } from "../config";
 import { log } from "../log";
 import * as chain from "../chain";
 import { all, migrate, one, run } from "../db";
@@ -12,6 +12,13 @@ import { listMarkets, recentReceipts, todayByStream } from "../queries";
 import { LichessExportSource, LichessStreamSource, LichessUserWatcher, TvDirector } from "../sources/lichess";
 import { Replay } from "../sources/replay";
 import { StreamRunner, type StreamRow } from "./runner";
+import { VideoRunner } from "./video";
+import { makeReaders } from "../video/perceive";
+import { parseChannel, probe, type ChannelRef } from "../video/capture";
+import { categoryFor } from "@clutch/shared";
+
+export type Runner = StreamRunner | VideoRunner;
+type Row = StreamRow & { platform: string | null; channel: string | null; category: string | null };
 
 /**
  * Runs every channel. Boots house channels (Lichess TV) and streamer channels from the database, creates their
@@ -20,7 +27,8 @@ import { StreamRunner, type StreamRow } from "./runner";
  */
 export class Hub extends EventEmitter {
   readonly zg = new ZeroG();
-  readonly runners = new Map<string, StreamRunner>();
+  readonly runners = new Map<string, Runner>();
+  readonly readers = makeReaders(this.zg);
   readonly indexer = new Indexer();
   private readonly watcher = new LichessUserWatcher();
   private readonly directors = new Map<string, TvDirector>();
@@ -32,16 +40,19 @@ export class Hub extends EventEmitter {
   async boot() {
     await migrate();
     await this.ensureHouseStreams();
-    for (const row of await all<StreamRow>(`SELECT * FROM streams WHERE enabled = 1 ORDER BY created_at`)) this.addRunner(row);
+    await this.ensureVideoSeeds();
+    for (const row of await all<Row>(`SELECT * FROM streams WHERE enabled = 1 ORDER BY created_at`)) this.addRunner(row);
     await this.restoreOpenMarkets();
 
     this.watcher.on("game", (user: string, gameId: string) => {
-      const r = [...this.runners.values()].find((x) => x.row.lichess_user?.toLowerCase() === user);
+      const r = [...this.runners.values()].find((x): x is StreamRunner => x instanceof StreamRunner && x.row.lichess_user?.toLowerCase() === user);
       if (!r) return;
       log.info(`${r.row.slug}: streamer started game ${gameId}`);
       r.attach(LichessStreamSource.open(gameId), new LichessExportSource(gameId), "white");
     });
-    this.watcher.on("idle", (user: string) => [...this.runners.values()].find((x) => x.row.lichess_user?.toLowerCase() === user)?.idle());
+    this.watcher.on("idle", (user: string) =>
+      [...this.runners.values()].find((x): x is StreamRunner => x instanceof StreamRunner && x.row.lichess_user?.toLowerCase() === user)?.idle(),
+    );
 
     this.indexer.on("trade", async (t) => {
       const r = this.runners.get(t.slug);
@@ -78,6 +89,55 @@ export class Hub extends EventEmitter {
     }
   }
 
+  /** House video channels (Twitch/Kick), each with its own market pool. */
+  private async ensureVideoSeeds() {
+    for (const seed of VIDEO_SEEDS) {
+      const [platform, channel] = seed.split(":") as [ChannelRef["platform"], string];
+      const slug = `${platform === "twitch" ? "" : platform + "-"}${channel}`.toLowerCase();
+      if (await one(`SELECT slug FROM streams WHERE slug = ?`, [slug])) continue;
+      log.info(`creating pool for ${platform} channel ${channel}`);
+      const pool = await chain.createStreamPool({ name: `Clutch: ${channel}`, symbol: `c${channel.toUpperCase().slice(0, 8)}`, streamer: chain.owner.address, streamerNullifier: 0n, latencyBuffer: config.twitchLatencyBufferSec });
+      await this.insertStream({ slug, kind: "video", title: channel, subtitle: platform === "twitch" ? "Twitch" : platform === "kick" ? "Kick" : "YouTube", owner: chain.owner.address, ownerNullifier: "0", pool, latency: config.twitchLatencyBufferSec, platform, channel });
+    }
+  }
+
+  /**
+   * A streamer's own video channel. Ownership is proven by putting a one-time code in the live stream's title,
+   * which works on every platform without platform API keys.
+   */
+  async createVideoChannel(p: { address: `0x${string}`; nullifier: string; url: string; code: string; title?: string }) {
+    const ref = parseChannel(p.url);
+    if (!ref) throw Object.assign(new Error("Paste a Twitch, Kick or YouTube channel link."), { status: 400 });
+    const info = await probe(ref);
+    if (!info.live) throw Object.assign(new Error("Go live first, with the code in your stream title, then try again."), { status: 400 });
+    if (!info.title?.includes(p.code)) throw Object.assign(new Error(`Your live title doesn't contain ${p.code} yet. It can take a minute to update.`), { status: 400 });
+    const slug = `${ref.platform === "twitch" ? "" : ref.platform + "-"}${ref.channel.replace(/^@/, "")}`.toLowerCase();
+    const existing = this.runners.get(slug);
+    if (existing && existing.row.owner_nullifier !== "0") throw Object.assign(new Error("This channel is already claimed."), { status: 409 });
+    if (existing) {
+      // A house channel being claimed by its real owner: hand it over to a new pool registered to them.
+      existing.stop();
+      this.runners.delete(slug);
+      await run(`DELETE FROM streams WHERE slug = ?`, [slug]);
+    }
+    const pool = await chain.createStreamPool({ name: `Clutch: ${ref.channel}`, symbol: `c${slug.toUpperCase().slice(0, 8)}`, streamer: p.address, streamerNullifier: BigInt(p.nullifier), latencyBuffer: config.twitchLatencyBufferSec });
+    const row = await this.insertStream({
+      slug,
+      kind: "video",
+      title: p.title?.trim() || info.author || ref.channel,
+      subtitle: ref.platform === "twitch" ? "Twitch" : ref.platform === "kick" ? "Kick" : "YouTube",
+      owner: p.address,
+      ownerNullifier: p.nullifier,
+      pool,
+      latency: config.twitchLatencyBufferSec,
+      platform: ref.platform,
+      channel: ref.channel,
+      category: categoryFor(info.game),
+    });
+    this.addRunner(row as Row);
+    return row;
+  }
+
   private async insertStream(s: {
     slug: string;
     kind: StreamKind;
@@ -90,10 +150,13 @@ export class Hub extends EventEmitter {
     ownerNullifier: string;
     pool: { token: string; poolId: Hex; key: chain.PoolKeyShape };
     latency?: number;
+    platform?: string;
+    channel?: string;
+    category?: string;
   }) {
     await run(
-      `INSERT INTO streams (slug, kind, title, subtitle, lichess_channel, lichess_user, twitch_channel, owner_address, owner_nullifier, pool_id, token, currency0, currency1, latency_buffer, created_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO streams (slug, kind, title, subtitle, lichess_channel, lichess_user, twitch_channel, owner_address, owner_nullifier, pool_id, token, currency0, currency1, latency_buffer, created_at, platform, channel, category)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         s.slug,
         s.kind,
@@ -110,9 +173,12 @@ export class Hub extends EventEmitter {
         s.pool.key.currency1,
         s.latency ?? config.defaultLatencyBufferSec,
         Date.now(),
+        s.platform ?? null,
+        s.channel ?? null,
+        s.category ?? null,
       ],
     );
-    return (await one<StreamRow>(`SELECT * FROM streams WHERE slug = ?`, [s.slug]))!;
+    return (await one<Row>(`SELECT * FROM streams WHERE slug = ?`, [s.slug]))!;
   }
 
   /** A streamer's own channel: verified Lichess account, verified human, their own pool. */
@@ -137,8 +203,9 @@ export class Hub extends EventEmitter {
     return row;
   }
 
-  private addRunner(row: StreamRow) {
-    const r = new StreamRunner(row, this.zg);
+  private addRunner(row: Row) {
+    const r: Runner = row.kind === "video" ? new VideoRunner(row as Row & { platform: string; channel: string }, this.zg, this.readers) : new StreamRunner(row, this.zg);
+    if (r instanceof VideoRunner) r.on("slots", () => this.allocateSlots());
     this.runners.set(row.slug, r);
     r.on("state", () => {
       this.dirty.add(row.slug);
@@ -150,6 +217,8 @@ export class Hub extends EventEmitter {
     r.on("agent", () => this.broadcast("global", { type: "agent", agent: this.agentState() }));
     r.start();
 
+    if (r instanceof VideoRunner) return;
+    if (!(r instanceof StreamRunner)) return;
     if (row.kind === "lichess-tv" && row.lichess_channel) {
       const dir = new TvDirector(row.lichess_channel);
       this.directors.set(row.slug, dir);
@@ -167,6 +236,18 @@ export class Hub extends EventEmitter {
     }
   }
 
+  /**
+   * Vision is the scarce resource (one model, a few seconds per frame). Grant live, non-rerun channels a slot:
+   * channels with an open market first, then gaming categories, then by audience.
+   */
+  private allocateSlots() {
+    const video = [...this.runners.values()].filter((r): r is VideoRunner => r instanceof VideoRunner);
+    const rank = (r: VideoRunner) => (r.active ? 1000 : 0) + (r.state.category === "irl" || r.state.category === "other" ? 0 : 100) + r.state.watching;
+    const want = video.filter((r) => r.wantsVision || r.active).sort((a, b) => rank(b) - rank(a));
+    const granted = new Set(want.slice(0, config.maxVideoStreams));
+    for (const r of video) r.setSlot(granted.has(r));
+  }
+
   /** Markets that were open when the engine stopped: resume with their saved timeline, or void if impossible. */
   private async restoreOpenMarkets() {
     const open = await all<any>(`SELECT * FROM markets WHERE phase IN ('trading','locked','window','resolving')`);
@@ -174,6 +255,10 @@ export class Hub extends EventEmitter {
       const onchain = await chain.marketOnchain(Number(m.id)).catch(() => undefined);
       if (!onchain || onchain.status !== 1) continue; // already settled onchain; the indexer reconciles it
       const r = this.runners.get(m.slug);
+      if (r instanceof VideoRunner) {
+        await r.voidStale([Number(m.id)]);
+        continue;
+      }
       if (!r || r.row.kind === "replay" || String(m.game_id).startsWith("replay-")) {
         // A recorded replay can't be re-observed; refunding everyone is the honest outcome.
         try {
@@ -185,7 +270,7 @@ export class Hub extends EventEmitter {
         }
         continue;
       }
-      await r.restore(m, (gameId, seedA, seedB) => {
+      await (r as StreamRunner).restore(m, (gameId, seedA, seedB) => {
         const b = new LichessExportSource(gameId);
         b.seed = seedB;
         return [LichessStreamSource.open(gameId, seedA), b];
@@ -240,6 +325,7 @@ export class Hub extends EventEmitter {
     if (r && r.state.watching !== n) {
       r.state.watching = n;
       this.dirty.add(slug);
+      this.allocateSlots();
     }
   }
 

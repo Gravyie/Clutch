@@ -5,18 +5,18 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = { title: "How it works" };
 
 const LIFECYCLE = [
-  { t: "A moment", d: "An AI agent on 0G watches the game. When the outcome turns genuinely uncertain, it picks a market from a fixed list and sets the opening odds. It never writes its own questions." },
+  { t: "A moment", d: "An AI agent watches the live stream itself, reading the scoreboard, the clock and the game state from the video. When the outcome turns genuinely uncertain, it picks a market from a fixed list and sets the opening odds. It never writes its own questions." },
   { t: "Rules locked in", d: "Before anyone can trade, the market's exact rule and timing are fingerprinted onchain. Nobody can change what counts as a win afterwards." },
   { t: "One tap", d: "Back Yes or No. Prices move with demand on a market-maker curve inside a Uniswap v4 hook, so there's always someone to trade with." },
   { t: "A safety gap", d: "Trading closes, then a gap at least as long as the stream's delay passes before anything counts. Nobody can bet on something they've already seen." },
-  { t: "Two witnesses", d: "Two independent data sources must report the same moves and result. If they disagree, or one goes quiet, the market is voided and everyone is refunded." },
+  { t: "Two witnesses", d: "Two independent readers, using different frames over separate connections, must see the same result on screen. Chess uses two separate Lichess feeds. If they disagree, or one can't see it, the market is voided and everyone is refunded." },
   { t: "A receipt", d: "Every result comes with the committed rule, both sources' readings and the evidence, stored on 0G and fingerprinted onchain. Anyone can check it." },
 ];
 
 const RULES = [
   ["The streamer can't trade", "Their verified human ID is blocked from their own markets by the contract. They're paid on volume, never outcomes."],
   ["One person, one account", "World ID proves you're a unique adult without sharing who you are. Limits and breaks follow the person, not the wallet."],
-  ["Nothing one person controls", "Questions a single player could decide for free (castling, giving check, quitting) are refused before they're listed."],
+  ["Nothing one person controls", "Questions a streamer could decide for free (saying a word, ending the stream, castling) are refused before they're listed, and reruns of finished matches never get markets."],
   ["Chain outages can't be exploited", "If the network stalls, trading pauses, and any market that traded through the outage is voided."],
 ];
 
@@ -49,7 +49,7 @@ export default function HowItWorks() {
       <div className="mt-16 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface p-6">
         <div>
           <h2 className="text-lg font-semibold">See it live</h2>
-          <p className="text-sm text-muted-foreground">Markets are opening on top Lichess games right now.</p>
+          <p className="text-sm text-muted-foreground">Markets are opening on live streams right now.</p>
         </div>
         <Button asChild className="h-11 rounded-xl px-5 font-semibold">
           <Link href="/browse">Browse channels</Link>

@@ -12,17 +12,17 @@ import { useAccount } from "@/lib/account";
 import { api, useChannel, useLive } from "@/lib/live";
 import { useUI } from "@/lib/ui";
 import { compactUsd } from "@/lib/format";
+import { channelRank } from "@/components/shell";
 
 export default function Home() {
   const streams = useLive((s) => s.streams);
   const markets = useLive((s) => s.markets);
   const receipts = useLive((s) => s.receipts);
-  const list = Object.values(streams);
+  const list = Object.values(streams).sort(channelRank);
   const liveMarkets = Object.values(markets)
     .filter(isOpen)
     .sort((a, b) => (a.phase === "trading" ? 0 : 1) - (b.phase === "trading" ? 0 : 1) || b.volume - a.volume);
-  const featured =
-    list.find((s) => s.market?.phase === "trading" && s.live) ?? list.filter((s) => s.live).sort((a, b) => b.watching - a.watching)[0] ?? list[0];
+  const featured = list.find((s) => s.market?.phase === "trading" && s.media?.kind === "video") ?? list[0];
 
   return (
     <div className="mx-auto max-w-[1480px] space-y-12 px-4 py-6 sm:px-6">
@@ -45,9 +45,9 @@ export default function Home() {
       </section>
 
       <section>
-        <SectionHead title="Channels" href="/browse" />
+        <SectionHead title="Live now" href="/browse" />
         <div className="grid gap-x-5 gap-y-8 sm:grid-cols-2 xl:grid-cols-4">
-          {list.map((s) => (
+          {list.filter((s) => s.live).slice(0, 12).map((s) => (
             <ChannelCard key={s.slug} s={s} />
           ))}
         </div>

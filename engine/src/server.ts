@@ -1,4 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createHmac } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import { isAddress } from "viem";
 import type { ClientMessage, ServerMessage } from "@clutch/shared";
@@ -105,7 +108,7 @@ export function serve(hub: Hub) {
       h: async ({ user }) => {
         const p = await one<{ name: string | null; lichess: string | null; created_at: number }>(`SELECT name, lichess, created_at FROM profiles WHERE address = ?`, [user!]);
         const nullifier = await nullifierOf(user!);
-        const streams = [...hub.runners.values()].filter((r) => r.row.owner_address === user && r.row.kind === "lichess-user").map((r) => r.state);
+        const streams = [...hub.runners.values()].filter((r) => r.row.owner_address === user && r.row.owner_nullifier !== "0").map((r) => r.state);
         return { address: user, name: p?.name ?? null, lichess: p?.lichess ?? null, verifiedHuman: Boolean(nullifier), streams };
       },
     },
@@ -184,6 +187,18 @@ export function serve(hub: Hub) {
         return { slug: row.slug };
       },
     },
+    { method: "POST", re: /^\/studio\/claim-code$/, auth: true, h: ({ user }) => ({ code: claimCode(user!) }) },
+    {
+      method: "POST",
+      re: /^\/studio\/video$/,
+      auth: true,
+      h: async ({ user, body }) => {
+        const nullifier = await nullifierOf(user!);
+        if (!nullifier) throw httpError(400, "Verify you're a unique human first. It's what stops you trading your own markets.");
+        const row = await hub.createVideoChannel({ address: user!, nullifier, url: String(body.url ?? ""), code: claimCode(user!), title: body.title });
+        return { slug: row.slug };
+      },
+    },
     {
       method: "POST",
       re: /^\/studio\/([\w-]+)\/veto$/,
@@ -218,6 +233,15 @@ export function serve(hub: Hub) {
     cors(req, res);
     if (req.method === "OPTIONS") return res.writeHead(204).end();
     const url = new URL(req.url ?? "/", "http://x");
+
+    // What the AI sees: latest frame per channel (/frames/<slug>.jpg) and evidence frames (/frames/<sha256>.jpg).
+    const fr = url.pathname.match(/^\/frames\/([a-z0-9_-]{1,64})\.jpg$/);
+    if (fr && req.method === "GET") {
+      const p = join(config.dataDir, "frames", `${fr[1]}.jpg`);
+      if (!existsSync(p)) return json(res, 404, { error: "not found" });
+      res.writeHead(200, { "Content-Type": "image/jpeg", "Cache-Control": /^[0-9a-f]{64}$/.test(fr[1]) ? "public, max-age=31536000, immutable" : "no-store" });
+      return res.end(readFileSync(p));
+    }
 
     const ev = url.pathname.match(/^\/evidence\/(0x[0-9a-fA-F]{64})$/);
     if (ev && req.method === "GET") {
@@ -300,6 +324,11 @@ export function serve(hub: Hub) {
   });
 
   server.listen(config.port, () => log.info(`engine on http://localhost:${config.port} (ws /ws)`));
+}
+
+/** One-time code a streamer puts in their live title to prove they control the channel. */
+function claimCode(address: string) {
+  return `clutch-${createHmac("sha256", config.authSecret).update(address).digest("hex").slice(0, 6)}`;
 }
 
 function send(ws: WebSocket, m: ServerMessage) {

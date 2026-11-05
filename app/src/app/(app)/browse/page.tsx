@@ -5,19 +5,24 @@ import { ChannelCard } from "@/components/stream";
 import { MarketCard, isOpen } from "@/components/market";
 import { useLive } from "@/lib/live";
 import { cn } from "@/lib/utils";
+import { channelRank } from "@/components/shell";
 
 const FILTERS = [
   { id: "all", label: "All" },
   { id: "markets", label: "Live markets" },
-  { id: "creators", label: "Creators" },
-  { id: "house", label: "Lichess TV" },
+  { id: "fps", label: "Shooters" },
+  { id: "battle-royale", label: "Battle royale" },
+  { id: "moba", label: "MOBA" },
+  { id: "sports", label: "Sports" },
+  { id: "chess", label: "Chess" },
+  { id: "irl", label: "IRL" },
 ] as const;
 
 export default function Browse() {
   const [f, setF] = useState<(typeof FILTERS)[number]["id"]>("all");
-  const streams = Object.values(useLive((s) => s.streams)).sort((a, b) => Number(b.live) - Number(a.live) || b.watching - a.watching);
+  const streams = Object.values(useLive((s) => s.streams)).sort(channelRank);
   const markets = Object.values(useLive((s) => s.markets)).filter(isOpen);
-  const shown = streams.filter((s) => (f === "creators" ? s.kind === "lichess-user" : f === "house" ? s.kind !== "lichess-user" : true));
+  const shown = streams.filter((s) => f === "all" || s.category === f);
   return (
     <div className="mx-auto max-w-[1480px] px-4 py-6 sm:px-6">
       <h1 className="text-3xl font-semibold tracking-tight">Browse</h1>

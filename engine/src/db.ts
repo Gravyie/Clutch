@@ -100,8 +100,11 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL)`,
 ];
 
+const COLUMNS = [`ALTER TABLE streams ADD COLUMN platform TEXT`, `ALTER TABLE streams ADD COLUMN channel TEXT`, `ALTER TABLE streams ADD COLUMN category TEXT`];
+
 export async function migrate() {
   for (const s of SCHEMA) await db.execute(s);
+  for (const c of COLUMNS) await db.execute(c).catch(() => {}); // already present
 }
 
 export async function all<T = Record<string, unknown>>(sql: string, args: InValue[] = []): Promise<T[]> {

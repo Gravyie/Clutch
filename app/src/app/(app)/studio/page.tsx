@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { BroadcastIcon, CheckIcon, CircleNotchIcon, CopyIcon, PauseIcon, PlayIcon, TwitchLogoIcon } from "@phosphor-icons/react";
 import { toast } from "sonner";
-import { ClutchHookAbi, STEERABILITY_LIMIT, TEMPLATES, toUsdc, type StreamState } from "@clutch/shared";
+import { ClutchHookAbi, STEERABILITY_LIMIT, TEMPLATES, VISION_TEMPLATES, toUsdc, type StreamState } from "@clutch/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -85,8 +85,8 @@ function Hero({ children }: { children: React.ReactNode }) {
       <div className="grid size-14 place-items-center rounded-2xl bg-raised">
         <BroadcastIcon size={28} />
       </div>
-      <h1 className="mt-5 text-4xl font-semibold tracking-tighter">Turn your games into markets</h1>
-      <p className="mt-3 max-w-[48ch] text-muted-foreground">Connect your Lichess account. Clutch opens markets on your games automatically, and you earn 0.5% of every market's volume.</p>
+      <h1 className="mt-5 text-4xl font-semibold tracking-tighter">Turn your stream into markets</h1>
+      <p className="mt-3 max-w-[50ch] text-muted-foreground">Twitch, Kick, YouTube or Lichess. Clutch's AI watches your stream, opens markets on the tense moments, and pays you 0.5% of every market's volume.</p>
       <div className="mt-7">{children}</div>
     </div>
   );
@@ -125,7 +125,120 @@ function useLichessCallback(token: string | undefined, onDone: () => void) {
   }, [params, token]);
 }
 
-function Setup({ me, token, onDone }: { me: Me; token: string; onDone: () => void }) {
+function Setup(props: { me: Me; token: string; onDone: () => void }) {
+  const [mode, setMode] = useState<"video" | "lichess">("video");
+  return (
+    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8 sm:px-6">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight">Bring your stream</h1>
+        <p className="mt-1 text-muted-foreground">Clutch's AI watches your stream and opens markets on the tense moments. You earn 0.5% of every market's volume.</p>
+      </div>
+      <div className="flex gap-2">
+        {(
+          [
+            ["video", "Twitch, Kick or YouTube"],
+            ["lichess", "Lichess games"],
+          ] as const
+        ).map(([id, label]) => (
+          <button key={id} onClick={() => setMode(id)} className={cn("h-9 rounded-full px-4 text-sm font-medium", mode === id ? "bg-foreground text-background" : "bg-raised text-muted-foreground hover:text-foreground")}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {mode === "video" ? <VideoSetup {...props} /> : <LichessSetup {...props} />}
+    </div>
+  );
+}
+
+function VideoSetup({ me, token, onDone }: { me: Me; token: string; onDone: () => void }) {
+  const openOnboarding = useUI((s) => s.openOnboarding);
+  const acct = useAccount();
+  const [url, setUrl] = useState("");
+  const [title, setTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+  const verified = me.verifiedHuman || !!acct.pass;
+  const { data: code } = useQuery({ queryKey: ["claim", token], queryFn: () => api<{ code: string }>("/studio/claim-code", { body: {}, token }) });
+  async function create() {
+    setBusy(true);
+    try {
+      await api("/studio/video", { body: { url, title: title || undefined }, token });
+      toast.success("Your channel is on Clutch");
+      onDone();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <ol className="space-y-3">
+      <li className="surface flex items-start gap-4 p-4">
+        <StepDot n={1} done={verified} />
+        <div className="flex-1">
+          <div className="text-sm font-semibold">Verify you're a unique human</div>
+          <p className="mt-0.5 text-sm text-muted-foreground">Your verified ID is what blocks you from trading your own markets.</p>
+        </div>
+        {!verified && (
+          <Button size="sm" className="rounded-lg" onClick={openOnboarding}>
+            Verify
+          </Button>
+        )}
+      </li>
+      <li className={cn("surface space-y-3 p-4", !verified && "pointer-events-none opacity-50")}>
+        <div className="flex items-start gap-4">
+          <StepDot n={2} done={false} />
+          <div>
+            <div className="text-sm font-semibold">Prove it's your channel</div>
+            <p className="mt-0.5 text-sm text-muted-foreground">Go live with this code anywhere in your stream title. You can remove it once you're set up.</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-sunk px-3 py-2">
+          <code className="flex-1 font-mono text-sm font-semibold tracking-wide">{code?.code ?? "…"}</code>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 rounded-md"
+            onClick={() => {
+              void navigator.clipboard.writeText(code?.code ?? "");
+              toast.success("Code copied");
+            }}
+          >
+            <CopyIcon /> Copy
+          </Button>
+        </div>
+      </li>
+      <li className={cn("surface space-y-4 p-4", !verified && "pointer-events-none opacity-50")}>
+        <div className="flex items-start gap-4">
+          <StepDot n={3} done={false} />
+          <div>
+            <div className="text-sm font-semibold">Connect your channel</div>
+            <p className="mt-0.5 text-sm text-muted-foreground">Shooters, battle royale, MOBA and sports get markets. On IRL streams the AI refuses anything you could decide yourself.</p>
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-[1.4fr_1fr]">
+          <div>
+            <Label htmlFor="url" className="text-xs text-muted-foreground">Channel link</Label>
+            <Input id="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="twitch.tv/yourname" className="mt-1.5 h-10 rounded-lg" />
+          </div>
+          <div>
+            <Label htmlFor="vtitle" className="text-xs text-muted-foreground">Display name (optional)</Label>
+            <Input id="vtitle" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1.5 h-10 rounded-lg" maxLength={40} />
+          </div>
+        </div>
+        <Button className="h-11 w-full rounded-xl font-semibold" onClick={create} disabled={busy || url.length < 6}>
+          {busy ? <CircleNotchIcon className="animate-spin" /> : null}
+          {busy ? "Checking your stream and creating your market pool…" : "Verify and create channel"}
+        </Button>
+      </li>
+    </ol>
+  );
+}
+
+function StepDot({ n, done }: { n: number; done: boolean }) {
+  return <span className={cn("grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold", done ? "bg-yes text-background" : "bg-raised")}>{done ? <CheckIcon size={14} weight="bold" /> : n}</span>;
+}
+
+function LichessSetup({ me, token, onDone }: { me: Me; token: string; onDone: () => void }) {
   const { data: cfg } = useConfig();
   const openOnboarding = useUI((s) => s.openOnboarding);
   const acct = useAccount();
@@ -161,11 +274,7 @@ function Setup({ me, token, onDone }: { me: Me; token: string; onDone: () => voi
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8 sm:px-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Set up your channel</h1>
-        <p className="mt-1 text-muted-foreground">Three steps. Your markets start the next time you play.</p>
-      </div>
+    <div>
       <ol className="space-y-3">
         {steps.map((s, i) => (
           <li key={i} className="surface flex items-start gap-4 p-4">
@@ -253,7 +362,7 @@ function Dashboard({ s, token }: { s: StreamState; token: string }) {
         <Avatar name={s.title} size={56} />
         <div className="flex-1">
           <h1 className="text-2xl font-semibold tracking-tight">{s.title}</h1>
-          <p className="text-sm text-muted-foreground">{s.live ? "Live now. Markets are opening on your game." : "Offline. Start a game on Lichess and your channel goes live."}</p>
+          <p className="text-sm text-muted-foreground">{s.live ? "Live now. The AI is watching for moments." : s.media?.kind === "video" ? "Offline. Go live and markets start automatically." : "Offline. Start a game on Lichess and your channel goes live."}</p>
         </div>
         <Button variant="secondary" className="rounded-xl" asChild>
           <Link href={`/c/${s.slug}`}>View channel</Link>
@@ -291,7 +400,7 @@ function Dashboard({ s, token }: { s: StreamState; token: string }) {
             <p className="text-xs text-muted-foreground">Turn off anything you don't want. Types one person could decide are never listed.</p>
           </div>
           <ul className="divide-y divide-border">
-            {TEMPLATES.map((t) => {
+            {(s.media?.kind === "video" ? VISION_TEMPLATES : TEMPLATES).map((t: any) => {
               const blocked = t.safety !== "game" || t.steerability > STEERABILITY_LIMIT;
               const on = !blocked && !s.vetoed.includes(t.id);
               return (

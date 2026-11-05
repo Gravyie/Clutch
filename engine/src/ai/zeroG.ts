@@ -56,6 +56,14 @@ export class ZeroG {
     }
   }
 
+  /** Book an inference made elsewhere (e.g. a vision read) against the daily budget. */
+  record(costUsd: number, requestId?: string) {
+    this.rollDay();
+    this.requestsToday++;
+    this.spentTodayUsd += costUsd;
+    if (requestId) this.lastRequestId = requestId;
+  }
+
   /** One JSON-mode completion. Returns the parsed object plus the 0G request id for receipts. */
   async json<T>(system: string, user: string, maxTokens = 400): Promise<{ data: T; requestId: string; latencyMs: number; costUsd: number }> {
     if (!this.client) throw new Error("0G not configured");
