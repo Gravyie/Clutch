@@ -1,0 +1,9 @@
+packages:
+  - packages/*
+  - engine
+  - app
+  - sim
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - unrs-resolver

@@ -1,0 +1,205 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Clutch design tokens.
+  Neutral zinc surfaces; colour carries meaning only: live (red), YES (green), NO (rose), warning (amber).
+  Radius system: surfaces 16px, controls 10px, chips and badges fully round.
+*/
+
+:root {
+  --radius: 0.625rem;
+
+  --background: #fafafa;
+  --surface: #ffffff;
+  --raised: #f4f4f5;
+  --sunk: #f1f1f3;
+  --foreground: #0a0a0c;
+  --muted-foreground: #5c5c66;
+  --faint: #8a8a94;
+  --border: rgb(10 10 12 / 0.09);
+  --border-strong: rgb(10 10 12 / 0.16);
+
+  --yes: #009b64;
+  --yes-soft: rgb(0 155 100 / 0.1);
+  --no: #e0244c;
+  --no-soft: rgb(224 36 76 / 0.09);
+  --live: #e5172f;
+  --warn: #b7791f;
+  --warn-soft: rgb(183 121 31 / 0.1);
+  --void: #6d5bd0;
+  --void-soft: rgb(109 91 208 / 0.1);
+
+  /* shadcn bridge */
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface);
+  --popover-foreground: var(--foreground);
+  --primary: #0a0a0c;
+  --primary-foreground: #fafafa;
+  --secondary: var(--raised);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--raised);
+  --accent: var(--raised);
+  --accent-foreground: var(--foreground);
+  --destructive: var(--no);
+  --input: var(--border-strong);
+  --ring: rgb(10 10 12 / 0.35);
+
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.6) inset, 0 1px 2px rgb(10 10 12 / 0.04), 0 8px 24px -12px rgb(10 10 12 / 0.12);
+}
+
+.dark {
+  --background: #09090b;
+  --surface: #111114;
+  --raised: #18181c;
+  --sunk: #0c0c0e;
+  --foreground: #f4f4f5;
+  --muted-foreground: #a1a1aa;
+  --faint: #6e6e78;
+  --border: rgb(255 255 255 / 0.07);
+  --border-strong: rgb(255 255 255 / 0.13);
+
+  --yes: #22d391;
+  --yes-soft: rgb(34 211 145 / 0.12);
+  --no: #ff5a76;
+  --no-soft: rgb(255 90 118 / 0.12);
+  --live: #ff3347;
+  --warn: #f5b546;
+  --warn-soft: rgb(245 181 70 / 0.12);
+  --void: #a99bff;
+  --void-soft: rgb(169 155 255 / 0.12);
+
+  --primary: #f4f4f5;
+  --primary-foreground: #09090b;
+  --ring: rgb(255 255 255 / 0.35);
+
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px -16px rgb(0 0 0 / 0.6);
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-sunk: var(--sunk);
+  --color-faint: var(--faint);
+  --color-border-strong: var(--border-strong);
+  --color-yes: var(--yes);
+  --color-yes-soft: var(--yes-soft);
+  --color-no: var(--no);
+  --color-no-soft: var(--no-soft);
+  --color-live: var(--live);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-void: var(--void);
+  --color-void-soft: var(--void-soft);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 6px);
+
+  --shadow-card: var(--shadow-card);
+
+  --animate-live: live 1.6s ease-in-out infinite;
+  @keyframes live {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+  --animate-shimmer: shimmer 2.2s linear infinite;
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to { background-position: 200% 0; }
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply bg-background;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection {
+    background: var(--yes);
+    color: var(--background);
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .surface {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-card);
+  }
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .shimmer {
+    background: linear-gradient(90deg, transparent, rgb(127 127 127 / 0.08), transparent) 0 0 / 200% 100%;
+    animation: var(--animate-shimmer);
+  }
+  .mask-fade-r {
+    mask-image: linear-gradient(90deg, #000 85%, transparent);
+  }
+}
+
+/* OBS browser source: fully transparent page. */
+html:has(body.overlay),
+body.overlay {
+  background: transparent !important;
+}
+
+.overlay-in {
+  animation: overlay-in 420ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+@keyframes overlay-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

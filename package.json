@@ -1,0 +1,16 @@
+{
+  "name": "clutch",
+  "private": true,
+  "packageManager": "pnpm@10.10.0",
+  "scripts": {
+    "chain": "anvil --block-time 1",
+    "deploy:local": "bash scripts/deploy-local.sh",
+    "abis": "node scripts/export-abis.mjs",
+    "engine": "pnpm --filter @clutch/engine dev",
+    "app": "pnpm --filter @clutch/app dev",
+    "sim": "pnpm --filter @clutch/sim start",
+    "dev": "bash scripts/dev.sh",
+    "test:contracts": "cd contracts && forge test",
+    "test": "pnpm -r test"
+  }
+}
