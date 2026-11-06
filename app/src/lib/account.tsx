@@ -26,6 +26,7 @@ export interface EngineConfig {
     ethPool: { currency0: `0x${string}`; currency1: `0x${string}`; fee: number; tickSpacing: number };
   };
   twitchClientId?: string;
+  faucet?: { starter: number; humanDaily: number };
   world: { configured: boolean; appId?: `app_${string}`; action: string; environment: "production" | "staging"; agentPass?: boolean; agentPassDev?: boolean };
   zeroG: { provider: "0g" | "heuristic"; model: string; storage: "0g" | "local" };
   lichessClientId: string;

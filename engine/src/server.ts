@@ -55,6 +55,7 @@ export function serve(hub: Hub) {
         // public by design (it identifies the app, it doesn't authenticate it); lets viewers connect Twitch chat
         twitchClientId: process.env.TWITCH_CLIENT_ID,
         passDailyCap: config.passDailyCapUsdc,
+        faucet: { starter: config.faucetStarterUsdc, humanDaily: config.faucetHumanDailyUsdc },
         starterDailyCap: config.starterDailyCapUsdc,
       }),
     },
@@ -180,21 +181,30 @@ export function serve(hub: Hub) {
     { method: "POST", re: /^\/pass\/dev$/, h: ({ body }) => devIssue(String(body.persona ?? "alice"), wallet(body.wallet)) },
     { method: "GET", re: /^\/pass\/limits\/(\d+)$/, h: ({ params: [n] }) => limits(n) },
 
-    // ── Testnet faucet: once per wallet per 12h, 20 per IP per day ──
+    // ── Testnet faucet ──
     {
       method: "POST",
       re: /^\/faucet$/,
+      // Free money is exactly what bots farm, so it follows the person: a new wallet gets one small starter top-up,
+      // and only a verified human (World ID) gets a daily refill, once per person however many wallets they use.
       h: async ({ body, ip }) => {
         const to = wallet(body.address);
-        const last = Number((await kvGet(`faucet:a:${to.toLowerCase()}`)) ?? 0);
-        if (Date.now() - last < 12 * 3600_000 && !isLocalChain) throw httpError(429, "This wallet was topped up recently. Try again later.");
         const day = new Date().toISOString().slice(0, 10);
         const ipCount = Number((await kvGet(`faucet:ip:${ip}:${day}`)) ?? 0);
         if (ipCount >= 20 && !isLocalChain) throw httpError(429, "Daily faucet limit reached for this network.");
-        const r = await chain.faucet(to);
-        await kvSet(`faucet:a:${to.toLowerCase()}`, String(Date.now()));
+        const human = await nullifierOf(to);
+        let usdc: number;
+        if (human) {
+          if (await kvGet(`faucet:h:${human}:${day}`)) throw httpError(429, "You've had today's free funds. They refill at 00:00 UTC.");
+          await kvSet(`faucet:h:${human}:${day}`, String(Date.now()));
+          usdc = config.faucetHumanDailyUsdc;
+        } else {
+          if (await kvGet(`faucet:w:${to.toLowerCase()}`)) throw Object.assign(httpError(403, `This wallet already had its starter funds. Verify with World ID for ${config.faucetHumanDailyUsdc} free test USDC every day.`), { code: "verify" });
+          await kvSet(`faucet:w:${to.toLowerCase()}`, String(Date.now()));
+          usdc = config.faucetStarterUsdc;
+        }
         await kvSet(`faucet:ip:${ip}:${day}`, String(ipCount + 1));
-        return r;
+        return { ...(await chain.faucet(to, usdc)), human: Boolean(human) };
       },
     },
 
@@ -310,7 +320,7 @@ export function serve(hub: Hub) {
       } catch (e: any) {
         if (e instanceof PassRefused) return json(res, 403, { error: e.code, message: e.message });
         if (e instanceof AuthError) return json(res, 401, { error: "auth", message: e.message });
-        if (e?.status) return json(res, e.status, { error: e.message, message: e.message });
+        if (e?.status) return json(res, e.status, { error: e.code ?? e.message, code: e.code, message: e.message });
         log.error(req.method, url.pathname, e.shortMessage ?? e.message);
         return json(res, 500, { error: "server", message: "Something went wrong on our side." });
       }

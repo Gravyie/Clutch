@@ -1,23 +1,32 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { TrophyIcon } from "@phosphor-icons/react";
+import { SealCheckIcon, TrophyIcon } from "@phosphor-icons/react";
 import type { LeaderRow } from "@clutch/shared";
 import { Avatar } from "@/components/brand";
 import { useAccount } from "@/lib/account";
+import { useUI } from "@/lib/ui";
 import { api } from "@/lib/live";
 import { compactUsd, short, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export default function Leaderboard() {
   const acct = useAccount();
+  const verify = useUI((s) => s.openVerify);
   const { data, isLoading } = useQuery({ queryKey: ["leaderboard"], queryFn: () => api<LeaderRow[]>("/leaderboard"), refetchInterval: 20_000 });
   const rows = data ?? [];
   return (
     <div className="mx-auto max-w-[900px] space-y-6 px-4 py-6 sm:px-6">
-      <div>
-        <h1 className="display text-3xl font-bold">Leaderboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Ranked by realized profit on settled markets. One row per wallet.</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="display text-3xl font-bold">Leaderboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Real people only, ranked by profit on settled markets. All of a person’s wallets count as one.</p>
+        </div>
+        {!acct.verified && (
+          <button onClick={() => verify()} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-brand px-5 text-sm font-semibold text-brand-foreground hover:bg-brand/90">
+            <SealCheckIcon size={16} weight="fill" /> Verify to get ranked
+          </button>
+        )}
       </div>
       {rows.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-3">

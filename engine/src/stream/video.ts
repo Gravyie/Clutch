@@ -69,6 +69,9 @@ const MAX_LIVE = 2; // one trading + one playing out, so there's almost always s
  * the same verdict or the market voids and everyone is refunded. Reruns never get markets.
  */
 /** how long a counter rests after carrying a market (a market is open ~60-90s, so this is roughly "not back to back") */
+/** seconds between reader A reads while no market is live on the channel */
+const IDLE_READ_SEC = Number(process.env.IDLE_READ_SEC ?? 6);
+
 const REPEAT_COOLDOWN_SEC = Number(process.env.REPEAT_COOLDOWN_SEC ?? 75);
 
 const SCREEN: Record<string, string> = { menu: "a menu", replay: "a replay", break: "a break screen", camera: "the camera, not the game", other: "something other than gameplay" };
@@ -205,8 +208,17 @@ export class VideoRunner extends EventEmitter {
 
   // ─── Reader A ────────────────────────────────────────────────────────────────────────────────
 
+  private lastReadAt = 0;
+  private pausedUntil = 0;
+
   private async perceive(f: Frame) {
     if (this.perceiving) return; // the next frame is fresher anyway
+    // Budget: read every frame only while a market is live; between markets one read every IDLE_READ_SEC is enough
+    // to catch the next moment, and costs a third as much.
+    const now = Date.now();
+    if (now < this.pausedUntil) return;
+    if (!this.live.length && now - this.lastReadAt < IDLE_READ_SEC * 1000) return;
+    this.lastReadAt = now;
     this.perceiving = true;
     try {
       const r = await this.readers.a.discover(f.jpeg, this.state.game);
@@ -218,7 +230,11 @@ export class VideoRunner extends EventEmitter {
       for (const m of this.live) if (m.view.phase === "window" && !m.resolving && this.evalA(m, false) !== "PENDING") void this.confirm(m);
       void this.maybeOpen();
     } catch (e: any) {
-      log.warn(`${this.row.slug} reader A`, e.message);
+      if (/budget spent/.test(e.message)) {
+        // The daily cap is a hard stop: rest a minute instead of retrying every frame.
+        if (!this.pausedUntil || now - this.pausedUntil > 5 * 60_000) log.warn(`${this.row.slug}: ${e.message}`);
+        this.pausedUntil = Date.now() + 60_000;
+      } else log.warn(`${this.row.slug} reader A`, e.message);
     } finally {
       this.perceiving = false;
     }
@@ -241,7 +257,8 @@ export class VideoRunner extends EventEmitter {
     const latest = this.timeline[this.timeline.length - 1];
     if (!latest || latest.state.mode !== "gameplay") return;
     const counters = this.steadyCounters();
-    const pov = latest.state.povAlive === true && this.timeline.slice(-3).filter((r) => r.state.povAlive === true).length >= 2;
+    // "Will the streamer survive?" is decided by the person on camera, who can throw it; Clutch never opens it.
+    const pov = false;
     if (!counters.length && !pov) return;
 
     this.proposing = true;
@@ -290,7 +307,7 @@ export class VideoRunner extends EventEmitter {
     this.lastProposalAt = Date.now();
     try {
       const counters = this.steadyCounters();
-      const pov = latest.state.povAlive === true;
+      const pov = false; // never open markets the streamer controls (see maybeOpen)
       this.lastDecline = "";
       const pick = await this.choose(counters, latest.state, pov, viewer, 1);
       if (!pick) return { ok: false, reason: `No fair market right now: ${this.lastDecline || "nothing on screen is uncertain enough"}. Try again in a few seconds.` };
@@ -344,8 +361,7 @@ Allowed kinds:
 - reaches: a counter reaches a threshold
 - drops_below: a counter falls below a threshold (players left, health, shield)
 - race: counter key increases before counter key2 (e.g. which team scores first)
-- survives: the streamer's player is still alive at the end (only if povAlive, and only when no counter makes a good market)
-Rules: use only the exact counter keys in "counters" (copy them character for character); never use counters the streamer alone controls (ammo, money spent) or clocks; it must be contested by opponents or chance. seconds between 20 and 60. pYes is your calibrated probability (viewers trade against it), between 0.15 and 0.85. question: natural, punchy, at most 60 characters, ends with "?", must mean exactly the structured rule (name the team/player when known). Prefer counter markets (scores, kills, players left) over "survives". Vary the market: avoid repeating recent ones: ${JSON.stringify([...recent, ...this.recentQuestions])}.
+Rules: use only the exact counter keys in "counters" (copy them character for character); never use counters the streamer or the player on camera alone controls (their own survival, ammo, money spent) or clocks; it must be contested by opponents or chance (team scores, rounds, who scores first, players left in a lobby). seconds between 20 and 60. pYes is your calibrated probability (viewers trade against it), between 0.15 and 0.85. question: natural, punchy, at most 60 characters, ends with "?", must mean exactly the structured rule (name the team/player when known). Vary the market: avoid repeating recent ones: ${JSON.stringify([...recent, ...this.recentQuestions])}.
 Respond with JSON only: {"kind","key","key2","threshold","seconds","pYes","question","contested","rationale"}`,
           JSON.stringify({ game: s.game ?? this.state.game, streamTitle: this.state.streamTitle, summary: s.summary, povAlive: s.povAlive, counters, history }),
         );
@@ -383,10 +399,6 @@ Respond with JSON only: {"kind","key","key2","threshold","seconds","pYes","quest
     }
     // Without 0G: the first steady contested counter, at an even-ish base rate.
     const c = counters[0];
-    if (!c && pov) {
-      const spec: CounterSpec = { kind: "goes_up", key: "__pov_alive", label: "Streamer alive", seconds: 45 };
-      return { spec, question: "Streamer survives the next 45s?", p: 0.6, ai: { provider: "heuristic", model: "base rates", rationale: "Survival base rate." } as AiDecision };
-    }
     if (!c) return null;
     const spec: CounterSpec = { kind: "goes_up", key: c.key, label: c.label, seconds: 45 };
     return { spec, question: defaultQuestion(spec), p: 0.45, ai: { provider: "heuristic", model: "base rates", rationale: `Read "${c.label}" = ${c.value} from the stream.` } as AiDecision };

@@ -181,14 +181,20 @@ export async function portfolio(address: string): Promise<Portfolio> {
   };
 }
 
+/**
+ * The leaderboard ranks people, not wallets: only wallets linked to a verified human (World ID) count, and a person's
+ * wallets add up to one row. A bot farm with a thousand wallets can't fill it, and one person can't hold ten places.
+ */
 export async function leaderboard(limit = 50): Promise<LeaderRow[]> {
   const rows = await all<PosRow>(`${POSITION_SELECT} WHERE m.phase IN ('settled','void') GROUP BY t.market_id, t.trader`);
   const names = new Map((await all<{ address: string; name: string | null }>(`SELECT address, name FROM profiles`)).map((r) => [r.address, r.name ?? undefined]));
-  const by = new Map<string, { pnl: number; volume: number; markets: number; wins: number; decided: number }>();
+  const humanOf = new Map((await all<{ address: string; nullifier: string }>(`SELECT address, nullifier FROM human_wallets`)).map((r) => [r.address.toLowerCase(), r.nullifier]));
+  const by = new Map<string, { address: string; pnl: number; volume: number; markets: number; wins: number; decided: number }>();
   for (const r of rows) {
+    const human = humanOf.get(r.trader!.toLowerCase());
+    if (!human) continue;
     const p = toPosition(r);
-    const k = r.trader!;
-    const e = by.get(k) ?? { pnl: 0, volume: 0, markets: 0, wins: 0, decided: 0 };
+    const e = by.get(human) ?? { address: r.trader!, pnl: 0, volume: 0, markets: 0, wins: 0, decided: 0 };
     e.pnl += p.value - p.cost;
     e.volume += p.cost;
     e.markets += 1;
@@ -196,12 +202,12 @@ export async function leaderboard(limit = 50): Promise<LeaderRow[]> {
       e.decided += 1;
       if (p.value > p.cost) e.wins += 1;
     }
-    by.set(k, e);
+    by.set(human, e);
   }
-  return [...by.entries()]
-    .sort((a, b) => b[1].pnl - a[1].pnl)
+  return [...by.values()]
+    .sort((a, b) => b.pnl - a.pnl)
     .slice(0, limit)
-    .map(([address, e], i) => ({ rank: i + 1, address: address as `0x${string}`, name: names.get(address), pnl: e.pnl, volume: e.volume, markets: e.markets, winRate: e.decided ? e.wins / e.decided : 0 }));
+    .map((e, i) => ({ rank: i + 1, address: e.address as `0x${string}`, name: names.get(e.address), pnl: e.pnl, volume: e.volume, markets: e.markets, winRate: e.decided ? e.wins / e.decided : 0 }));
 }
 
 export async function todayByStream() {

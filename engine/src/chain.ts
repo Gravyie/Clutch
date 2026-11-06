@@ -206,15 +206,15 @@ export async function readChainState(): Promise<ChainState> {
 }
 
 /** Testnet faucet: test USDC (open mint) plus a little gas. */
-export async function faucet(to: `0x${string}`) {
+export async function faucet(to: `0x${string}`, usdc: number) {
   return asOwner(async () => {
-    const usdcTx = await ownerWallet.writeContract({ address: d.usdc, abi: MockUSDCAbi, functionName: "mint", args: [to, fromUsdc(config.faucetUsdc)] });
+    const usdcTx = await ownerWallet.writeContract({ address: d.usdc, abi: MockUSDCAbi, functionName: "mint", args: [to, fromUsdc(usdc)] });
     const bal = await publicClient.getBalance({ address: to });
     let ethTx: Hex | undefined;
     if (bal < parseEther(config.faucetEth) / 2n) ethTx = await ownerWallet.sendTransaction({ to, value: parseEther(config.faucetEth) });
     await confirm(usdcTx);
     if (ethTx) await confirm(ethTx);
-    return { usdcTx, ethTx, usdc: config.faucetUsdc };
+    return { usdcTx, ethTx, usdc };
   });
 }
 

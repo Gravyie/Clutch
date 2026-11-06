@@ -16,10 +16,17 @@ const check = (name, ok = true, detail = "") => {
   console.log(`${ok ? "✓" : "✗"} ${name}${detail ? ` · ${detail}` : ""}`);
 };
 
+// With Privy on, tests take the "Continue as guest" path (the same fallback a viewer has).
+async function guest(page) {
+  const b = page.getByRole("button", { name: "Continue as guest" });
+  if (await b.waitFor({ timeout: 8000 }).then(() => true, () => false)) await b.click();
+}
+
 // Sign in and that's it: a starter pass and test funds land by themselves.
 async function onboard(page) {
   await page.goto(APP + "/live");
   await page.getByRole("button", { name: "Sign in" }).first().click();
+  await guest(page);
   await page.getByText("Every trade is one tap now").waitFor({ timeout: 60_000 });
   await page.keyboard.press("Escape");
 }
@@ -114,6 +121,7 @@ async function liveMarket(slug, minLeft = 10, waitSec = 90) {
   const s = await liveMarket(undefined, 16, 300);
   await page.goto(`${APP}/c/${s.slug}`);
   await page.getByTestId("round").getByRole("button", { name: /^Yes/ }).click();
+  await guest(page);
   const ok = await page.getByText(/^Yes · \$\d+ in$/).waitFor({ timeout: 60_000 }).then(() => true, () => false);
   check("first tap survives onboarding: the trade goes through once the wallet is ready", ok, `${s.slug} #${s.market.id}`);
   await page.screenshot({ path: `${OUT}/7-first-tap.png` });

@@ -108,6 +108,7 @@ function Option({ icon, title, body, onClick, disabled, badge }: { icon: React.R
 
 function Deposit({ go }: { go: (v: View) => void }) {
   const acct = useAccount();
+  const verify = useUI((s) => s.openVerify);
   const { data: cfg } = useConfig();
   const [busy, setBusy] = useState(false);
   return (
@@ -126,8 +127,13 @@ function Deposit({ go }: { go: (v: View) => void }) {
         {(cfg?.local || chain.testnet) && (
           <Option
             icon={busy ? <CircleNotchIcon size={20} className="animate-spin" /> : <DropIcon size={20} weight="bold" />}
-            title="Free test funds"
-            body="This is a test network: get test USDC and gas."
+            title={acct.verified ? "Daily free funds" : "Free starter funds"}
+            badge={acct.verified ? "Verified human" : undefined}
+            body={
+              acct.verified
+                ? `${usd(cfg?.faucet?.humanDaily ?? 100, 0)} of test USDC every day, once per person.`
+                : `A one-time ${usd(cfg?.faucet?.starter ?? 25, 0)} for this wallet. Verify with World ID for ${usd(cfg?.faucet?.humanDaily ?? 100, 0)} every day.`
+            }
             disabled={busy}
             onClick={async () => {
               setBusy(true);
@@ -136,7 +142,8 @@ function Deposit({ go }: { go: (v: View) => void }) {
                 toast.success("Test funds added");
                 go("home");
               } catch (e: any) {
-                toast.error(e.message);
+                if (e.code === "verify") toast.error("Starter funds already used", { description: e.message, action: { label: "Verify", onClick: () => verify() } });
+                else toast.error(e.message);
               } finally {
                 setBusy(false);
               }

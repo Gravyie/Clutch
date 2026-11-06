@@ -29,7 +29,7 @@ export function Onboarding() {
   const wallet = useWallet();
   const acct = useAccount();
   // Sign in, and that's it: a guest wallet is created silently, a starter pass and free test funds follow on their
-  // own. World ID is an upgrade the viewer opens on purpose (higher, per-person limits and agents), never a gate.
+  // own. World ID is an upgrade the viewer opens on purpose (free daily funds, the leaderboard, a per-person limit), never a gate.
   const verifying = useUI((s) => s.verifying);
   const step: Step =
     !wallet.address && wallet.kind === "privy" ? "signin" : verifying && !acct.verified ? "human" : !acct.pass ? "starter" : !acct.onboarded ? "fund" : "done";
@@ -103,6 +103,11 @@ function SignInStep() {
         <ArrowRightIcon />
       </Button>
       {wallet.kind === "guest" && <p className="mt-3 text-xs text-faint">Guest wallets live in this browser only. Clearing site data removes it.</p>}
+      {wallet.continueAsGuest && (
+        <button onClick={() => wallet.continueAsGuest?.()} className="mt-4 w-full text-center text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
+          Continue as guest
+        </button>
+      )}
     </div>
   );
 }
@@ -186,7 +191,7 @@ function HumanStep() {
       <StepHead
         icon={<FingerprintIcon size={20} />}
         title="Prove you're one real person"
-        body="One World ID check, Proof of Human only. It raises your limit to a per-person daily cap across every wallet you use, and lets you authorize trading agents. We never see your name or documents."
+        body="One World ID check, Proof of Human only. It unlocks free test funds every day, a place on the leaderboard and a higher daily limit, each once per person however many wallets you use. We never see your name or documents."
       />
       {cfg?.world.configured ? (
         <Button size="lg" className="h-11 w-full rounded-[10px] text-sm font-semibold" onClick={world}>
@@ -247,12 +252,13 @@ function HumanStep() {
 /** Runs by itself: free test funds land, and the viewer is ready. No buttons, no approvals. */
 function FundStep() {
   const acct = useAccount();
-  const [err, setErr] = useState<string | null>(null);
+  const verify = useUI((s) => s.openVerify);
+  const [err, setErr] = useState<{ message: string; code?: string } | null>(null);
   const [tries, setTries] = useState(0);
   useEffect(() => {
     let live = true;
     setErr(null);
-    acct.fund().catch((e: any) => live && setErr(e.message));
+    acct.fund().catch((e: any) => live && setErr({ message: e.message, code: e.code }));
     return () => {
       live = false;
     };
@@ -267,10 +273,16 @@ function FundStep() {
       </ul>
       {err && (
         <div className="space-y-3">
-          <p className="text-sm text-no">{err}</p>
-          <Button variant="secondary" className="h-10 w-full rounded-full" onClick={() => setTries((t) => t + 1)}>
-            Try again
-          </Button>
+          <p className={cn("text-sm", err.code === "verify" ? "text-muted-foreground" : "text-no")}>{err.message}</p>
+          {err.code === "verify" ? (
+            <Button className="h-10 w-full rounded-full bg-brand font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => verify()}>
+              Verify with World ID
+            </Button>
+          ) : (
+            <Button variant="secondary" className="h-10 w-full rounded-full" onClick={() => setTries((t) => t + 1)}>
+              Try again
+            </Button>
+          )}
         </div>
       )}
     </div>

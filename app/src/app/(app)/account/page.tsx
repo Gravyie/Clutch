@@ -45,7 +45,7 @@ export default function AccountPage() {
             <p className="text-sm text-muted-foreground">
               {acct.verified && acct.pass
                 ? `Verified${acct.pass.dev ? " with the test verifier" : " with World ID"}. Pass renews in ${Math.max(0, Math.round((acct.pass.expiry - Date.now() / 1000) / 3600))}h.`
-                : `Starter limit: ${usd(acct.pass?.dailyCap ?? 10, 0)} a day on this wallet. Verify with World ID for ${usd(cfg?.passDailyCap ?? 100, 0)} a day across all your wallets, plus agents.`}
+                : `Starter limit: ${usd(acct.pass?.dailyCap ?? 10, 0)} a day on this wallet. Verify with World ID for ${usd(cfg?.passDailyCap ?? 100, 0)} a day across all your wallets, free funds every day, and a place on the leaderboard.`}
             </p>
           </div>
           {acct.verified ? <CheckCircleIcon size={22} weight="fill" className="text-yes" /> : <Button size="sm" className="rounded-full" onClick={() => verify()}>Verify with World ID</Button>}

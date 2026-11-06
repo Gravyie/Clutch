@@ -18,6 +18,8 @@ export interface Wallet {
   address?: `0x${string}`;
   label?: string;
   login(): void;
+  /** with Privy on: skip the account and use a browser wallet (also the fallback if Privy can't load) */
+  continueAsGuest?(): void;
   logout(): Promise<void>;
   client(): Promise<WalletClient>;
 }
@@ -69,19 +71,22 @@ function PrivyBridge({ children }: { children: React.ReactNode }) {
     }),
     [ready, walletsReady, authenticated, w, user, login, logout, client],
   );
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  // A guest wallet chosen on this browser takes over until the viewer signs out of it.
+  const guest = useGuestWallet();
+  const chosen = useMemo<Wallet>(() => (guest.address && !authenticated ? guest : { ...value, continueAsGuest: guest.login }), [guest, value, authenticated]);
+  return <Ctx.Provider value={chosen}>{children}</Ctx.Provider>;
 }
 
 const GUEST_KEY = "clutch.guest.v2";
 
-function GuestWallet({ children }: { children: React.ReactNode }) {
+function useGuestWallet(): Wallet {
   const [pk, setPk] = useState<`0x${string}` | null>(null);
   const [ready, setReady] = useState(false);
   useEffect(() => {
     setPk(localStorage.getItem(GUEST_KEY) as `0x${string}` | null);
     setReady(true);
   }, []);
-  const value = useMemo<Wallet>(() => {
+  return useMemo<Wallet>(() => {
     const account = pk ? privateKeyToAccount(pk) : undefined;
     return {
       kind: "guest",
@@ -103,5 +108,9 @@ function GuestWallet({ children }: { children: React.ReactNode }) {
       },
     };
   }, [pk, ready]);
+}
+
+function GuestWallet({ children }: { children: React.ReactNode }) {
+  const value = useGuestWallet();
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
