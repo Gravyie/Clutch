@@ -38,6 +38,12 @@ export interface StreamRow {
   vetoed: string;
 }
 
+const MISSING = { evaluation: "MISSING", plies: 0, status: "missing", digest: `0x${"0".repeat(64)}`, excerpt: [] } as const;
+const MISSING_READINGS: Receipt["readings"] = [
+  { ...MISSING, source: "lichess:tv-stream", excerpt: [] },
+  { ...MISSING, source: "lichess:rest-export", excerpt: [] },
+];
+
 interface Active {
   view: MarketView;
   rule: Rule;
@@ -242,7 +248,13 @@ export class StreamRunner extends EventEmitter {
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [view.id, view.slug, view.question, view.template, JSON.stringify(rule), ruleHash, JSON.stringify(ai), view.pYes0, view.priceYes, view.b, view.subsidy, view.openedAt, lockTime, windowStart, windowEnd, "trading", opened.tx, f.gameId],
       );
-      this.active = { view, rule, a: this.a!, b: this.b!, resolving: false };
+      // The game can end while the market is being opened onchain; then there is nothing to settle it from.
+      if (!this.a || !this.b) {
+        this.active = { view, rule, a: undefined as any, b: undefined as any, resolving: true };
+        void this.settle(this.active, "VOID", "The game ended while the market was opening.", MISSING_READINGS);
+        return;
+      }
+      this.active = { view, rule, a: this.a, b: this.b, resolving: false };
       log.market(`${this.row.slug} #${view.id}`, `"${p.question}"`, `p=${p.pYes}`, p.ai.provider, p.ai.requestId ?? "");
       this.moment(`New market: ${p.question}`, "market");
       this.emit("market", view);
@@ -308,7 +320,7 @@ export class StreamRunner extends EventEmitter {
         verdict,
         voidReason,
         readings,
-        rawFacts: { a: act.a.facts(), b: act.b.facts() },
+        rawFacts: { a: act.a?.facts(), b: act.b?.facts() },
         agent: { address: chain.agent.address, decision: v.ai },
         createdAt: Date.now(),
       };
@@ -346,9 +358,9 @@ export class StreamRunner extends EventEmitter {
       act.retryAt = Date.now() + 5000;
       return;
     }
-    act.b.setActive?.(false);
-    if (act.a !== this.a) act.a.stop();
-    if (act.b !== this.b) act.b.stop();
+    act.b?.setActive?.(false);
+    if (act.a && act.a !== this.a) act.a.stop();
+    if (act.b && act.b !== this.b) act.b.stop();
     this.active = undefined;
     this.lastSettledAt = Date.now();
     this.changed();

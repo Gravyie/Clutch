@@ -23,8 +23,8 @@ async function onboard(page, persona) {
   await page.getByRole("button", { name: new RegExp(persona) }).click();
 }
 
-async function liveMarket(slug, minLeft = 10) {
-  for (let i = 0; i < 90; i++) {
+async function liveMarket(slug, minLeft = 10, waitSec = 90) {
+  for (let i = 0; i < waitSec; i++) {
     const streams = await (await fetch(`${ENGINE}/streams`)).json();
     const s = streams.find((x) => (!slug || x.slug === slug) && x.market?.phase === "trading" && x.market.lockTime - Date.now() / 1000 > minLeft);
     if (s) return s;
@@ -79,7 +79,7 @@ async function liveMarket(slug, minLeft = 10) {
   await page.getByRole("button", { name: "Set up wallet" }).click();
   await page.getByText("Every trade is one tap now").waitFor({ timeout: 60_000 });
   await page.keyboard.press("Escape");
-  await liveMarket("replay", 10);
+  await liveMarket("replay", 10, 360); // the replay channel opens about one market every few minutes
   await page.goto(`${APP}/c/replay`);
   const panel = page.getByTestId("round");
   await panel.getByRole("button", { name: /^Yes/ }).click();

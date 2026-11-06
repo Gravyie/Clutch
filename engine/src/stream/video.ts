@@ -43,6 +43,8 @@ interface Live {
   /** reader B's readings: window start, any confirming checks, window end */
   b: CounterReading[];
   bStarted: boolean;
+  /** reader B actually read the window start (a failed start read leaves B without a verdict) */
+  bStartRead?: boolean;
   checking: boolean;
   resolving: boolean;
   retryAt?: number;
@@ -283,8 +285,9 @@ export class VideoRunner extends EventEmitter {
     try {
       const counters = this.steadyCounters();
       const pov = latest.state.povAlive === true;
+      this.lastDecline = "";
       const pick = await this.choose(counters, latest.state, pov, viewer, 1);
-      if (!pick) return { ok: false, reason: "Nothing on screen makes a fair market right now. Try again in a few seconds." };
+      if (!pick) return { ok: false, reason: `No fair market right now: ${this.lastDecline || "nothing on screen is uncertain enough"}. Try again in a few seconds.` };
       const keys = this.keysOf(pick.spec);
       if (keys.length) {
         const fb = await grabFrame(this.ref, 1024);
@@ -300,6 +303,14 @@ export class VideoRunner extends EventEmitter {
     }
   }
 
+  /** Why the last choose() came back empty, for the viewer who asked and for the log. */
+  private lastDecline = "";
+  private decline(why: string) {
+    this.lastDecline = why;
+    log.info(`${this.row.slug}: no market (${why})`);
+    return null;
+  }
+
   private async choose(allCounters: { key: string; label: string; value: number }[], s: SceneState, povAvailable: boolean, zg: ZeroG = this.zg, memory = 3) {
     // Hard no-repeat rule, enforced here rather than requested in the prompt: a counter can't carry two of the last
     // `memory` markets, and "survives" can't run twice in a row. A viewer calling a market explicitly gets memory 1
@@ -307,7 +318,7 @@ export class VideoRunner extends EventEmitter {
     const banned = new Set(this.recentKeys.slice(0, memory));
     const counters = allCounters.filter((c) => !banned.has(c.key));
     const pov = povAvailable && !this.recentKeys.slice(0, Math.min(2, memory)).includes("__pov_alive");
-    if (!counters.length && !pov) return null;
+    if (!counters.length && !pov) return this.decline("every number on screen carried one of the last few markets");
     const recent = this.live.map((m) => m.spec.key);
     if (zg.provider === "0g") {
       const history = this.timeline.slice(-8).map((r) => ({ t: Math.round((r.at - Date.now()) / 1000), mode: r.state.mode, counters: Object.fromEntries((r.state.counters ?? []).map((c) => [c.key, c.value])) }));
@@ -332,21 +343,23 @@ Respond with JSON only: {"kind","key","key2","threshold","seconds","pYes","quest
         if (!(p >= 0.15 && p <= 0.85)) return this.refuse(d.question ?? "AI proposal", "not-uncertain", `Opening probability ${Math.round(p * 100)}% is outside 15-85%.`);
         let spec: CounterSpec;
         if (d.kind === "survives") {
-          if (!pov) return null; // banned by the no-repeat rule or not visible
+          if (!pov) return this.decline("the AI wanted a survival market, which just ran"); // banned by the no-repeat rule or not visible
           spec = { kind: "goes_up", key: "__pov_alive", label: "Streamer alive", seconds };
         } else {
           const c = counters.find((x) => x.key === d.key);
           const c2 = d.key2 ? counters.find((x) => x.key === d.key2) : undefined;
-          if (!c || (d.kind === "race" && !c2) || banned.has(c.key)) return null;
-          if (!["goes_up", "reaches", "drops_below", "race"].includes(d.kind)) return null;
+          if (!c || (d.kind === "race" && !c2) || banned.has(c.key)) return this.decline(`the AI picked "${d.key}", which isn't on screen or just ran`);
+          if (!["goes_up", "reaches", "drops_below", "race"].includes(d.kind)) return this.decline(`unknown market kind "${d.kind}"`);
           spec = { kind: d.kind, key: c.key, label: c.label, key2: c2?.key, label2: c2?.label, threshold: d.threshold !== undefined && d.threshold !== null ? Number(d.threshold) : undefined, seconds };
           // A threshold that's already met isn't a question.
-          if (spec.kind === "reaches" && !(Number(spec.threshold) > c.value)) return null;
-          if (spec.kind === "drops_below" && !(Number(spec.threshold) <= c.value)) return null;
+          if (spec.kind === "reaches" && !(Number(spec.threshold) > c.value)) return this.decline("the threshold was already reached");
+          if (spec.kind === "drops_below" && !(Number(spec.threshold) <= c.value)) return this.decline("the threshold was already passed");
         }
         const question = typeof d.question === "string" && d.question.length <= 70 && d.question.trim().endsWith("?") ? d.question.trim() : defaultQuestion(spec);
         return { spec, question, p, ai };
       } catch (e: any) {
+        // A viewer's call surfaces its own 0G error (bad key, no balance) instead of a vague "nothing fair".
+        if (zg.payer === "viewer") throw e;
         log.warn(`${this.row.slug} 0G moment call`, e.message);
         return null;
       }
@@ -363,6 +376,7 @@ Respond with JSON only: {"kind","key","key2","threshold","seconds","pYes","quest
   }
 
   private refuse(question: string, reason: Refusal["reason"], detail: string) {
+    this.lastDecline = `the AI's idea ("${question}") was refused: ${detail.replace(/\.$/, "").toLowerCase()}`;
     const key = `${reason}:${question}`;
     if (this.refused.has(key)) return null;
     this.refused.add(key);
@@ -461,19 +475,23 @@ Respond with JSON only: {"kind","key","key2","threshold","seconds","pYes","quest
     const toReading = (r: Reading): CounterReading => ({ at: r.at, values: m.spec.key === "__pov_alive" ? this.povReading(r.state.povAlive) : Object.fromEntries((r.state.counters ?? []).map((c) => [c.key, c.value])) });
     const start = [...this.timeline].reverse().find((r) => r.at <= ws);
     const during = this.timeline.filter((r) => r.at > ws && r.at <= m.view.windowEnd * 1000 + 2500 && r.state.mode === "gameplay").map(toReading);
-    if (m.spec.key === "__pov_alive") return this.survived(start ? toReading(start) : undefined, during, ended);
-    return evaluateCounter(m.spec, start ? toReading(start) : undefined, during, ended);
+    // A reader that didn't see the start, or saw nothing in the window, has no verdict; the market voids.
+    if (!start || !during.length) return "PENDING";
+    if (m.spec.key === "__pov_alive") return this.survived(toReading(start), during, ended);
+    return evaluateCounter(m.spec, toReading(start), during, ended);
   }
 
   private evalB(m: Live, ended: boolean) {
     const [start, ...rest] = m.b;
+    if (!m.bStartRead || !start || !rest.length) return "PENDING";
     if (m.spec.key === "__pov_alive") return this.survived(start, rest, ended);
     return evaluateCounter(m.spec, start, rest, ended);
   }
 
   /** "Survives" = an alive(0)/dead(1) counter that must not go up. */
-  private survived(start: CounterReading | undefined, during: CounterReading[], ended: boolean) {
-    const died = evaluateCounter({ kind: "goes_up", key: "__pov_alive", label: "", seconds: 0 }, start ?? { at: 0, values: { __pov_alive: 0 } }, during, ended);
+  private survived(start: CounterReading, during: CounterReading[], ended: boolean) {
+    if (start.values.__pov_alive !== 0) return "PENDING"; // not seen alive at the start: nothing to survive
+    const died = evaluateCounter({ kind: "goes_up", key: "__pov_alive", label: "", seconds: 0 }, start, during, ended);
     return died === "PENDING" ? "PENDING" : died === "YES" ? "NO" : "YES";
   }
 
@@ -499,6 +517,7 @@ Respond with JSON only: {"kind","key","key2","threshold","seconds","pYes","quest
       if (why === "start") {
         m.b.unshift(reading);
         m.bStarted = true;
+        m.bStartRead = true;
       } else m.b.push(reading);
       const fmt = (k: string, x: number | null) => (k === "__pov_alive" ? `alive: ${x === 0 ? "yes" : x === 1 ? "no" : "?"}` : `${m.spec.key === k ? m.spec.label : m.spec.label2}: ${x ?? "?"}`);
       m.frames.push({ at: f.at, sha: f.sha, reader: this.readers.b.name, note: `${why} · ${Object.entries(values).map(([k, x]) => fmt(k, x)).join(", ")} · ${mode}` });

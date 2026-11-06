@@ -64,7 +64,8 @@ export class Hub extends EventEmitter {
     void this.indexer.start();
 
     if (twitchConfigured) {
-      void this.discoverTwitch();
+      // Known channels get their live status first (one Helix call); discovering new ones takes longer.
+      void this.refreshTwitch().then(() => this.discoverTwitch());
       setInterval(() => void this.discoverTwitch(), 4 * 60_000);
       setInterval(() => void this.refreshTwitch(), 60_000);
     }
