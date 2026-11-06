@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { createClient } from '@libsql/client';
+import sharp from 'sharp';
+import { MemData } from '@0gfoundation/0g-ts-sdk';
+import { readFileSync, existsSync } from 'node:fs';
+const d=JSON.parse(readFileSync('/app/contracts/deployments/84532.json','utf8'));
+assert.equal(d.chainId,84532);
+assert.deepEqual(d,JSON.parse(readFileSync('/run/check/deployment.json','utf8')));
+assert.equal(process.getuid(),1000);
+assert.equal(existsSync('/app/engine/.env'),false);
+assert.equal(existsSync('/app/app'),false);
+const db=createClient({url:'file:/app/engine/data/container-validation.db'});
+await db.execute('CREATE TABLE IF NOT EXISTS smoke (id INTEGER PRIMARY KEY, value TEXT NOT NULL)');
+if(process.env.SMOKE_READ_ONLY==='1') {
+ const r=await db.execute('SELECT value FROM smoke WHERE id=1');assert.equal(r.rows[0].value,'survives-container-recreation');
+} else await db.execute("INSERT OR REPLACE INTO smoke VALUES (1,'survives-container-recreation')");
+const image=await sharp({create:{width:2,height:2,channels:3,background:'black'}}).jpeg().toBuffer();
+assert.ok(image.length>0);
+const [tree,error]=await new MemData(new TextEncoder().encode('container-sdk-native-check')).merkleTree();
+assert.equal(error,null);assert.ok(tree?.rootHash());
+db.close();
+console.log(JSON.stringify({ok:true,uid:process.getuid(),chainId:d.chainId,sqlitePersistent:true,sharp:true,evidenceMerkle:true,secretsAbsent:true,arch:process.arch}));

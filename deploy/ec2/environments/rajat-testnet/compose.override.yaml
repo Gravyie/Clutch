@@ -1,0 +1,12 @@
+# Explicit opt-in: does not replace the repository's default Base Sepolia deployment.
+services:
+  engine:
+    build:
+      args:
+        DEPLOYMENT_MANIFEST: deploy/ec2/environments/rajat-testnet/84532.json
+    environment:
+      ENGINE_PUBLIC_URL: https://api.rajatsrivastav.dev
+      APP_ORIGIN: https://clutch.rajatsrivastav.dev
+  caddy:
+    environment:
+      ENGINE_DOMAIN: api.rajatsrivastav.dev

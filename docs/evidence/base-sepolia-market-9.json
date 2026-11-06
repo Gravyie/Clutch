@@ -1,0 +1,45 @@
+{
+  "chainId": 84532,
+  "marketId": 9,
+  "transactions": [
+    {
+      "step": "approve exactly 2 test USDC",
+      "hash": "0xfe7199c12805039d014fde160beff89d20703c663d9f4715dbebb269a41f286f",
+      "status": "success",
+      "block": "55388220",
+      "explorer": "https://sepolia.basescan.org/tx/0xfe7199c12805039d014fde160beff89d20703c663d9f4715dbebb269a41f286f"
+    },
+    {
+      "step": "YES trade",
+      "hash": "0x53d392556225389777d1c588b228790c41a301571405b0aaf261dee49e8df805",
+      "status": "success",
+      "block": "55388446",
+      "explorer": "https://sepolia.basescan.org/tx/0x53d392556225389777d1c588b228790c41a301571405b0aaf261dee49e8df805"
+    },
+    {
+      "step": "NO trade",
+      "hash": "0x8137024856c9c826c2cebcb935a0d8c9cd768d23bef58baa7698b48be0c0a0ca",
+      "status": "success",
+      "block": "55388462",
+      "explorer": "https://sepolia.basescan.org/tx/0x8137024856c9c826c2cebcb935a0d8c9cd768d23bef58baa7698b48be0c0a0ca"
+    },
+    {
+      "step": "claim/refund",
+      "hash": "0x0c88c0b43db405e7cf369cb1d98d1aaa42f22f19e942a74bee08855fafdfcba1",
+      "status": "success",
+      "block": "55388959",
+      "explorer": "https://sepolia.basescan.org/tx/0x0c88c0b43db405e7cf369cb1d98d1aaa42f22f19e942a74bee08855fafdfcba1"
+    }
+  ],
+  "lockHistoricalRejection": true,
+  "lockBlock": "55388531",
+  "opening": "0x3b534bc630dc03a386538940f2015bfa4cbc478a6c1dd17923ca6cf237e9de13",
+  "resolution": "0x207949d32bf4f67b23c9314c8d896a0e1753c045eb15f014b81a61cc5fc02e73",
+  "outcome": "VOID",
+  "reason": "Sources reached different verdicts (YES vs NO).",
+  "refundUnits": "2000000",
+  "claimed": true,
+  "readerA": "YES",
+  "readerB": "NO",
+  "complete": true
+}

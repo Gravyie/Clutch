@@ -31,9 +31,14 @@ const d = config.deployment;
 const transport = http(config.rpcUrl, { retryCount: 3, timeout: 20_000 });
 export const publicClient = createPublicClient({ chain, transport, pollingInterval: isLocalChain ? 500 : 1500 });
 export const agent = privateKeyToAccount(config.agentKey);
-export const owner = privateKeyToAccount(config.ownerKey);
+const ownerAccount = config.ownerKey ? privateKeyToAccount(config.ownerKey) : undefined;
+export const owner = ownerAccount ?? { address: d.owner };
 const agentWallet = createWalletClient({ chain, transport, account: agent });
-const ownerWallet = createWalletClient({ chain, transport, account: owner });
+const ownerWallet = ownerAccount ? createWalletClient({ chain, transport, account: ownerAccount }) : undefined;
+function requireOwnerWallet() {
+  if (!ownerWallet) throw new Error("Owner operations are disabled; provision stream pools offline before starting production");
+  return ownerWallet;
+}
 
 const PHASES = ["Normal", "Down", "Recovering", "Unknown"] as const;
 export const OUTCOME = { YES: 1, NO: 2, VOID: 3 } as const;
@@ -71,13 +76,13 @@ export interface PoolKeyShape {
  */
 export async function createStreamPool(p: { name: string; symbol: string; streamer: `0x${string}`; streamerNullifier: bigint; latencyBuffer: number }) {
   return asOwner(async () => {
-    const deployTx = await ownerWallet.deployContract({ abi: StreamTokenAbi, bytecode: StreamTokenBytecode, args: [p.name, p.symbol] });
+    const deployTx = await requireOwnerWallet().deployContract({ abi: StreamTokenAbi, bytecode: StreamTokenBytecode, args: [p.name, p.symbol] });
     const token = (await confirm(deployTx)).contractAddress!;
     const [c0, c1] = token.toLowerCase() < d.usdc.toLowerCase() ? [token, d.usdc] : [d.usdc, token];
     const key: PoolKeyShape = { currency0: c0, currency1: c1, fee: 0, tickSpacing: 60, hooks: d.clutchHook };
-    await confirm(await ownerWallet.writeContract({ address: d.poolManager, abi: PoolManagerAbi, functionName: "initialize", args: [key, SQRT_PRICE_1_1] }));
+    await confirm(await requireOwnerWallet().writeContract({ address: d.poolManager, abi: PoolManagerAbi, functionName: "initialize", args: [key, SQRT_PRICE_1_1] }));
     const reg = await confirm(
-      await ownerWallet.writeContract({
+      await requireOwnerWallet().writeContract({
         address: d.clutchHook,
         abi: ClutchHookAbi,
         functionName: "registerStream",
@@ -163,7 +168,7 @@ export async function setLatencyBuffer(poolId: Hex, sec: number) {
 
 /** House channels are owned by the protocol, so the owner key pauses them. Streamers pause their own from the studio. */
 export async function setPausedAsOwner(poolId: Hex, paused: boolean) {
-  return asOwner(async () => confirm(await ownerWallet.writeContract({ address: d.clutchHook, abi: ClutchHookAbi, functionName: "setPaused", args: [poolId, paused] })));
+  return asOwner(async () => confirm(await requireOwnerWallet().writeContract({ address: d.clutchHook, abi: ClutchHookAbi, functionName: "setPaused", args: [poolId, paused] })));
 }
 
 export async function readStream(poolId: Hex) {
@@ -208,10 +213,10 @@ export async function readChainState(): Promise<ChainState> {
 /** Testnet faucet: test USDC (open mint) plus a little gas. */
 export async function faucet(to: `0x${string}`, usdc: number) {
   return asOwner(async () => {
-    const usdcTx = await ownerWallet.writeContract({ address: d.usdc, abi: MockUSDCAbi, functionName: "mint", args: [to, fromUsdc(usdc)] });
+    const usdcTx = await requireOwnerWallet().writeContract({ address: d.usdc, abi: MockUSDCAbi, functionName: "mint", args: [to, fromUsdc(usdc)] });
     const bal = await publicClient.getBalance({ address: to });
     let ethTx: Hex | undefined;
-    if (bal < parseEther(config.faucetEth) / 2n) ethTx = await ownerWallet.sendTransaction({ to, value: parseEther(config.faucetEth) });
+    if (bal < parseEther(config.faucetEth) / 2n) ethTx = await requireOwnerWallet().sendTransaction({ to, value: parseEther(config.faucetEth) });
     await confirm(usdcTx);
     if (ethTx) await confirm(ethTx);
     return { usdcTx, ethTx, usdc };
@@ -223,8 +228,8 @@ export async function simulateOutage(downSec: number) {
   if (!isLocalChain && !chain.testnet) throw new Error("outage simulation needs the mock sequencer feed (local or testnet)");
   return asOwner(async () => {
     const t = Number((await publicClient.getBlock()).timestamp);
-    await confirm(await ownerWallet.writeContract({ address: d.sequencerFeed, abi: MockSequencerFeedAbi, functionName: "setStatus", args: [true, BigInt(t - downSec)] }));
-    await confirm(await ownerWallet.writeContract({ address: d.sequencerFeed, abi: MockSequencerFeedAbi, functionName: "setStatus", args: [false, BigInt(t)] }));
+    await confirm(await requireOwnerWallet().writeContract({ address: d.sequencerFeed, abi: MockSequencerFeedAbi, functionName: "setStatus", args: [true, BigInt(t - downSec)] }));
+    await confirm(await requireOwnerWallet().writeContract({ address: d.sequencerFeed, abi: MockSequencerFeedAbi, functionName: "setStatus", args: [false, BigInt(t)] }));
     return { outageStart: t - downSec, outageEnd: t };
   });
 }

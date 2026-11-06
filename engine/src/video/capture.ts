@@ -69,6 +69,8 @@ export class FrameSampler extends EventEmitter {
   private ff?: ChildProcess;
   private stopped = false;
   private backoff = 3000;
+  private retry?: NodeJS.Timeout;
+  private running = false;
   latest?: Frame;
   readonly ring: Frame[] = [];
 
@@ -77,6 +79,8 @@ export class FrameSampler extends EventEmitter {
   }
 
   start() {
+    if (this.running) return this;
+    this.running = true;
     this.stopped = false;
     this.spawn();
     return this;
@@ -84,6 +88,8 @@ export class FrameSampler extends EventEmitter {
 
   stop() {
     this.stopped = true;
+    this.running = false;
+    clearTimeout(this.retry);
     this.sl?.kill("SIGKILL");
     this.ff?.kill("SIGKILL");
   }
@@ -95,7 +101,7 @@ export class FrameSampler extends EventEmitter {
 
   private spawn() {
     const url = streamUrl(this.ref);
-    this.sl = spawn("streamlink", ["--stdout", "--twitch-disable-ads", "--hls-live-edge", "2", url, "480p,360p,720p,worst,best"], { stdio: ["ignore", "pipe", "ignore"] });
+    this.sl = spawn("streamlink", ["--stdout", "--twitch-disable-ads", "--hls-live-edge", "2", url, "720p60,720p,480p,360p,best"], { stdio: ["ignore", "pipe", "ignore"] });
     this.ff = spawn(
       "ffmpeg",
       ["-loglevel", "error", "-i", "pipe:0", "-vf", `fps=1/${this.opts.intervalSec},scale=${this.opts.width}:-2`, "-f", "image2pipe", "-c:v", "mjpeg", "-q:v", "4", "pipe:1"],
@@ -121,38 +127,54 @@ export class FrameSampler extends EventEmitter {
         this.emit("frame", f);
       }
     });
+    const sl = this.sl;
+    const ff = this.ff;
+    let exited = false;
     const onExit = () => {
-      this.sl?.kill("SIGKILL");
-      this.ff?.kill("SIGKILL");
+      if (exited) return;
+      exited = true;
+      sl?.kill("SIGKILL");
+      ff?.kill("SIGKILL");
       if (this.stopped) return;
       this.emit("down");
-      setTimeout(() => !this.stopped && this.spawn(), this.backoff);
+      this.retry = setTimeout(() => !this.stopped && this.spawn(), this.backoff + Math.random() * 500);
       this.backoff = Math.min(this.backoff * 2, 60_000);
     };
     this.ff.on("exit", onExit);
+    this.ff.on("error", onExit);
+    this.sl.on("error", onExit);
   }
 }
 
 /** One frame over a fresh, independent connection: the second reader's eyes. */
 export async function grabFrame(ref: ChannelRef, width = 896): Promise<Frame> {
   return new Promise((resolve, reject) => {
-    const sl = spawn("streamlink", ["--stdout", "--twitch-disable-ads", "--hls-live-edge", "1", streamUrl(ref), "480p,360p,720p,worst,best"], { stdio: ["ignore", "pipe", "ignore"] });
+    const sl = spawn("streamlink", ["--stdout", "--twitch-disable-ads", "--hls-live-edge", "1", streamUrl(ref), "720p60,720p,480p,360p,best"], { stdio: ["ignore", "pipe", "ignore"] });
     const ff = spawn("ffmpeg", ["-loglevel", "error", "-i", "pipe:0", "-frames:v", "1", "-vf", `scale=${width}:-2`, "-f", "image2pipe", "-c:v", "mjpeg", "-q:v", "4", "pipe:1"], { stdio: ["pipe", "pipe", "ignore"] });
     sl.stdout.pipe(ff.stdin);
     ff.stdin.on("error", () => {});
     const parts: Buffer[] = [];
-    ff.stdout.on("data", (c: Buffer) => parts.push(c));
+    let capturedAt: number | undefined;
+    ff.stdout.on("data", (c: Buffer) => { capturedAt ??= Date.now(); parts.push(c); });
     const timer = setTimeout(() => {
       sl.kill("SIGKILL");
       ff.kill("SIGKILL");
       reject(new Error("frame grab timed out"));
     }, 30_000);
+    const failed = (e: Error) => {
+      clearTimeout(timer);
+      sl.kill("SIGKILL");
+      ff.kill("SIGKILL");
+      reject(e);
+    };
+    sl.on("error", failed);
+    ff.on("error", failed);
     ff.on("exit", () => {
       clearTimeout(timer);
       sl.kill("SIGKILL");
       const jpeg = Buffer.concat(parts);
       if (!jpeg.length) return reject(new Error("no frame"));
-      resolve({ at: Date.now(), jpeg, sha: createHash("sha256").update(jpeg).digest("hex") });
+      resolve({ at: capturedAt ?? Date.now(), jpeg, sha: createHash("sha256").update(jpeg).digest("hex") });
     });
   });
 }

@@ -1,0 +1,8 @@
+{$ENGINE_DOMAIN} {
+  encode zstd gzip
+  reverse_proxy engine:8787
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+  }
+}

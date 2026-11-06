@@ -1,0 +1,60 @@
+{
+  "results": [
+    {
+      "step": "new-stream-token",
+      "slug": "blitz",
+      "hash": "0x621c001edacab24c21e5259743ef313003c97c8a06e4b3f5b15f43e58805b1cb",
+      "status": "success",
+      "explorer": "https://sepolia.basescan.org/tx/0x621c001edacab24c21e5259743ef313003c97c8a06e4b3f5b15f43e58805b1cb"
+    },
+    {
+      "step": "initialize",
+      "slug": "blitz",
+      "hash": "0xd5b1f2f2aa5e8f292f4a1efe9e12af5e098d61d11f954d087e5e2195679d5eea",
+      "status": "success",
+      "explorer": "https://sepolia.basescan.org/tx/0xd5b1f2f2aa5e8f292f4a1efe9e12af5e098d61d11f954d087e5e2195679d5eea"
+    },
+    {
+      "step": "registerStream",
+      "slug": "blitz",
+      "hash": "0xf18b8d4a5e36c30aa04fa247dcb216e79dd51fd2e168ae09c50f653dda350467",
+      "status": "success",
+      "explorer": "https://sepolia.basescan.org/tx/0xf18b8d4a5e36c30aa04fa247dcb216e79dd51fd2e168ae09c50f653dda350467"
+    },
+    {
+      "step": "new-stream-token",
+      "slug": "emongg",
+      "hash": "0x19459225a4f07d9ca0b7d3cba16ceb039a145567ecc8c9f2bd72b66bfee5eac1",
+      "status": "success",
+      "explorer": "https://sepolia.basescan.org/tx/0x19459225a4f07d9ca0b7d3cba16ceb039a145567ecc8c9f2bd72b66bfee5eac1"
+    },
+    {
+      "step": "initialize",
+      "slug": "emongg",
+      "hash": "0x29deb177c0bf7954de80cd0b92a112d823e42d91d6ba47f79c9f86e2474cf6c6",
+      "status": "success",
+      "explorer": "https://sepolia.basescan.org/tx/0x29deb177c0bf7954de80cd0b92a112d823e42d91d6ba47f79c9f86e2474cf6c6"
+    },
+    {
+      "step": "registerStream",
+      "slug": "emongg",
+      "hash": "0xc230079bd9284fe8627a1a6cf68aa89352f08d58804a838e0c2c010f727d2905",
+      "status": "success",
+      "explorer": "https://sepolia.basescan.org/tx/0xc230079bd9284fe8627a1a6cf68aa89352f08d58804a838e0c2c010f727d2905"
+    }
+  ],
+  "streams": [
+    {
+      "slug": "blitz",
+      "poolId": "0x07817c28b3b0f52bee34be30bd11fd49364d531df657c44825159013dbf23a25",
+      "registered": true,
+      "latencyBuffer": 8
+    },
+    {
+      "slug": "emongg",
+      "poolId": "0x2c9d44357c7b90d11c37395a41119702d24fa1fa7526813fa8599c43496ba7ac",
+      "registered": true,
+      "latencyBuffer": 10
+    }
+  ]
+}

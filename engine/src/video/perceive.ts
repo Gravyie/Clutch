@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import sharp from "sharp";
 import type { Category, SceneState } from "@clutch/shared";
 import { config } from "../config";
+import type { VideoScene } from "./policy";
 import { ZeroG } from "../ai/zeroG";
 
 /**
@@ -19,18 +20,21 @@ import { ZeroG } from "../ai/zeroG";
  */
 export interface VisionReader {
   name: string;
-  read(jpeg: Buffer, category: Category, hint?: string): Promise<{ state: SceneState; requestId?: string; costUsd?: number; ms: number }>;
+  read(jpeg: Buffer, category: Category, hint?: string): Promise<{ state: VideoScene; requestId?: string; costUsd?: number; ms: number }>;
   /** One pass over the whole frame: mode, survival, and every counter the HUD shows. */
-  discover(jpeg: Buffer, hint?: string): Promise<{ state: SceneState; requestId?: string; ms: number }>;
+  discover(jpeg: Buffer, hint?: string): Promise<{ state: VideoScene; requestId?: string; ms: number }>;
   /** Read only the named counters (fast). Values are null when not clearly visible. */
   readKeys(jpeg: Buffer, keys: { key: string; label: string }[]): Promise<{ mode: SceneState["mode"]; values: Record<string, number | null>; requestId?: string; ms: number }>;
 }
 
 const DISCOVER_PROMPT = `Read this live-stream frame. Return one JSON object only, no prose:
-{"mode":"gameplay|menu|replay|break|camera|other","game":string,"povAlive":true|false|null,
- "counters":[{"key":"snake_case_id","label":"Short label","value":number}],
+{"mode":"gameplay|menu|replay|break|camera|other","game":string,"povAlive":true|false|null,"povIdentity":string|null,"roundId":string|null,
+ "counters":[{"key":"snake_case_id","label":"Short label","value":number,"origin":"game_hud|overlay|unknown"}],
  "teams":[string,string]|null,"summary":"one short factual sentence","confidence":0..1}
-counters: every number shown on the HUD or scoreboard that can change during play (team scores, round, kills/eliminations, players or teams left, health, shield, gold, goals…), max 10. Use the team or player name in the label when shown (e.g. "TYLOO score", "Clix eliminations"). Keep keys stable: lowercase words joined by underscores, team/player name first. Convert clocks to seconds with key ending in _clock. Only include values you can clearly read.
+origin: game_hud only for a number with a recognizable in-game HUD meaning; overlay for broadcast/sponsor graphics; unknown when uncertain.
+counters: only game-generated HUD or scoreboard counters that can change during play (team scores, round, kills/eliminations, players or teams left, health, shield, gold, goals…), max 10. Use the team or player name in the label when shown (e.g. "TYLOO score", "Clix eliminations"). Keep keys stable: lowercase words joined by underscores, team/player name first. Convert clocks to seconds with key ending in _clock. Only include values you can clearly read. Never include sponsor/advertising overlays (e.g. HAPPY PCs), donation/subscriber goals, rank overlays or webcam text. A number next to a brand is NOT a game score.
+povAlive: require visible evidence of the player's own live POV/health or an explicit death screen; null for a generic gameplay scene, spectator camera, occlusion or ambiguity. A killcam is replay, not a death observation.
+povIdentity: the exact hero/character name for an unambiguous own-player POV (Overwatch: canonical hero name, e.g. Sigma), or visible player name; null if unidentified or spectating. Do not infer from the stream title. Keep the identity on a death screen only if explicitly visible. roundId: explicit map/round identifier if visible, otherwise null.
 Battle royale HUDs (Fortnite, Apex, Warzone, PUBG): the players-left/alive counter and the player's eliminations are usually near the top-right minimap; always include them when visible (keys players_left, eliminations).
 mode "replay" for instant replays/killcams, "menu" for lobbies/loading/end screens, "camera" for a person talking with no game.`;
 
@@ -40,15 +44,27 @@ const DISCOVER_SCHEMA = {
     mode: { enum: ["gameplay", "menu", "replay", "break", "camera", "other"] },
     game: { type: "string" },
     povAlive: { type: ["boolean", "null"] },
-    counters: { type: "array", items: { type: "object", properties: { key: { type: "string" }, label: { type: "string" }, value: { type: "number" } }, required: ["key", "label", "value"] } },
+    povIdentity: { type: ["string", "null"] },
+    roundId: { type: ["string", "null"] },
+    counters: { type: "array", items: { type: "object", properties: { key: { type: "string" }, label: { type: "string" }, value: { type: "number" }, origin: { enum: ["game_hud", "overlay", "unknown"] } }, required: ["key", "label", "value", "origin"] } },
     teams: { type: ["array", "null"], items: { type: "string" } },
     summary: { type: "string" },
     confidence: { type: "number" },
   },
-  required: ["mode", "game", "povAlive", "counters", "teams", "summary", "confidence"],
+  required: ["mode", "game", "povAlive", "povIdentity", "roundId", "counters", "teams", "summary", "confidence"],
 };
 
 const slug = (k: string) => k.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40);
+
+/** Reject missing/non-numeric OCR and broadcast overlays before template selection. */
+export function gameCounters(input: unknown) {
+  const seen = new Set<string>();
+  return (Array.isArray(input) ? input : [])
+    .filter((c) => c?.origin === "game_hud")
+    .map((c) => ({ key: slug(String(c?.key ?? c?.label ?? "")), label: String(c?.label ?? c?.key ?? "").trim().slice(0, 32), value: typeof c?.value === "number" ? c.value : NaN }))
+    .filter((c) => c.key && c.label && Number.isFinite(c.value) && c.value >= 0 && c.value < 100000 && !seen.has(c.key) && seen.add(c.key))
+    .slice(0, 10);
+}
 
 /** Where each category's scoreboard usually lives, as fractions of the frame: [left, top, width, height]. */
 const HUD: Record<Category, [number, number, number, number] | null> = {
@@ -142,15 +158,11 @@ export class OpenAIVision implements VisionReader {
     const t0 = Date.now();
     const img = await sharp(jpeg).resize({ width: 1024, withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
     const { json: j, requestId } = await this.ask(img, `${DISCOVER_PROMPT}${hint ? `\nThe stream's category is "${hint}".` : ""}`, DISCOVER_SCHEMA);
-    const seen = new Set<string>();
-    const counters = (Array.isArray(j.counters) ? j.counters : [])
-      .map((c: any) => ({ key: slug(String(c?.key ?? c?.label ?? "")), label: String(c?.label ?? c?.key ?? "").trim().slice(0, 32), value: Number(c?.value) }))
-      .filter((c: any) => c.key && c.label && Number.isFinite(c.value) && c.value >= 0 && c.value < 100000 && !seen.has(c.key) && seen.add(c.key))
-      .slice(0, 10);
+    const counters = gameCounters(j.counters);
     const mode = ["gameplay", "menu", "replay", "break", "camera", "other"].includes(j.mode) ? j.mode : "other";
     const teams = Array.isArray(j.teams) && j.teams.length === 2 ? j.teams.map((t: any) => text(t)) : [null, null];
-    const state: SceneState = {
-      scene: text(j.game) ?? hint ?? "unknown",
+    const state: VideoScene = {
+      scene: text(j.game) ?? "unknown",
       game: text(j.game) ?? undefined,
       mode,
       teamA: teams[0],
@@ -164,8 +176,10 @@ export class OpenAIVision implements VisionReader {
       clock: null,
       bomb: null,
       povAlive: typeof j.povAlive === "boolean" ? j.povAlive : null,
+      povIdentity: text(j.povIdentity),
+      roundId: text(j.roundId),
       summary: typeof j.summary === "string" ? j.summary.slice(0, 160) : "",
-      confidence: Math.max(0, Math.min(1, Number(j.confidence ?? 0.7) || 0)),
+      confidence: Math.max(0, Math.min(1, Number(j.confidence ?? 0) || 0)),
       counters,
     };
     return { state, requestId, ms: Date.now() - t0 };
@@ -181,8 +195,8 @@ export class OpenAIVision implements VisionReader {
     const { json: j, requestId } = await this.ask(img, prompt, { type: "object", properties: props, required: Object.keys(props) });
     const values: Record<string, number | null> = {};
     for (const k of keys) {
-      const x = Number(j[k.key]);
-      values[k.key] = j[k.key] === null || j[k.key] === undefined || !Number.isFinite(x) ? null : x;
+      const x = j[k.key];
+      values[k.key] = typeof x === "number" && Number.isFinite(x) && x >= 0 ? x : null;
     }
     const mode = ["gameplay", "menu", "replay", "break", "camera", "other"].includes(j.mode) ? j.mode : "other";
     return { mode, values, requestId, ms: Date.now() - t0 };
@@ -257,7 +271,7 @@ export class OpenAIVision implements VisionReader {
       hud = (await this.ask(crop, HUD_PROMPT[category], HUD_SCHEMA)).json;
     }
     const legible = hud.legible !== false;
-    const state: SceneState = {
+    const state: VideoScene = {
       scene: text(s.scene) ?? hint ?? "unknown",
       mode: ["gameplay", "menu", "replay", "break", "camera", "other"].includes(s.mode) ? s.mode : "other",
       teamA: legible ? text(hud.teamA) : null,

@@ -1,0 +1,57 @@
+services:
+  engine:
+    image: clutch-engine:${IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: deploy/ec2/Dockerfile
+    env_file:
+      - path: ${ENGINE_ENV_FILE:-/etc/clutch/engine.env}
+        required: true
+    environment:
+      NODE_ENV: production
+      CHAIN_ID: '84532'
+      DATA_DIR: /app/engine/data
+      DATABASE_URL: file:/app/engine/data/clutch-84532.db
+      REPLAY: '0'
+      PORT: '8787'
+    volumes:
+      - type: bind
+        source: ${CLUTCH_DATA_DIR:-/srv/clutch/data}
+        target: /app/engine/data
+        bind:
+          create_host_path: false
+    restart: unless-stopped
+    stop_grace_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: {max-size: '10m', max-file: '3'}
+    networks: [backend]
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    ports: ['80:80', '443:443', '443:443/udp']
+    environment:
+      ENGINE_DOMAIN: ${ENGINE_DOMAIN:?Set ENGINE_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      engine:
+        condition: service_healthy
+    networks: [backend]
+    logging:
+      driver: json-file
+      options: {max-size: '10m', max-file: '3'}
+
+networks:
+  backend:
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,45 @@
+{
+  "endpoint": "https://router-api.0g.ai/v1",
+  "configuredModel": "claude-haiku-5.5",
+  "httpStatus": 200,
+  "requestId": "msg_011CgnLXrPRkkYmBiHeYaMPG",
+  "model": "claude-haiku-5.5",
+  "usage": {
+    "billing_usage": {
+      "claude_usage": {
+        "cache_creation": {},
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "claude_cache_creation_1_h_tokens": 0,
+        "claude_cache_creation_5_m_tokens": 0,
+        "input_tokens": 32,
+        "output_tokens": 16
+      },
+      "semantic": "anthropic",
+      "source": "claude_messages"
+    },
+    "claude_cache_creation_1_h_tokens": 0,
+    "claude_cache_creation_5_m_tokens": 0,
+    "completion_tokens": 16,
+    "completion_tokens_details": {
+      "audio_tokens": 0,
+      "image_tokens": 0,
+      "reasoning_tokens": 0,
+      "text_tokens": 0
+    },
+    "input_tokens": 32,
+    "input_tokens_details": null,
+    "output_tokens": 0,
+    "prompt_tokens": 32,
+    "prompt_tokens_details": {
+      "audio_tokens": 0,
+      "cached_tokens": 0,
+      "image_tokens": 0,
+      "text_tokens": 0
+    },
+    "total_tokens": 48,
+    "usage_semantic": "openai",
+    "usage_source": "anthropic"
+  },
+  "passed": true
+}
