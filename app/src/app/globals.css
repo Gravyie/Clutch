@@ -4,46 +4,47 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
-  Clutch design tokens ("broadcast").
-  Near-black stage, one brand accent (tally orange, the colour of an on-air light), and colour that otherwise carries
-  meaning only: YES green, NO rose, LIVE red, warning amber. Display type is Bricolage Grotesque; UI is Geist;
-  every number is Geist Mono.
-  Radius rule: surfaces 18px, controls 12px, chips/badges/primary CTAs fully round.
+  Clutch design tokens ("moment frame").
+  Graphite stage with faint cool light, one brand accent (signal lime) reserved for the primary action, and colour that
+  otherwise carries meaning only: YES mint, NO coral, LIVE warm red, LOCKED amber, VERIFIED info blue, VOID muted.
+  UI is Geist; every number is Geist Mono / tabular. Radius: surfaces 16px, controls 10px, chips fully round.
 */
 
 :root {
-  --radius: 0.75rem;
+  --radius: 0.625rem;
 
-  --background: #f6f6f7;
+  --background: #f4f6f8;
   --surface: #ffffff;
-  --raised: #efeff1;
-  --sunk: #e9e9ec;
-  --foreground: #0b0b0d;
-  --muted-foreground: #55555f;
-  --faint: #85858f;
-  --border: rgb(11 11 13 / 0.09);
-  --border-strong: rgb(11 11 13 / 0.17);
+  --raised: #eceff3;
+  --sunk: #e4e8ed;
+  --foreground: #0b0f14;
+  --muted-foreground: #4f5b69;
+  --faint: #7a8594;
+  --border: rgb(15 23 34 / 0.09);
+  --border-strong: rgb(15 23 34 / 0.18);
 
-  --brand: #f0480c;
-  --brand-soft: rgb(240 72 12 / 0.1);
-  --brand-foreground: #0b0b0d;
-  --yes: #00965f;
-  --yes-soft: rgb(0 150 95 / 0.1);
-  --no: #db1f4b;
-  --no-soft: rgb(219 31 75 / 0.09);
-  --live: #e5172f;
-  --warn: #b7791f;
-  --warn-soft: rgb(183 121 31 / 0.1);
-  --void: #6d5bd0;
-  --void-soft: rgb(109 91 208 / 0.1);
+  --brand: #5d8f17;
+  --brand-soft: rgb(93 143 23 / 0.12);
+  --brand-foreground: #ffffff;
+  --yes: #0c9a76;
+  --yes-soft: rgb(12 154 118 / 0.11);
+  --no: #d8434a;
+  --no-soft: rgb(216 67 74 / 0.1);
+  --live: #e2482f;
+  --warn: #a8700d;
+  --warn-soft: rgb(168 112 13 / 0.11);
+  --info: #2f63d6;
+  --info-soft: rgb(47 99 214 / 0.1);
+  --void: #6b7585;
+  --void-soft: rgb(107 117 133 / 0.12);
 
   /* shadcn bridge */
   --card: var(--surface);
   --card-foreground: var(--foreground);
   --popover: var(--surface);
   --popover-foreground: var(--foreground);
-  --primary: #0b0b0d;
-  --primary-foreground: #f6f6f7;
+  --primary: #0b0f14;
+  --primary-foreground: #f4f6f8;
   --secondary: var(--raised);
   --secondary-foreground: var(--foreground);
   --muted: var(--raised);
@@ -51,47 +52,58 @@
   --accent-foreground: var(--foreground);
   --destructive: var(--no);
   --input: var(--border-strong);
-  --ring: rgb(240 72 12 / 0.55);
+  --ring: rgb(93 143 23 / 0.55);
 
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.7) inset, 0 1px 2px rgb(11 11 13 / 0.04), 0 10px 30px -14px rgb(11 11 13 / 0.14);
-  --shadow-float: 0 30px 80px -30px rgb(11 11 13 / 0.35), 0 0 0 1px rgb(11 11 13 / 0.06);
+  --shadow-card: 0 1px 2px rgb(15 23 34 / 0.04), 0 8px 24px -14px rgb(15 23 34 / 0.16);
+  --shadow-float: 0 30px 80px -30px rgb(15 23 34 / 0.35), 0 0 0 1px rgb(15 23 34 / 0.06);
+  --ease: cubic-bezier(0.2, 0.75, 0.25, 1);
+  --sidebar: var(--background);
+  --sidebar-foreground: var(--muted-foreground);
+  --sidebar-primary: var(--foreground);
+  --sidebar-primary-foreground: var(--background);
+  --sidebar-accent: var(--raised);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
 }
 
 .dark {
-  --background: #070709;
-  --surface: #0e0e11;
-  --raised: #17171b;
-  --sunk: #040405;
-  --foreground: #f4f4f2;
-  --muted-foreground: #a0a0aa;
-  --faint: #67676f;
-  --border: rgb(255 255 255 / 0.075);
-  --border-strong: rgb(255 255 255 / 0.14);
+  --background: #080b10;
+  --surface: #0f141b;
+  --raised: #151c25;
+  --sunk: #0b1016;
+  --foreground: #f2f5f6;
+  --muted-foreground: #a6b0bd;
+  --faint: #778596;
+  --border: rgb(203 218 232 / 0.1);
+  --border-strong: rgb(203 218 232 / 0.2);
 
-  --brand: #ff6a2b;
-  --brand-soft: rgb(255 106 43 / 0.13);
-  --brand-foreground: #0b0705;
-  --yes: #2ee59d;
-  --yes-soft: rgb(46 229 157 / 0.12);
-  --no: #ff4f72;
-  --no-soft: rgb(255 79 114 / 0.12);
-  --live: #ff3045;
-  --warn: #f5b546;
-  --warn-soft: rgb(245 181 70 / 0.12);
-  --void: #a99bff;
-  --void-soft: rgb(169 155 255 / 0.12);
+  --brand: #b8f36b;
+  --brand-soft: rgb(184 243 107 / 0.12);
+  --brand-foreground: #101808;
+  --yes: #4ad6b0;
+  --yes-soft: rgb(74 214 176 / 0.13);
+  --no: #ff8585;
+  --no-soft: rgb(255 133 133 / 0.13);
+  --live: #ff755f;
+  --warn: #f3c16a;
+  --warn-soft: rgb(243 193 106 / 0.13);
+  --info: #91b9ff;
+  --info-soft: rgb(145 185 255 / 0.13);
+  --void: #9aa6b5;
+  --void-soft: rgb(154 166 181 / 0.13);
 
-  --primary: #f4f4f2;
-  --primary-foreground: #070709;
-  --ring: rgb(255 106 43 / 0.6);
+  --primary: #f2f5f6;
+  --primary-foreground: #080b10;
+  --ring: rgb(184 243 107 / 0.6);
 
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.045) inset, 0 14px 36px -18px rgb(0 0 0 / 0.7);
-  --shadow-float: 0 40px 120px -40px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 0 rgb(255 255 255 / 0.08) inset;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.035) inset, 0 16px 40px -22px rgb(0 0 0 / 0.75);
+  --shadow-float: 0 40px 120px -40px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(203 218 232 / 0.1), 0 1px 0 rgb(255 255 255 / 0.06) inset;
 }
 
 @theme inline {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-bricolage), var(--font-geist-sans), ui-sans-serif, sans-serif;
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --color-background: var(--background);
@@ -111,6 +123,8 @@
   --color-live: var(--live);
   --color-warn: var(--warn);
   --color-warn-soft: var(--warn-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
   --color-void: var(--void);
   --color-void-soft: var(--void-soft);
 
@@ -157,6 +171,14 @@
     50% { opacity: 0.35; }
   }
   --animate-shimmer: shimmer 2.2s linear infinite;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
   @keyframes shimmer {
     from { background-position: -200% 0; }
     to { background-position: 200% 0; }
@@ -178,6 +200,13 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "ss01", "cv11";
   }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  button, a {
+    -webkit-tap-highlight-color: transparent;
+  }
   ::selection {
     background: var(--brand);
     color: var(--brand-foreground);
@@ -192,9 +221,9 @@
     font-variant-numeric: tabular-nums;
   }
   .display {
-    font-family: var(--font-bricolage), var(--font-geist-sans), sans-serif;
-    font-optical-sizing: auto;
-    letter-spacing: -0.035em;
+    font-family: var(--font-geist-sans), ui-sans-serif, sans-serif;
+    letter-spacing: -0.04em;
+    font-feature-settings: "ss01";
   }
   .eyebrow {
     font-family: var(--font-mono);
@@ -206,8 +235,35 @@
   .surface {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 18px;
+    border-radius: 16px;
     box-shadow: var(--shadow-card);
+  }
+  /* the "moment frame": four crop corners around something that is happening now */
+  .frame-corners {
+    position: relative;
+  }
+  .frame-corners::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    pointer-events: none;
+    border-radius: inherit;
+    --c: var(--brand);
+    --l: 14px;
+    background:
+      linear-gradient(var(--c), var(--c)) top left / var(--l) 2px,
+      linear-gradient(var(--c), var(--c)) top left / 2px var(--l),
+      linear-gradient(var(--c), var(--c)) top right / var(--l) 2px,
+      linear-gradient(var(--c), var(--c)) top right / 2px var(--l),
+      linear-gradient(var(--c), var(--c)) bottom left / var(--l) 2px,
+      linear-gradient(var(--c), var(--c)) bottom left / 2px var(--l),
+      linear-gradient(var(--c), var(--c)) bottom right / var(--l) 2px,
+      linear-gradient(var(--c), var(--c)) bottom right / 2px var(--l);
+    background-repeat: no-repeat;
+    opacity: 0.9;
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
   }
   .scrollbar-none {
     scrollbar-width: none;
@@ -265,3 +321,4 @@ body.overlay {
     transition-duration: 0.01ms !important;
   }
 }
+

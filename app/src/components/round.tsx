@@ -4,17 +4,24 @@ import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import NumberFlow from "@number-flow/react";
-import { CircleNotchIcon, LockSimpleIcon, ProhibitIcon, ScanIcon, SealCheckIcon, SparkleIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, CaretDownIcon, ProhibitIcon, ScanIcon, SealCheckIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import type { MarketView, StreamState } from "@clutch/shared";
-import { CountdownRing, PriceChart, isOpen } from "@/components/market";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { Spinner } from "@/components/ui/spinner";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { PriceChart, isOpen } from "@/components/market";
 import { useEnsureReady } from "@/components/onboarding";
 import { CallMarket } from "@/components/call";
 import { useAccount, type PoolKey, type Refusal } from "@/lib/account";
 import { useLive, useNow } from "@/lib/live";
 import { useUI } from "@/lib/ui";
 import { ENGINE_URL } from "@/lib/env";
-import { ago, cents, compactUsd, usd } from "@/lib/format";
+import { ago, cents, compactUsd, short, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const STAKES = [1, 5, 10, 25];
@@ -28,59 +35,165 @@ function useCounterProgress(m: MarketView, s?: StreamState) {
   return { label: p.label ?? p.key, now: c ? String(c.value) : "?", target: p.threshold };
 }
 
-/** One round: the live question, one-tap Yes/No, then a live "playing out" view and the verdict. */
+const fmtSec = (n: number) => {
+  const v = Math.max(0, Math.ceil(n));
+  return v >= 60 ? `${Math.floor(v / 60)}:${String(v % 60).padStart(2, "0")}` : `0:${String(v).padStart(2, "0")}`;
+};
+
+/** A duration in words: "40s", "15 min", "2 min 30s". */
+const dur = (n: number) => {
+  const v = Math.max(0, Math.round(n));
+  if (v < 60) return `${v}s`;
+  const m = Math.floor(v / 60);
+  const s = v % 60;
+  return s ? `${m} min ${s}s` : `${m} min`;
+};
+
+type Stage = "trading" | "locked" | "window" | "resolving" | "settled" | "void";
+
+const STATUS: Record<Stage, { label: string; dot: string; text: string }> = {
+  trading: { label: "Live", dot: "bg-live animate-live", text: "text-live" },
+  locked: { label: "Trading closed", dot: "bg-warn", text: "text-warn" },
+  window: { label: "Playing out", dot: "bg-warn animate-live", text: "text-warn" },
+  resolving: { label: "Checking result", dot: "bg-info animate-live", text: "text-info" },
+  settled: { label: "Resolved", dot: "bg-foreground/60", text: "text-muted-foreground" },
+  void: { label: "Voided", dot: "bg-void", text: "text-void" },
+};
+
+/**
+ * The moment card: one live question, its timing and odds, and one-tap Yes/No while it trades. After lock the same
+ * card walks the lifecycle (closed, playing out, checking, result) so the viewer never loses the thread.
+ */
 export function RoundPanel({ m, stream, pool, next }: { m?: MarketView; stream?: StreamState; pool?: PoolKey; next?: string }) {
   if (!m) return <Waiting stream={stream} hint={next} />;
+  const trading = m.phase === "trading";
   return (
     <AnimatePresence mode="wait">
-      <motion.section key={m.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ type: "spring", stiffness: 280, damping: 28 }} className="surface overflow-hidden">
-        <div className="grid gap-5 p-5 md:grid-cols-[minmax(0,1fr)_320px]">
-          <Question m={m} stream={stream} />
-          {m.phase === "trading" ? <OneTap m={m} pool={pool} /> : <AfterLock m={m} stream={stream} />}
-        </div>
-      </motion.section>
+      <motion.div key={m.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.28, ease: [0.2, 0.75, 0.25, 1] }}>
+        <Card aria-label="Current market" className="relative gap-0 overflow-hidden py-0">
+          {trading && <LockBar m={m} />}
+          <CardHeader className="gap-2.5 px-5 pt-5 pb-0">
+            <StatusLine m={m} />
+            <CardTitle className="text-[20px] leading-[1.25] font-semibold tracking-[-0.018em] text-balance">{m.question}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5 px-5 pt-4 pb-5">
+            <Odds m={m} />
+            {trading ? <OneTap m={m} pool={pool} /> : <AfterLock m={m} stream={stream} />}
+          </CardContent>
+          <WhyThis m={m} />
+        </Card>
+      </motion.div>
     </AnimatePresence>
   );
 }
 
-function Question({ m, stream }: { m: MarketView; stream?: StreamState }) {
-  const delta = m.priceYes - m.pYes0;
+/** A hairline across the top of the card that drains as trading runs out. */
+function LockBar({ m }: { m: MarketView }) {
+  const now = useNow(250);
+  const frac = Math.min(1, Math.max(0, (m.lockTime - now) / Math.max(1, m.lockTime - m.openedAt)));
   return (
-    <div className="min-w-0">
-      <div className="flex items-center gap-2 text-xs">
-        {m.phase === "trading" ? (
-          <span className="flex items-center gap-1.5 font-semibold text-live">
-            <span className="size-1.5 animate-live rounded-full bg-live" /> LIVE MARKET
-          </span>
-        ) : m.phase === "settled" || m.phase === "void" ? (
-          <span className="font-semibold text-muted-foreground">RESULT</span>
-        ) : (
-          <span className="flex items-center gap-1.5 font-semibold text-warn">
-            <LockSimpleIcon size={12} weight="bold" /> LOCKED · PLAYING OUT
+    <div className="absolute inset-x-0 top-0 h-[3px] bg-secondary" aria-hidden>
+      <div className={cn("h-full transition-[width] duration-300 ease-linear", m.lockTime - now < 6 ? "bg-no" : "bg-brand")} style={{ width: `${frac * 100}%` }} />
+    </div>
+  );
+}
+
+function StatusLine({ m }: { m: MarketView }) {
+  const now = useNow(250);
+  const st = STATUS[m.phase as Stage] ?? STATUS.locked;
+  const left = m.lockTime - now;
+  let right: React.ReactNode = null;
+  if (m.phase === "trading") {
+    right = (
+      <span className={cn("rounded-md px-2 py-0.5 font-mono text-[12px] font-semibold tabular", left < 6 ? "bg-no-soft text-no" : "bg-secondary text-foreground")} aria-label={`Trading closes in ${Math.ceil(Math.max(0, left))} seconds`}>
+        {fmtSec(left)}
+      </span>
+    );
+  } else if (m.phase === "window" || m.phase === "locked") {
+    right = <span className="text-[12.5px] text-muted-foreground tabular">{now < m.windowStart ? `starts ${fmtSec(m.windowStart - now)}` : now < m.windowEnd ? `${fmtSec(m.windowEnd - now)} left` : "awaiting result"}</span>;
+  } else if (m.trades > 0) {
+    right = (
+      <span className="text-xs text-faint tabular">
+        {compactUsd(m.volume)} · {m.traders} {m.traders === 1 ? "trader" : "traders"}
+      </span>
+    );
+  }
+  return (
+    <div className="flex h-6 items-center gap-2">
+      <span className={cn("flex items-center gap-1.5 text-[12.5px] font-medium", st.text)}>
+        <span className={cn("size-1.5 rounded-full", st.dot)} aria-hidden />
+        {st.label}
+      </span>
+      {m.phase === "trading" && <span className="text-[12.5px] text-faint">· closes in</span>}
+      <span className="ml-auto">{right}</span>
+    </div>
+  );
+}
+
+function Odds({ m }: { m: MarketView }) {
+  const delta = m.priceYes - m.pYes0;
+  const trading = m.phase === "trading";
+  return (
+    <div>
+      <div className="flex items-baseline gap-2">
+        <NumberFlow value={Math.round(m.priceYes * 100)} suffix="%" className="text-[28px] leading-none font-semibold tracking-[-0.03em] tabular" />
+        <span className="text-[13px] text-muted-foreground">{m.phase === "trading" ? "chance of Yes" : m.phase === "settled" || m.phase === "void" ? "final Yes price" : "Yes at close"}</span>
+        {Math.abs(delta) >= 0.01 && (
+          <span className={cn("ml-auto text-xs font-medium tabular", delta > 0 ? "text-yes" : "text-no")}>
+            {delta > 0 ? "▲" : "▼"} {Math.round(Math.abs(delta) * 100)} pts
           </span>
         )}
-        <span className="text-faint">
-          · {compactUsd(m.volume)} vol · {m.traders} {m.traders === 1 ? "trader" : "traders"}
-        </span>
       </div>
-      <div className="mt-2 flex items-start gap-4">
-        <h2 className="display flex-1 text-[26px] font-bold leading-[1.05] sm:text-[32px]">{m.question}</h2>
-        {m.phase === "trading" && <CountdownRing from={m.openedAt} to={m.lockTime} size={52} />}
-      </div>
-      <div className="mt-3 flex items-baseline gap-2">
-        <NumberFlow value={Math.round(m.priceYes * 100)} suffix="%" className="text-3xl font-semibold tracking-tight tabular" />
-        <span className="text-sm text-muted-foreground">chance of Yes</span>
-        {Math.abs(delta) >= 0.01 && <span className={cn("text-sm font-medium tabular", delta > 0 ? "text-yes" : "text-no")}>{delta > 0 ? "▲" : "▼"} {Math.round(Math.abs(delta) * 100)}</span>}
-      </div>
-      <PriceChart m={m} height={72} />
-      <p className="mt-1 flex items-start gap-1.5 text-xs text-faint">
-        <SparkleIcon size={13} className="mt-px shrink-0" />
-        <span className="line-clamp-2">
-          {m.ai.paidBy === "viewer" ? "Called by a viewer on their own 0G credits" : m.ai.provider === "0g" ? "Opened and priced by the 0G agent" : "Opened from base rates"}
-          {m.ai.rationale ? `: ${m.ai.rationale.replace(/\.$/, "")}.` : "."}
-        </span>
-      </p>
+      {trading && (
+        <p className="mt-1.5 text-xs text-faint">
+          Event starts {dur(m.windowStart - m.lockTime)} after close and runs {dur(m.windowEnd - m.windowStart)}
+          {m.trades > 0 ? ` · ${compactUsd(m.volume)} traded` : ""}
+        </p>
+      )}
+      {m.trades > 0 && (
+        <div className="mt-2">
+          <PriceChart m={m} height={52} />
+        </div>
+      )}
     </div>
+  );
+}
+
+/** "Why this market?": the objective rule and where the question came from, folded away until asked. */
+function WhyThis({ m }: { m: MarketView }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="border-t">
+      <CollapsibleTrigger asChild>
+        <button className="flex h-11 w-full items-center gap-2 px-5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:bg-secondary/60 focus-visible:outline-none">
+          <ShieldCheckIcon size={15} className="text-info" weight="fill" />
+          Rules and source
+          <span className="ml-auto font-mono text-[11px] font-normal text-faint">#{m.id}</span>
+          <CaretDownIcon size={13} className={cn("text-faint transition-transform duration-200", open && "rotate-180")} />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-3 px-5 pb-5 text-[13px] leading-relaxed">
+        <p>{m.rule.resolution}</p>
+        {m.ai.rationale && <p className="text-muted-foreground">{m.ai.rationale}</p>}
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+          <dt className="text-faint">Opened by</dt>
+          <dd className="text-muted-foreground">{m.ai.paidBy === "viewer" ? "a viewer, on their own 0G credits" : m.ai.provider === "0g" ? `0G agent · ${m.ai.model}` : "offline base-rate model"}</dd>
+          {m.ai.requestId && (
+            <>
+              <dt className="text-faint">Request</dt>
+              <dd className="truncate font-mono text-muted-foreground">{short(m.ai.requestId, 10)}</dd>
+            </>
+          )}
+          <dt className="text-faint">Opened at</dt>
+          <dd className="text-muted-foreground tabular">{Math.round(m.pYes0 * 100)}% Yes</dd>
+          <dt className="text-faint">Rule hash</dt>
+          <dd className="truncate font-mono text-muted-foreground">{short(m.ruleHash, 10)}</dd>
+        </dl>
+        <Link href={`/m/${m.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-foreground hover:underline">
+          Full market and receipt <ArrowRightIcon size={12} />
+        </Link>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -89,11 +202,15 @@ function OneTap({ m, pool }: { m: MarketView; pool?: PoolKey }) {
   const acct = useAccount();
   const ensureReady = useEnsureReady();
   const verify = useUI((s) => s.openVerify);
+  const setWallet = useUI((s) => s.setWallet);
   const chain = useLive((s) => s.chain);
+  const now = useNow(500);
   const [stake, setStake] = useState(5);
   const [busy, setBusy] = useState<"yes" | "no" | null>(null);
   const [refusal, setRefusal] = useState<Refusal | null>(null);
   const chainOk = !chain || chain.sequencerPhase === "Normal";
+  const closed = now >= m.lockTime;
+  const lowBalance = acct.onboarded && acct.spendable < stake;
 
   // The tapped side survives onboarding: after "Verify" the same tap runs with the then-current account.
   const goRef = useRef<(yes: boolean) => void>(() => {});
@@ -114,53 +231,86 @@ function OneTap({ m, pool }: { m: MarketView; pool?: PoolKey }) {
   goRef.current = go;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Stake">
-        {STAKES.map((v) => (
-          <button key={v} role="radio" aria-checked={stake === v} onClick={() => setStake(v)} className={cn("h-9 rounded-lg text-sm font-semibold transition active:scale-[0.97]", stake === v ? "bg-foreground text-background" : "bg-raised text-muted-foreground hover:text-foreground")}>
-            ${v}
-          </button>
-        ))}
+    <div className="space-y-3">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-medium text-muted-foreground" id={`stake-${m.id}`}>
+            Amount
+          </span>
+          {acct.onboarded ? (
+            lowBalance ? (
+              <button onClick={() => setWallet("deposit")} className="font-medium text-brand hover:underline">
+                Add funds
+              </button>
+            ) : (
+              <span className="text-faint tabular">{usd(acct.spendable)} available</span>
+            )
+          ) : (
+            <span className="text-faint">Test USDC</span>
+          )}
+        </div>
+        <ToggleGroup
+          type="single"
+          value={String(stake)}
+          onValueChange={(v) => v && setStake(Number(v))}
+          aria-labelledby={`stake-${m.id}`}
+          className="grid h-10 w-full grid-cols-4 gap-0 rounded-lg bg-secondary p-1"
+        >
+          {STAKES.map((v) => (
+            <ToggleGroupItem
+              key={v}
+              value={String(v)}
+              role="radio"
+              className="h-8 rounded-md !rounded-md text-[13px] font-semibold text-muted-foreground tabular transition-all hover:bg-transparent hover:text-foreground data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-sm"
+            >
+              ${v}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {([true, false] as const).map((yes) => {
           const price = yes ? m.priceYes : 1 - m.priceYes;
+          const payout = (stake * 0.98) / Math.max(price, 0.01);
           return (
             <button
               key={String(yes)}
-              disabled={busy !== null || !chainOk}
+              disabled={busy !== null || !chainOk || closed}
               onClick={() => go(yes)}
+              aria-label={`${yes ? "Yes" : "No"} at ${cents(price)}, stake $${stake}`}
               className={cn(
-                "group relative flex h-[84px] flex-col items-center justify-center overflow-hidden rounded-xl text-white transition active:scale-[0.98] disabled:opacity-60",
-                yes ? "bg-yes hover:brightness-110" : "bg-no hover:brightness-110",
-                "dark:text-black",
+                "group relative flex h-16 flex-col items-center justify-center rounded-xl font-semibold shadow-xs outline-none transition-all duration-150",
+                "hover:-translate-y-px hover:shadow-md active:translate-y-0 active:scale-[0.985] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+                "disabled:pointer-events-none disabled:opacity-45",
+                yes ? "bg-yes text-white dark:text-[#04140f]" : "bg-no text-white dark:text-[#1d0707]",
               )}
             >
               {busy === (yes ? "yes" : "no") ? (
-                <CircleNotchIcon size={26} className="animate-spin" />
+                <Spinner className="size-5" />
               ) : (
                 <>
-                  <span className="text-lg font-bold">
-                    {yes ? "Yes" : "No"} {cents(price)}
+                  <span className="text-[16px] leading-tight">
+                    {yes ? "Yes" : "No"} <span className="tabular">{cents(price)}</span>
                   </span>
-                  <span className="text-xs font-medium opacity-80">pays ≈{usd((stake * 0.98) / Math.max(price, 0.01))}</span>
+                  <span className="text-[11.5px] font-medium opacity-80 tabular">to win {usd(payout)}</span>
                 </>
               )}
             </button>
           );
         })}
       </div>
-      {!chainOk && <p className="text-xs text-warn">Chain recovering: trading paused by Blackout Guard.</p>}
+      {closed && <p className="text-xs text-warn">Trading just closed. Waiting for the chain to confirm the lock.</p>}
+      {!chainOk && <p className="text-xs text-warn">Chain recovering: trading is paused by Blackout Guard until the sequencer is healthy.</p>}
       <AnimatePresence>
         {refusal && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-            <div className="flex gap-2.5 rounded-xl border border-no/30 bg-no-soft p-3">
-              <ProhibitIcon size={18} className="mt-0.5 shrink-0 text-no" weight="bold" />
-              <div>
-                <div className="text-sm font-semibold">{refusal.title}</div>
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden" role="alert">
+            <div className="flex gap-2.5 rounded-lg bg-no-soft p-3">
+              <ProhibitIcon size={16} weight="bold" className="mt-0.5 shrink-0 text-no" />
+              <div className="min-w-0">
+                <div className="text-[13px] font-semibold">{refusal.title}</div>
                 <p className="text-xs text-muted-foreground">{refusal.code === "DailyCapExceeded" && !acct.verified ? `That's the ${usd(acct.pass?.dailyCap ?? 10, 0)} starter limit for this wallet.` : refusal.body}</p>
                 {refusal.code === "DailyCapExceeded" && !acct.verified && (
-                  <button onClick={() => verify()} className="mt-2 text-xs font-semibold text-brand underline underline-offset-4">
+                  <button onClick={() => verify()} className="mt-1.5 text-xs font-semibold text-brand hover:underline">
                     Raise it with World ID
                   </button>
                 )}
@@ -169,47 +319,92 @@ function OneTap({ m, pool }: { m: MarketView; pool?: PoolKey }) {
           </motion.div>
         )}
       </AnimatePresence>
-      <p className="text-center text-[11px] text-faint">{acct.onboarded ? `${usd(acct.spendable)} available${acct.usdc < stake && acct.eth > 0 ? " · pays in ETH" : ""} · tap a side` : "One World ID check, then every trade is one tap"}</p>
+      <p className="text-center text-[11.5px] text-faint">{acct.onboarded ? "One tap places the trade · winnings pay out automatically" : "Sign in once, then every prediction is one tap"}</p>
+    </div>
+  );
+}
+
+const STEPS: { k: Stage; label: string }[] = [
+  { k: "locked", label: "Closed" },
+  { k: "window", label: "Playing out" },
+  { k: "resolving", label: "Checking" },
+  { k: "settled", label: "Result" },
+];
+
+/** One segmented bar for the whole lifecycle; the current segment fills with real time where it has a clock. */
+function Lifecycle({ m }: { m: MarketView }) {
+  const now = useNow(500);
+  const done = m.phase === "settled" || m.phase === "void";
+  const idx = done ? 4 : Math.max(0, STEPS.findIndex((s) => s.k === m.phase));
+  const fill = (i: number) => {
+    if (i < idx) return 1;
+    if (i > idx) return 0;
+    if (m.phase === "window") return now < m.windowStart ? 0.04 : Math.min(1, (now - m.windowStart) / Math.max(1, m.windowEnd - m.windowStart));
+    if (m.phase === "locked") return Math.min(1, Math.max(0.04, (now - m.lockTime) / Math.max(1, m.windowStart - m.lockTime)));
+    return 0.5;
+  };
+  const tone = m.phase === "void" ? "bg-void" : done ? "bg-foreground/70" : m.phase === "resolving" ? "bg-info" : "bg-warn";
+  return (
+    <div>
+      <ol className="grid grid-cols-4 gap-1" aria-label="Market lifecycle">
+        {STEPS.map((s, i) => (
+          <li key={s.k} aria-current={i === idx ? "step" : undefined} className="h-1.5 overflow-hidden rounded-full bg-secondary">
+            <div className={cn("h-full rounded-full transition-[width] duration-500", i < idx ? (done ? tone : "bg-foreground/35") : tone, i === idx && m.phase === "resolving" && "animate-pulse")} style={{ width: `${fill(i) * 100}%` }} />
+          </li>
+        ))}
+      </ol>
+      <div className="mt-2 grid grid-cols-4 gap-1 text-[11px]">
+        {STEPS.map((s, i) => (
+          <span key={s.k} className={cn(i === Math.min(idx, 3) ? "font-medium text-foreground" : "text-faint")}>
+            {i === 3 && m.phase === "void" ? "Void" : s.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
 
 function AfterLock({ m, stream }: { m: MarketView; stream?: StreamState }) {
-  const now = useNow(500);
   const progress = useCounterProgress(m, stream);
   if (m.phase === "settled" || m.phase === "void") {
-    const tone = m.outcome === "YES" ? "yes" : m.outcome === "NO" ? "no" : "void";
+    const isVoid = m.outcome === "VOID" || m.phase === "void";
+    const yes = m.outcome === "YES";
     return (
-      <div className={cn("flex flex-col justify-center rounded-xl p-5", tone === "yes" ? "bg-yes-soft" : tone === "no" ? "bg-no-soft" : "bg-void-soft")}>
-        <SealCheckIcon size={30} weight="fill" className={tone === "yes" ? "text-yes" : tone === "no" ? "text-no" : "text-void"} />
-        <div className={cn("mt-2 text-2xl font-bold", tone === "yes" ? "text-yes" : tone === "no" ? "text-no" : "text-void")}>{m.outcome === "VOID" ? "Void · refunded" : m.outcome === "YES" ? "Yes" : "No"}</div>
-        <p className="mt-1 text-xs text-muted-foreground">{m.voidReason ?? "Both AI readers agreed on their own frames."}</p>
-        <Link href={`/m/${m.id}`} className="mt-3 text-xs font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground">
-          See the receipt
-        </Link>
+      <div className="space-y-4">
+        <Lifecycle m={m} />
+        <div className="flex items-start gap-3">
+          <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", isVoid ? "bg-void-soft text-void" : yes ? "bg-yes-soft text-yes" : "bg-no-soft text-no")}>
+            {isVoid ? <ProhibitIcon size={18} weight="bold" /> : <SealCheckIcon size={18} weight="fill" />}
+          </span>
+          <div className="min-w-0">
+            <div className={cn("text-[15px] font-semibold", isVoid ? "text-foreground" : yes ? "text-yes" : "text-no")}>{isVoid ? "Voided, stakes refunded" : yes ? "Resolved Yes" : "Resolved No"}</div>
+            <p className="mt-0.5 text-[13px] leading-snug text-muted-foreground">{m.voidReason ?? (m.tx.resolve ? "Settled onchain against the rule committed before trading." : "Result recorded; onchain settlement pending.")}</p>
+          </div>
+        </div>
+        <Button asChild variant="outline" className="h-10 w-full rounded-lg">
+          <Link href={`/m/${m.id}`}>
+            View receipt <ArrowRightIcon />
+          </Link>
+        </Button>
       </div>
     );
   }
-  const total = Math.max(1, m.windowEnd - m.windowStart);
-  const frac = now < m.windowStart ? 0 : Math.min(1, (now - m.windowStart) / total);
   return (
-    <div className="flex flex-col justify-center gap-3 rounded-xl bg-sunk p-5">
-      <div className="text-xs font-semibold text-muted-foreground">{now < m.windowStart ? `Window opens in ${Math.ceil(m.windowStart - now)}s` : m.phase === "resolving" ? "Both readers checking the result…" : `Playing out · ${Math.max(0, Math.ceil(m.windowEnd - now))}s left`}</div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-raised">
-        <div className="h-full rounded-full bg-warn transition-[width] duration-500" style={{ width: `${frac * 100}%` }} />
-      </div>
+    <div className="space-y-4">
+      <Lifecycle m={m} />
       {progress && (
-        <div className="flex items-center justify-between rounded-lg bg-surface px-3 py-2.5">
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <ScanIcon size={14} className="text-yes" /> {progress.label}
+        <div className="flex items-center justify-between border-t pt-3.5">
+          <span className="flex items-center gap-2 text-[13px] text-muted-foreground">
+            <ScanIcon size={15} className="text-yes" /> {progress.label}
+            <span className="text-[11px] text-faint">· live AI reading</span>
           </span>
-          <span className="font-mono text-lg font-semibold tabular">
+          <span className="text-[15px] font-semibold capitalize tabular">
             {progress.now}
             {progress.target !== undefined && <span className="text-xs font-normal text-faint"> / {progress.target}</span>}
           </span>
         </div>
       )}
-      <p className="text-[11px] text-faint">Live AI reading. The result is settled by two independent readers.</p>
+      <p className="text-xs leading-relaxed text-faint">{m.phase === "resolving" ? "Two readers are checking the window against the committed rule." : "Trading is closed. Only what happens inside the window decides the result."}</p>
     </div>
   );
 }
@@ -225,42 +420,49 @@ function Waiting({ stream, hint }: { stream?: StreamState; hint?: string }) {
         .filter((m) => m.slug !== stream?.slug && m.phase === "trading" && m.lockTime - now > 6)
         .sort((a, b) => a.lockTime - b.lockTime)
         .slice(0, 3),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [markets, stream?.slug, Math.floor(now / 5)],
   );
+  const title = !stream || !stream.live || stream.rerun ? (stream?.rerun ? "No markets on reruns" : stream && !stream.live ? "Channel is offline" : "No markets on this stream right now") : "Watching for the next moment";
   return (
-    <section className="surface p-5">
-      <div className="flex items-center gap-4">
-        <div className="relative grid size-11 shrink-0 place-items-center rounded-xl bg-raised">
-          <ScanIcon size={22} className="text-muted-foreground" />
-          {stream?.reading && <span className="absolute -right-0.5 -top-0.5 size-2.5 animate-live rounded-full bg-yes" />}
-        </div>
+    <Card className="gap-0 overflow-hidden py-0" aria-label="No market open">
+      <div className="flex items-start gap-3.5 p-5">
+        <span className="relative grid size-10 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground">
+          <ScanIcon size={20} />
+          {stream?.reading && <span className="absolute -top-0.5 -right-0.5 size-2.5 animate-live rounded-full border-2 border-card bg-yes" />}
+        </span>
         <div className="min-w-0">
-          <div className="text-sm font-semibold">{!stream || !stream.live || stream.rerun ? "No markets on this stream right now" : "Next market on this stream is coming"}</div>
-          <div className="text-sm text-muted-foreground">{hint ?? "Markets open when the action gets uncertain."}</div>
+          <div className="text-[15px] font-semibold tracking-tight">{title}</div>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{hint ?? "Markets open when the action gets uncertain."}</p>
         </div>
       </div>
       {elsewhere.length > 0 && (
-        <div className="mt-4">
-          <div className="eyebrow mb-2">Trading now on other streams</div>
-          <div className="grid gap-2 sm:grid-cols-3">
+        <div className="border-t">
+          <div className="px-5 pt-3.5 pb-1 text-xs font-medium text-muted-foreground">Trading now on other streams</div>
+          <ItemGroup className="px-2 pb-2">
             {elsewhere.map((m) => (
-              <Link key={m.id} href={`/c/${m.slug}`} className="group rounded-xl border border-border bg-raised/40 p-3 transition hover:border-brand/50">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="truncate font-medium text-muted-foreground">{m.streamTitle}</span>
-                  <span className="shrink-0 font-mono text-live tabular">{Math.max(0, Math.ceil(m.lockTime - now))}s</span>
-                </div>
-                <div className="mt-1 line-clamp-2 text-[13px] font-semibold leading-snug">{m.question}</div>
-                <div className="mt-2 flex gap-1.5 font-mono text-[11px] font-semibold">
-                  <span className="rounded-md bg-yes-soft px-1.5 py-0.5 text-yes">Yes {Math.round(m.priceYes * 100)}¢</span>
-                  <span className="rounded-md bg-no-soft px-1.5 py-0.5 text-no">No {100 - Math.round(m.priceYes * 100)}¢</span>
-                </div>
-              </Link>
+              <Item key={m.id} asChild size="sm" className="gap-3 rounded-lg px-3 py-2.5 hover:bg-secondary/60">
+                <Link href={`/c/${m.slug}`}>
+                  <ItemContent className="min-w-0">
+                    <ItemTitle className="block w-full truncate text-[13px]">{m.question}</ItemTitle>
+                    <span className="truncate text-xs text-faint">{m.streamTitle}</span>
+                  </ItemContent>
+                  <ItemActions className="flex-col items-end gap-0.5 text-xs tabular">
+                    <span className="font-mono text-live">{Math.max(0, Math.ceil(m.lockTime - now))}s</span>
+                    <span className="font-mono font-semibold text-yes">Yes {Math.round(m.priceYes * 100)}¢</span>
+                  </ItemActions>
+                </Link>
+              </Item>
             ))}
-          </div>
+          </ItemGroup>
         </div>
       )}
-      {callable && stream && <CallMarket slug={stream.slug} className="mt-4" />}
-    </section>
+      {callable && stream && (
+        <div className="border-t bg-secondary/30 p-5">
+          <CallMarket slug={stream.slug} />
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -271,28 +473,30 @@ export function VisionPanel({ s }: { s?: StreamState }) {
   const v = s.vision;
   const fresh = v && now * 1000 - v.at < 30_000;
   return (
-    <section className="surface overflow-hidden">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
+    <Card className="gap-0 overflow-hidden py-0">
+      <CardHeader className="flex items-center border-b px-4 py-3 [.border-b]:pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
           <ScanIcon size={16} className={fresh ? "text-yes" : "text-faint"} /> What the AI sees
-        </h3>
-        {v && <span className="text-[11px] text-faint">{Math.max(0, Math.round(now - v.at / 1000))}s ago</span>}
-      </div>
+        </CardTitle>
+        {v && <CardAction className="self-center text-[11px] text-faint">{Math.max(0, Math.round(now - v.at / 1000))}s ago</CardAction>}
+      </CardHeader>
       {s.frameAt && <img src={`${ENGINE_URL}/frames/${s.slug}.jpg?t=${Math.floor(s.frameAt / 2000)}`} alt="Latest frame the AI read" className="aspect-video w-full object-cover" />}
-      <div className="space-y-2 p-4">
+      <CardContent className="space-y-2.5 p-4">
         {!v ? (
           <p className="text-sm text-faint">{s.reading ? "Starting to read this stream…" : s.rerun ? "Reruns are never read: the result already happened." : "Queued for an AI reader."}</p>
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className={cn("rounded-md px-2 py-0.5 text-xs font-medium", v.state.mode === "gameplay" ? "bg-yes-soft text-yes" : "bg-raised text-muted-foreground")}>{v.state.mode}</span>
-              {v.state.povAlive !== null && <span className="rounded-md bg-raised px-2 py-0.5 text-xs text-muted-foreground">player {v.state.povAlive ? "alive" : "down"}</span>}
+              <Badge variant="secondary" className={cn(v.state.mode === "gameplay" && "bg-yes-soft text-yes")}>
+                {v.state.mode}
+              </Badge>
+              {v.state.povAlive !== null && <Badge variant="secondary">player {v.state.povAlive ? "alive" : "down"}</Badge>}
               {v.state.game && <span className="truncate text-xs text-faint">{v.state.game}</span>}
             </div>
             {v.state.counters && v.state.counters.length > 0 ? (
               <dl className="grid grid-cols-2 gap-1.5">
                 {v.state.counters.slice(0, 8).map((c) => (
-                  <div key={c.key} className="rounded-lg bg-sunk px-2.5 py-1.5">
+                  <div key={c.key} className="rounded-lg border bg-secondary/40 px-2.5 py-1.5">
                     <dt className="truncate text-[11px] text-faint">{c.label}</dt>
                     <dd className="font-mono text-sm font-semibold tabular">{c.value}</dd>
                   </div>
@@ -305,9 +509,13 @@ export function VisionPanel({ s }: { s?: StreamState }) {
             <p className="text-[11px] text-faint">Read by {v.reader} in {(v.ms / 1000).toFixed(1)}s</p>
           </>
         )}
-      </div>
-    </section>
+      </CardContent>
+    </Card>
   );
+}
+
+function VerdictBadge({ v }: { v: string }) {
+  return <Badge className={cn("w-12 justify-center rounded-md font-semibold", v === "YES" ? "bg-yes-soft text-yes" : v === "NO" ? "bg-no-soft text-no" : "bg-void-soft text-void")}>{v}</Badge>;
 }
 
 /** Other markets on this channel that are locked and playing out. */
@@ -315,40 +523,50 @@ export function PlayingOut({ slug, exclude }: { slug: string; exclude?: number }
   const list = Object.values(useLive((s) => s.markets)).filter((m) => m.slug === slug && isOpen(m) && m.phase !== "trading" && m.id !== exclude);
   if (!list.length) return null;
   return (
-    <section className="surface p-4">
-      <h3 className="mb-2 text-sm font-semibold">Playing out</h3>
-      <ul className="space-y-2">
+    <Card className="gap-1 py-3">
+      <CardHeader className="px-4">
+        <CardTitle className="text-sm">Playing out</CardTitle>
+      </CardHeader>
+      <ItemGroup className="px-1.5">
         {list.map((m) => (
-          <li key={m.id}>
-            <Link href={`/m/${m.id}`} className="flex items-center justify-between gap-3 text-sm">
-              <span className="truncate">{m.question}</span>
-              <span className="shrink-0 font-mono text-xs text-yes tabular">{cents(m.priceYes)}</span>
+          <Item key={m.id} asChild size="sm" className="rounded-lg px-2.5 py-2 hover:bg-secondary/60">
+            <Link href={`/m/${m.id}`}>
+              <ItemContent className="min-w-0">
+                <ItemTitle className="block w-full truncate font-normal">{m.question}</ItemTitle>
+              </ItemContent>
+              <ItemActions className="font-mono text-xs text-yes tabular">{cents(m.priceYes)}</ItemActions>
             </Link>
-          </li>
+          </Item>
         ))}
-      </ul>
-    </section>
+      </ItemGroup>
+    </Card>
   );
 }
 
 /** The last results on this channel, newest first. */
 export function RecentRounds({ slug }: { slug: string }) {
-  const receipts = useLive((s) => s.receipts).filter((r) => r.slug === slug).slice(0, 10);
+  const receipts = useLive((s) => s.receipts).filter((r) => r.slug === slug).slice(0, 8);
   if (!receipts.length) return null;
   return (
-    <section className="surface p-4">
-      <h3 className="mb-2.5 text-sm font-semibold">Recent results</h3>
-      <ul className="space-y-1.5">
+    <Card className="gap-1 py-3">
+      <CardHeader className="px-4">
+        <CardTitle className="text-sm">Recent results</CardTitle>
+      </CardHeader>
+      <ItemGroup className="px-1.5">
         {receipts.map((r) => (
-          <li key={r.marketId}>
-            <Link href={`/m/${r.marketId}`} className="flex items-center gap-2.5 text-sm">
-              <span className={cn("w-11 shrink-0 rounded-md py-0.5 text-center text-[11px] font-semibold", r.verdict === "YES" ? "bg-yes-soft text-yes" : r.verdict === "NO" ? "bg-no-soft text-no" : "bg-void-soft text-void")}>{r.verdict}</span>
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">{r.question}</span>
-              <span className="shrink-0 text-[11px] text-faint">{ago(r.resolvedAt)}</span>
+          <Item key={r.marketId} asChild size="sm" className="gap-2.5 rounded-lg px-2.5 py-2 hover:bg-secondary/60">
+            <Link href={`/m/${r.marketId}`}>
+              <ItemMedia>
+                <VerdictBadge v={r.verdict} />
+              </ItemMedia>
+              <ItemContent className="min-w-0">
+                <ItemTitle className="block w-full truncate font-normal text-muted-foreground">{r.question}</ItemTitle>
+              </ItemContent>
+              <ItemActions className="text-[11px] text-faint">{ago(r.resolvedAt)}</ItemActions>
             </Link>
-          </li>
+          </Item>
         ))}
-      </ul>
-    </section>
+      </ItemGroup>
+    </Card>
   );
 }
