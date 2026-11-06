@@ -83,6 +83,9 @@ def docker_verifier(image, expected_hook, expected_agent, expected_signer, publi
                 "--security-opt", "no-new-privileges:true", "--tmpfs", "/tmp:rw,size=64m",
                 "--env-file", str(path),
             ]
+            if not public_only:
+                command += ["-e", "DATA_DIR=/tmp/clutch-preflight-data",
+                            "-e", "DATABASE_URL=file:/tmp/clutch-preflight-data/preflight.db"]
             if public_only:
                 command += ["-e", "CLUTCH_EXPECTED_HOOK=" + expected_hook,
                             "-e", "CLUTCH_EXPECTED_AGENT=" + expected_agent,
