@@ -1,0 +1,55 @@
+{
+  "hook": "0x574d0c676a9beab18963468dA010Ba16BB2fE888",
+  "transactions": [
+    {
+      "chainId": 84532,
+      "from": "0x3750134287b3Fa078817ee2bAce1a69b372F3F8C",
+      "to": "0x574d0c676a9beab18963468dA010Ba16BB2fE888",
+      "functionName": "configure",
+      "args": [
+        "0xD1885548a9dF36d11FD66b6361aF814b8961a846",
+        "0xD1885548a9dF36d11FD66b6361aF814b8961a846",
+        "0x3750134287b3Fa078817ee2bAce1a69b372F3F8C",
+        "0x80Ed9eb53160c6E85Cb64DAA4A3c5B9a6ec01924",
+        "0xaCbbcBCd97019a20596C405Dc6D98188a05E285A"
+      ],
+      "data": "0x760fcb3e000000000000000000000000d1885548a9df36d11fd66b6361af814b8961a846000000000000000000000000d1885548a9df36d11fd66b6361af814b8961a8460000000000000000000000003750134287b3fa078817ee2bace1a69b372f3f8c00000000000000000000000080ed9eb53160c6e85cb64daa4a3c5b9a6ec01924000000000000000000000000acbbcbcd97019a20596c405dc6d98188a05e285a",
+      "value": "0",
+      "estimatedGas": "44754",
+      "gasLimitWith20PercentBuffer": "53704",
+      "gasPriceWei": "6000000",
+      "estimatedExecutionEth": "0.000000268524",
+      "simulation": "success",
+      "broadcast": false
+    },
+    {
+      "chainId": 84532,
+      "from": "0x3750134287b3Fa078817ee2bAce1a69b372F3F8C",
+      "to": "0x80Ed9eb53160c6E85Cb64DAA4A3c5B9a6ec01924",
+      "functionName": "setSigner",
+      "args": [
+        "0xECA00909197A2487Fe807518ed1636E9A6659328"
+      ],
+      "data": "0x6c19e783000000000000000000000000eca00909197a2487fe807518ed1636e9a6659328",
+      "value": "0",
+      "estimatedGas": "29275",
+      "gasLimitWith20PercentBuffer": "35130",
+      "gasPriceWei": "6000000",
+      "estimatedExecutionEth": "0.00000017565",
+      "simulation": "success",
+      "broadcast": false
+    }
+  ],
+  "balances": {
+    "0x3750134287b3Fa078817ee2bAce1a69b372F3F8C": "0.095031792971208347",
+    "0xD1885548a9dF36d11FD66b6361aF814b8961a846": "0",
+    "0xECA00909197A2487Fe807518ed1636E9A6659328": "0"
+  },
+  "notes": [
+    "Estimates exclude variable L1 data fees; re-estimate before signing.",
+    "configure changes engine/resolver only; treasury/gate/vault preserved.",
+    "setSigner immediately invalidates passes signed by the old signer.",
+    "Old engine loses open/resolve privileges immediately; no current markets exist on this hook.",
+    "No transaction has been signed or broadcast."
+  ]
+}

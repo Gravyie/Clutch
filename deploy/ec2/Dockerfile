@@ -23,7 +23,8 @@ ENV PATH=/opt/capture/bin:$PATH
 ENV NODE_ENV=production CHAIN_ID=84532 REPLAY=0 DATA_DIR=/app/engine/data PORT=8787
 WORKDIR /app/engine
 COPY --from=build --chown=node:node /runtime/ ./
-COPY --chown=node:node contracts/deployments/84532.json /app/contracts/deployments/84532.json
+ARG DEPLOYMENT_MANIFEST=contracts/deployments/84532.json
+COPY --chown=node:node ${DEPLOYMENT_MANIFEST} /app/contracts/deployments/84532.json
 COPY deploy/ec2/healthcheck.mjs /app/healthcheck.mjs
 RUN mkdir -p /app/engine/data && chown node:node /app/engine/data
 USER node

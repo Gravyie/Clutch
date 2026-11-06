@@ -1,0 +1,47 @@
+# Rajat AWS testnet environment — explicit opt-in
+
+This environment selects Base Sepolia hook `0x574d0c676a9beab18963468dA010Ba16BB2fE888` only for the new AWS backend. The repository default manifest remains unchanged. Never reuse an existing database from the other deployment.
+
+Read-only audit at block 55363651 verified:
+- Intended hook owner/engine/resolver `0x3750134287b3Fa078817ee2bAce1a69b372F3F8C`, gate signer same, marketCount 0.
+- GitHub default hook `0x6826872452e7Eea21D8a022E8533CEA0F4236888`, owner `0x83e60BfbB74b20F1E1279e02F879594527D176da`, agent `0x5Fc7EC11Fac094DAAa7a75F0Eb52c035533A4E44`, signer `0x8Af096a0C69B9Dd514cAaf3B51D6d5D3685c57d8`, marketCount 174. It is a separate, used deployment, not obsolete.
+- Both use PoolManager `0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408`; all associated components have code and hook component getters match each manifest.
+- All 19 deployment receipts per environment succeeded. Intended hook creation: https://sepolia.basescan.org/tx/0xe214f2433ce3790d04667b9f9c2d2388544074a7a3fac21167571d41a8e5118d ; default hook creation: https://sepolia.basescan.org/tx/0xee0ce215f1e53d145ad593e96a9ed1ac0db337eb12ac5bb7effe7d0f8762c91b .
+- Intended hook/gate/router runtime code matches the local Foundry artifacts after zeroing compiler-declared immutable references. Hook 20,258 bytes, gate 5,585 bytes, router 5,682 bytes. The newer default router is 10,935 bytes and adds ETH/signed cross-chain methods (`3323398`, `cdfa26e`); do not assume the current frontend's ETH betting flow works with the intended older router. USDC `back` remains the intended lifecycle path.
+- Git history explains independent deployments: local manifest added in `abe9571`, upstream deployment recorded in `853205c`. No shared market migration is performed.
+
+## AWS resources actually created
+
+Region ap-south-1; instance `i-0cb7500b58c3d8e0e`, Ubuntu 24.04 ARM64 t4g.medium, standard CPU credits; Elastic IP `3.6.125.187`. Encrypted persistent 40 GiB gp3 volume `vol-0afe8c6d07e9e6b44`; data `/srv/clutch/data` owned by UID 1000. IMDSv2 required, SSM management, no SSH ingress, only 80/443 ingress. Bootstrap/image build completed successfully. Runtime remains STOPPED.
+
+Verified dedicated Secrets Manager records (no owner key):
+- Agent `arn:aws:secretsmanager:ap-south-1:136673894429:secret:clutch/testnet/agent-private-key-2qdcUi`, public `0xD1885548a9dF36d11FD66b6361aF814b8961a846`.
+- Pass signer `arn:aws:secretsmanager:ap-south-1:136673894429:secret:clutch/testnet/pass-signer-private-key-Hc8WBl`, public `0xECA00909197A2487Fe807518ed1636E9A6659328`.
+
+Keys were generated in memory, stored via SDK, retrieved in memory and verified by derived public address. No plaintext key files created. Neither role is authorized yet. Neither wallet funded. Existing owner remains local; planned encrypted keystore `~/.foundry/keystores/clutch-base-sepolia-owner` has NOT been verified to exist.
+
+`role-transactions.UNSIGNED.json` contains reviewed-target calldata and successful read-only simulations. Re-estimate before signing. `configure` preserves treasury/gate/vault but revokes old engine/resolver privileges; `setSigner` invalidates old pass signatures. Explicit user approval and local owner signing are required; no transaction has been signed or broadcast.
+
+## DNS and startup
+
+Authoritative nameservers are Name.com (`ns1djs`, `ns2nsy`, `ns3gnv`, `ns4cgs`). Proposed `api` and `clutch` had no A records when inspected. Prepare `api A 3.6.125.187`, TTL 300; create only after DNS approval/authentication. Do not create a Route 53 hosted zone. Frontend CNAME must come from the actual selected Vercel project; no Clutch project has been verified in the current account yet. Do not overwrite apex or existing portfolio DNS.
+
+After domain/role/credentials prerequisites are satisfied, run from the repository root:
+
+```sh
+# Host preparation and role-gated secret installation: follow ../../README.md and ../../secrets/README.md.
+# Set IMAGE_TAG, ENGINE_ENV_FILE, CLUTCH_DATA_DIR, ENGINE_DOMAIN and ACME_EMAIL
+# in a root-only /etc/clutch/compose.env (no wallet values in that file).
+docker compose --env-file /etc/clutch/compose.env \
+  -f deploy/ec2/compose.yaml \
+  -f deploy/ec2/environments/rajat-testnet/compose.override.yaml build engine
+# Run the public role check / production-check using that SAME selected image,
+# then import approved existing stream pools before enabling ingestion.
+docker compose --env-file /etc/clutch/compose.env \
+  -f deploy/ec2/compose.yaml \
+  -f deploy/ec2/environments/rajat-testnet/compose.override.yaml up -d
+```
+
+No engine host port is published. It listens within the isolated Docker network for Caddy; binding to 127.0.0.1 inside that container would prevent Caddy connecting. Host access is limited to HTTPS/WSS through Caddy. SSH is fully closed; use SSM.
+
+Remaining gates: encrypted owner keystore import/address verification; approved role updates; approved agent gas funding; DNS approval/access; World verification configuration; approval to copy necessary existing 0G/Twitch credentials; existing stream registration/import; frontend router compatibility decision. Public health/config/WS, authentic inference and Base Sepolia create/trade/lock/settle/claim have NOT been verified for this environment. Do not label it live.

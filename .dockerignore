@@ -24,3 +24,6 @@
 !deploy/ec2/healthcheck.mjs
 !deploy/ec2/Dockerfile
 **/*.test.ts
+!deploy/ec2/environments/
+!deploy/ec2/environments/rajat-testnet/
+!deploy/ec2/environments/rajat-testnet/84532.json
