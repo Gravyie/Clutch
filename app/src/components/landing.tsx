@@ -20,6 +20,8 @@ import {
   SealCheckIcon,
   ShieldCheckIcon,
   SlidersHorizontalIcon,
+  SpeakerHighIcon,
+  SpeakerSlashIcon,
   TimerIcon,
 } from "@phosphor-icons/react";
 import type { AgentState, ChainState, MarketView, Receipt, StreamSummary } from "@clutch/shared";
@@ -30,7 +32,6 @@ import { LiveBoard, PlatformIcon, frameUrl } from "@/components/stream";
 import { isOpen } from "@/components/market";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { BlurFade } from "@/components/ui/blur-fade";
-import { DotPattern } from "@/components/ui/dot-pattern";
 import { Marquee } from "@/components/ui/marquee";
 import { TextReveal } from "@/components/ui/text-reveal";
 import { api, useLive, useNow } from "@/lib/live";
@@ -46,15 +47,16 @@ import { cn } from "@/lib/utils";
 
 type Stats = { markets: number; volume: number; traders: number; voids: number; agent: AgentState; chain: ChainState };
 
-const twitchPreview = (s: StreamSummary) => (s.media?.kind === "video" && s.media.platform === "twitch" ? `https://static-cdn.jtvnw.net/previews-ttv/live_user_${s.media.channel}-1280x720.jpg` : undefined);
+const twitchPreview = (s: StreamSummary, big = false) =>
+  s.media?.kind === "video" && s.media.platform === "twitch" ? `https://static-cdn.jtvnw.net/previews-ttv/live_user_${s.media.channel}-${big ? "1280x720" : "640x360"}.jpg` : undefined;
 
 /** The engine's last frame, falling back to the platform's own live thumbnail. */
-function StreamImage({ s, alt = "", className, quiet }: { s: StreamSummary; alt?: string; className?: string; quiet?: boolean }) {
+function StreamImage({ s, alt = "", className, quiet, priority }: { s: StreamSummary; alt?: string; className?: string; quiet?: boolean; priority?: boolean }) {
   const [failed, setFailed] = useState<string | undefined>();
-  const first = frameUrl(s) ?? twitchPreview(s);
-  const src = failed === first ? twitchPreview(s) : first;
+  const first = frameUrl(s) ?? twitchPreview(s, priority);
+  const src = failed === first ? twitchPreview(s, priority) : first;
   if (!src || failed === src) return quiet ? null : <div className={cn("bg-[var(--l-night-2)]", className)} />;
-  return <img key={src} src={src} alt={alt} onError={() => setFailed(src)} className={className} />;
+  return <img key={src} src={src} alt={alt} onError={() => setFailed(src)} className={className} loading={priority ? "eager" : "lazy"} decoding="async" fetchPriority={priority ? "high" : "auto"} />;
 }
 
 function useLanding() {
@@ -71,7 +73,12 @@ function useLanding() {
   const market = open.find((m) => m.slug === featured?.slug);
   const settled = receipts.filter((r) => r.verdict !== "VOID");
   const proof = settled.find((r) => r.rule.adapter === "vision") ?? settled[0] ?? receipts[0];
-  return { list, video, live: list.filter((s) => s.live), featured, market, receipts, proof, stats, agent: agentLive ?? stats?.agent, reading: list.filter((s) => s.reading).length };
+  // The hero plays real gameplay a market could be opened on: shooters and battle royale first, never chat or reruns.
+  const GAMEPLAY: Record<string, number> = { fps: 3, "battle-royale": 3, moba: 2, sports: 2 };
+  const twitch = video.filter((s) => s.media?.kind === "video" && s.media.platform === "twitch" && GAMEPLAY[s.category ?? ""]);
+  const score = (s: StreamSummary) => (s.market?.phase === "trading" ? 100 : 0) + (s.vision?.state.mode === "gameplay" ? 50 : 0) + GAMEPLAY[s.category ?? ""] * 10;
+  const playable = [...twitch].sort((a, b) => score(b) - score(a))[0] ?? featured;
+  return { list, video, open, playable, live: list.filter((s) => s.live), featured, market, receipts, proof, stats, agent: agentLive ?? stats?.agent, reading: list.filter((s) => s.reading).length };
 }
 type D = ReturnType<typeof useLanding>;
 
@@ -195,7 +202,7 @@ function Hero({ d }: { d: D }) {
   const scale = useTransform(scrollYProgress, [0, 0.6], [1, 1.02]);
   return (
     <section ref={ref} data-tone="paper" className="relative overflow-hidden pt-[132px] sm:pt-[156px]">
-      <DotPattern width={22} height={22} cr={0.9} className="text-[rgb(23_22_20/0.13)] [mask-image:radial-gradient(70%_60%_at_50%_30%,#000_40%,transparent_100%)]" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 [background-image:radial-gradient(rgb(23_22_20/0.14)_0.9px,transparent_1.2px)] [background-size:22px_22px] [mask-image:radial-gradient(70%_60%_at_50%_30%,#000_40%,transparent_100%)]" />
       <Container className="relative flex flex-col items-center text-center">
         <BlurFade delay={0.05} inView={false}>
           <span className="inline-flex items-center gap-2 rounded-full bg-[var(--l-card)] px-3 py-1.5 text-[12.5px] text-[var(--l-ink-2)] shadow-[0_1px_0_rgb(255_255_255/0.8)_inset] ring-1 ring-[var(--l-line)]">
@@ -244,8 +251,15 @@ function Hero({ d }: { d: D }) {
 
 /** A real Clutch watch screen in miniature: the stream on the left, its live market on the right. */
 function ProductWindow({ d }: { d: D }) {
-  const s = d.featured;
-  const m = d.market;
+  // Pin one channel: rankings shift every few seconds, and a moving pick would reload the video each time.
+  const [pin, setPin] = useState<string>();
+  const pinned = pin ? d.list.find((x) => x.slug === pin) : undefined;
+  const next = d.playable?.slug;
+  useEffect(() => {
+    if ((!pinned || !pinned.live) && next && next !== pin) setPin(next);
+  }, [pinned, next, pin]);
+  const s = pinned ?? d.playable;
+  const m = d.open.find((x) => x.slug === s?.slug);
   const paused = !!d.agent && (d.agent.mode !== "full" || !!d.agent.outOfCredits);
   return (
     <div className="overflow-hidden rounded-[22px] bg-[var(--l-card)] p-2 shadow-[0_40px_120px_-40px_rgb(40_30_20/0.35),0_0_0_1px_var(--l-line)]">
@@ -261,8 +275,8 @@ function ProductWindow({ d }: { d: D }) {
       <div className="grid grid-cols-1 gap-2 rounded-[16px] bg-[var(--l-paper)] p-2 md:grid-cols-[minmax(0,1fr)_340px]">
         <div className="overflow-hidden rounded-[12px] bg-[var(--l-night)]">
           <div className="relative aspect-video">
-            {s ? <StreamImage s={s} className="absolute inset-0 size-full object-cover" /> : <div className="absolute inset-0 animate-pulse bg-[var(--l-night-2)]" />}
-            <div className="absolute left-3 top-3 flex items-center gap-1.5">
+            {s ? <HeroPlayer s={s} /> : <div className="absolute inset-0 animate-pulse bg-[var(--l-night-2)]" />}
+            <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-1.5">
               <span className="rounded-[5px] bg-[#ff755f] px-1.5 py-px text-[10.5px] font-bold text-[#1a0703]">LIVE</span>
               {s && <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-white/90 backdrop-blur">{s.title}</span>}
             </div>
@@ -276,6 +290,89 @@ function ProductWindow({ d }: { d: D }) {
         <HeroMarket m={m} s={s} receipts={d.receipts} />
       </div>
     </div>
+  );
+}
+
+/**
+ * The hero's live stream. The still frame paints first (fast LCP); Twitch's player script loads only once the page is
+ * idle, plays muted with no controls, and fades in over the frame once it is actually playing. One small button
+ * toggles sound. Non-Twitch channels, offline streams or a blocked embed simply keep the frame.
+ */
+function HeroPlayer({ s }: { s: StreamSummary }) {
+  const channel = s.media?.kind === "video" && s.media.platform === "twitch" ? s.media.channel : undefined;
+  const host = useRef<HTMLDivElement>(null);
+  const player = useRef<any>(null);
+  const [ready, setReady] = useState(false);
+  const [muted, setMuted] = useState(true);
+
+  useEffect(() => {
+    if (!channel || !host.current) return;
+    let cancelled = false;
+    const w = window as any;
+    const start = () => {
+      const T = w.Twitch;
+      if (cancelled || !host.current || !T?.Player) return;
+      host.current.innerHTML = "";
+      const p = new T.Player(host.current, { channel, parent: [location.hostname], width: "100%", height: "100%", autoplay: true, muted: true, controls: false });
+      player.current = p;
+      p.addEventListener(T.Player.PLAYING, () => !cancelled && setReady(true));
+      p.addEventListener(T.Player.OFFLINE, () => !cancelled && setReady(false));
+      p.addEventListener(T.Player.ENDED, () => !cancelled && setReady(false));
+    };
+    const load = () => {
+      if (w.Twitch?.Player) return start();
+      let tag = document.getElementById("twitch-player-js") as HTMLScriptElement | null;
+      if (!tag) {
+        const before = w.Twitch;
+        tag = document.createElement("script");
+        tag.id = "twitch-player-js";
+        tag.src = "https://player.twitch.tv/js/embed/v1.js";
+        tag.async = true;
+        // keep Twitch.Embed (used on channel pages) if it was already loaded
+        tag.addEventListener("load", () => (w.Twitch = { ...(before ?? {}), ...(w.Twitch ?? {}) }), { once: true });
+        document.body.appendChild(tag);
+      }
+      tag.addEventListener("load", start, { once: true });
+    };
+    const ric = w.requestIdleCallback as undefined | ((cb: () => void, o?: { timeout: number }) => number);
+    const handle = ric ? ric(load, { timeout: 2000 }) : window.setTimeout(load, 800);
+    return () => {
+      cancelled = true;
+      if (ric) w.cancelIdleCallback?.(handle);
+      else clearTimeout(handle);
+      setReady(false);
+      setMuted(true);
+      player.current = null;
+      if (host.current) host.current.innerHTML = "";
+    };
+  }, [channel]);
+
+  const toggle = () => {
+    const p = player.current;
+    if (!p) return;
+    const nextMuted = !muted;
+    p.setMuted(nextMuted);
+    if (!nextMuted) p.setVolume?.(0.5);
+    setMuted(nextMuted);
+  };
+
+  return (
+    <>
+      {channel && <link rel="preconnect" href="https://player.twitch.tv" />}
+      <StreamImage s={s} priority className={cn("absolute inset-0 size-full object-cover transition-opacity duration-700", ready && "opacity-0")} />
+      {/* pointer-events off: no pause, no hover overlays; the only control is the sound button */}
+      <div ref={host} aria-hidden className={cn("pointer-events-none absolute inset-0 transition-opacity duration-700 [&>iframe]:size-full", ready ? "opacity-100" : "opacity-0")} />
+      {ready && (
+        <button
+          onClick={toggle}
+          aria-label={muted ? "Turn sound on" : "Mute"}
+          aria-pressed={!muted}
+          className="absolute bottom-3 right-3 z-10 grid size-9 place-items-center rounded-full bg-black/55 text-white ring-1 ring-white/15 backdrop-blur transition hover:bg-black/75 focus-visible:outline-2 focus-visible:outline-white"
+        >
+          {muted ? <SpeakerSlashIcon size={16} weight="fill" /> : <SpeakerHighIcon size={16} weight="fill" />}
+        </button>
+      )}
+    </>
   );
 }
 
@@ -966,7 +1063,7 @@ function ScaledOverlay({ slug }: { slug: string }) {
   return (
     <div ref={ref} className="absolute inset-0">
       {scale > 0 && (
-        <iframe src={`/overlay/${slug}`} title="Clutch OBS overlay" tabIndex={-1} className="pointer-events-none absolute left-0 top-0 origin-top-left border-0" style={{ width: 1920, height: 1080, transform: `scale(${scale})` }} />
+        <iframe src={`/overlay/${slug}`} loading="lazy" title="Clutch OBS overlay" tabIndex={-1} className="pointer-events-none absolute left-0 top-0 origin-top-left border-0" style={{ width: 1920, height: 1080, transform: `scale(${scale})` }} />
       )}
     </div>
   );
