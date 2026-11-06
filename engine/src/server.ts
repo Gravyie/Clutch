@@ -6,6 +6,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { isAddress } from "viem";
 import type { ClientMessage, ServerMessage } from "@clutch/shared";
 import { config, isLocalChain } from "./config";
+import { sendFreeFunds } from "./faucet";
 import { log } from "./log";
 import type { Hub } from "./stream/hub";
 import { VideoRunner } from "./stream/video";
@@ -214,17 +215,27 @@ export function serve(hub: Hub) {
         if (ipCount >= config.faucetPerIpDaily && !isLocalChain) throw httpError(429, "Daily faucet limit reached for this network.");
         const human = await nullifierOf(to);
         let usdc: number;
+        let mark: string;
         if (human) {
-          if (await kvGet(`faucet:h:${human}:${day}`)) throw httpError(429, "You've had today's free funds. They refill at 00:00 UTC.");
-          await kvSet(`faucet:h:${human}:${day}`, String(Date.now()));
+          mark = `faucet:h:${human}:${day}`;
+          if (await kvGet(mark)) throw httpError(429, "You've had today's free funds. They refill at 00:00 UTC.");
           usdc = config.faucetHumanDailyUsdc;
         } else {
-          if (await kvGet(`faucet:w:${to.toLowerCase()}`)) throw Object.assign(httpError(403, `This wallet already had its starter funds. Verify with World ID for ${config.faucetHumanDailyUsdc} free test USDC every day.`), { code: "verify" });
-          await kvSet(`faucet:w:${to.toLowerCase()}`, String(Date.now()));
+          mark = `faucet:w:${to.toLowerCase()}`;
+          if (await kvGet(mark)) throw Object.assign(httpError(403, `This wallet already had its starter funds. Verify with World ID for ${config.faucetHumanDailyUsdc} free test USDC every day.`), { code: "verify" });
           usdc = config.faucetStarterUsdc;
         }
+        // Claim first (so two tabs can't both pass the check), release it if sending fails.
+        await kvSet(mark, String(Date.now()));
         await kvSet(`faucet:ip:${ip}:${day}`, String(ipCount + 1));
-        return { ...(await chain.faucet(to, usdc)), human: Boolean(human) };
+        let sent;
+        try {
+          sent = await sendFreeFunds(to, usdc);
+        } catch (e) {
+          await kvSet(mark, "");
+          throw e;
+        }
+        return { ...sent, human: Boolean(human) };
       },
     },
 
