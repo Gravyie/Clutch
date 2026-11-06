@@ -110,4 +110,90 @@ contract OneTapTest is ClutchBase {
         vm.expectRevert(ClutchRouter.NotAnEthPool.selector);
         router.backWithEth{value: 0.005 ether}(key, key, id, true, 0, 0, pass);
     }
+
+    // ── Signed bets, delivered by someone else (a Relay solver bridging from another chain) ──
+
+    uint256 constant CAROL_PK = 0xCA401;
+    address solver = makeAddr("relaySolver");
+
+    function _signBet(uint256 pk, ClutchRouter.Bet memory b) internal view returns (bytes memory) {
+        bytes32 structHash = keccak256(abi.encode(router.BET_TYPEHASH(), b.trader, b.marketId, b.yes, b.minShares, b.deadline, b.nonce));
+        (, string memory name, string memory version, uint256 chainId, address verifying,,) = router.eip712Domain();
+        bytes32 domain = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes(name)),
+                keccak256(bytes(version)),
+                chainId,
+                verifying
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, keccak256(abi.encodePacked("\x19\x01", domain, structHash)));
+        return abi.encodePacked(r, s, v);
+    }
+
+    function _bet(address trader, uint256 id, uint256 nonce) internal view returns (ClutchRouter.Bet memory) {
+        return ClutchRouter.Bet(trader, id, true, 0, uint64(block.timestamp + 60), nonce);
+    }
+
+    function test_signedBet_deliveredBySolver_creditsTheSigner() public {
+        address trader = vm.addr(CAROL_PK);
+        uint256 id = _open(0.5e18, 100e6);
+        ClutchRouter.Bet memory b = _bet(trader, id, 1);
+        bytes memory sig = _signBet(CAROL_PK, b);
+        vm.deal(solver, 1 ether);
+        vm.prank(solver);
+        uint256 shares = router.backWithEthFor{value: 0.005 ether}(ethKey, key, b, sig, 0, _pass(trader, CAROL_NULLIFIER));
+        assertGt(shares, 0);
+        (uint128 yesShares,,,) = hook.positions(id, trader);
+        assertEq(yesShares, shares, "the position belongs to the signer");
+        (uint128 solverShares,,,) = hook.positions(id, solver);
+        assertEq(solverShares, 0, "the solver gets nothing");
+        assertTrue(router.nonceUsed(trader, 1));
+    }
+
+    function test_signedBet_marketLocked_refundsTheTrader() public {
+        address trader = vm.addr(CAROL_PK);
+        uint256 id = _open(0.5e18, 100e6);
+        vm.warp(block.timestamp + 21); // the bridge landed after lock
+        ClutchRouter.Bet memory b = _bet(trader, id, 2);
+        bytes memory sig = _signBet(CAROL_PK, b);
+        vm.deal(solver, 1 ether);
+        vm.prank(solver);
+        uint256 shares = router.backWithEthFor{value: 0.005 ether}(ethKey, key, b, sig, 0, _pass(trader, CAROL_NULLIFIER));
+        assertEq(shares, 0);
+        assertEq(trader.balance, 0.005 ether, "the ETH lands in the trader's wallet, not lost in the bridge");
+    }
+
+    function test_signedBet_rejectsForgedSignatureAndReplay() public {
+        address trader = vm.addr(CAROL_PK);
+        uint256 id = _open(0.5e18, 100e6);
+        ClutchRouter.Bet memory b = _bet(trader, id, 3);
+        bytes memory forged = _signBet(0xBAD, b);
+        bytes memory pass = _pass(trader, CAROL_NULLIFIER);
+        vm.deal(solver, 1 ether);
+        vm.prank(solver);
+        vm.expectRevert(ClutchRouter.BadBetSignature.selector);
+        router.backWithEthFor{value: 0.001 ether}(ethKey, key, b, forged, 0, pass);
+
+        bytes memory sig = _signBet(CAROL_PK, b);
+        vm.prank(solver);
+        router.backWithEthFor{value: 0.001 ether}(ethKey, key, b, sig, 0, pass);
+        vm.prank(solver);
+        vm.expectRevert(ClutchRouter.NonceUsed.selector);
+        router.backWithEthFor{value: 0.001 ether}(ethKey, key, b, sig, 0, pass);
+    }
+
+    function test_signedBet_expires() public {
+        address trader = vm.addr(CAROL_PK);
+        uint256 id = _open(0.5e18, 100e6);
+        ClutchRouter.Bet memory b = _bet(trader, id, 4);
+        bytes memory sig = _signBet(CAROL_PK, b);
+        vm.warp(block.timestamp + 61);
+        bytes memory pass = _pass(trader, CAROL_NULLIFIER);
+        vm.deal(solver, 1 ether);
+        vm.prank(solver);
+        vm.expectRevert(ClutchRouter.BetExpired.selector);
+        router.backWithEthFor{value: 0.001 ether}(ethKey, key, b, sig, 0, pass);
+    }
 }

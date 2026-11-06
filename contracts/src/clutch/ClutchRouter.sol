@@ -9,6 +9,8 @@ import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import {EIP712} from "solady/utils/EIP712.sol";
+import {SignatureCheckerLib} from "solady/utils/SignatureCheckerLib.sol";
 
 interface IClutchHookView {
     function usdc() external view returns (address);
@@ -23,7 +25,11 @@ interface IClutchHookView {
 ///  - `backWithEth`: both at once. ETH → USDC through the Blackout Guard pool, then USDC → outcome shares through the
 ///    ClutchHook pool, inside a single `unlock`. The USDC credit from the first swap nets against the debt from the
 ///    second (flash accounting), so USDC never leaves the PoolManager and the trader needs no USDC approval.
-contract ClutchRouter is IUnlockCallback {
+///  - `backWithEthFor`: the same, for a bet the trader *signed*, so a cross-chain intent (Relay) can deliver it from
+///    any chain: the solver bridges ETH and calls this on the trader's behalf. The position always goes to the
+///    signer, never to the caller. If the market can't take the bet when the ETH arrives (it locked, or a rule
+///    refused it), the ETH is sent to the trader instead of reverting, so nothing is lost or stuck in the bridge.
+contract ClutchRouter is IUnlockCallback, EIP712 {
     using SafeTransferLib for address;
 
     IPoolManager public immutable poolManager;
@@ -54,8 +60,28 @@ contract ClutchRouter is IUnlockCallback {
         uint128 minUsdc;
     }
 
+    /// @notice A bet signed by the trader, executable by anyone (e.g. a Relay solver) before `deadline`.
+    struct Bet {
+        address trader;
+        uint256 marketId;
+        bool yes;
+        uint128 minShares;
+        uint64 deadline;
+        uint256 nonce;
+    }
+
+    bytes32 public constant BET_TYPEHASH =
+        keccak256("Bet(address trader,uint256 marketId,bool yes,uint128 minShares,uint64 deadline,uint256 nonce)");
+    mapping(address => mapping(uint256 => bool)) public nonceUsed;
+
+    event SignedBet(address indexed trader, uint256 indexed marketId, uint256 nonce, uint256 usdcIn, uint256 shares);
+    event SignedBetRefunded(address indexed trader, uint256 indexed marketId, uint256 nonce, uint256 eth, bytes reason);
+
     error NotPoolManager();
     error NotAnEthPool();
+    error BetExpired();
+    error BadBetSignature();
+    error NonceUsed();
     error InsufficientOutput(uint256 out, uint256 minOut);
 
     constructor(IPoolManager _poolManager) {
@@ -100,6 +126,41 @@ contract ClutchRouter is IUnlockCallback {
         EthBackCall memory c = EthBackCall(ethKey, BackCall(key, msg.sender, marketId, yes, 0, minShares, gateData), uint128(msg.value), minUsdc);
         (usdcIn, shares) = abi.decode(poolManager.unlock(abi.encode(uint8(2), abi.encode(c))), (uint256, uint256));
         if (address(this).balance > 0) msg.sender.safeTransferETH(address(this).balance); // a price limit left ETH unspent
+    }
+
+    /// @notice Execute a signed bet with the ETH sent. Returns shares bought, or 0 if the bet was refunded.
+    function backWithEthFor(
+        PoolKey calldata ethKey,
+        PoolKey calldata key,
+        Bet calldata bet,
+        bytes calldata signature,
+        uint128 minUsdc,
+        bytes calldata gateData
+    ) external payable returns (uint256 shares) {
+        if (block.timestamp > bet.deadline) revert BetExpired();
+        if (nonceUsed[bet.trader][bet.nonce]) revert NonceUsed();
+        bytes32 digest = _hashTypedData(
+            keccak256(abi.encode(BET_TYPEHASH, bet.trader, bet.marketId, bet.yes, bet.minShares, bet.deadline, bet.nonce))
+        );
+        if (!SignatureCheckerLib.isValidSignatureNowCalldata(bet.trader, digest, signature)) revert BadBetSignature();
+        nonceUsed[bet.trader][bet.nonce] = true;
+        if (!ethKey.currency0.isAddressZero()) revert NotAnEthPool();
+
+        EthBackCall memory c =
+            EthBackCall(ethKey, BackCall(key, bet.trader, bet.marketId, bet.yes, 0, bet.minShares, gateData), uint128(msg.value), minUsdc);
+        try poolManager.unlock(abi.encode(uint8(2), abi.encode(c))) returns (bytes memory out) {
+            uint256 usdcIn;
+            (usdcIn, shares) = abi.decode(out, (uint256, uint256));
+            emit SignedBet(bet.trader, bet.marketId, bet.nonce, usdcIn, shares);
+        } catch (bytes memory reason) {
+            emit SignedBetRefunded(bet.trader, bet.marketId, bet.nonce, msg.value, reason);
+        }
+        // Unspent ETH (all of it, on a refund) belongs to the trader, not to whoever delivered the bet.
+        if (address(this).balance > 0) bet.trader.safeTransferETH(address(this).balance);
+    }
+
+    function _domainNameAndVersion() internal pure override returns (string memory, string memory) {
+        return ("Clutch Router", "1");
     }
 
     function unlockCallback(bytes calldata raw) external returns (bytes memory) {
