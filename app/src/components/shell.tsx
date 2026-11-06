@@ -103,17 +103,17 @@ function TopBar() {
             <>
               <button onClick={() => !acct.onboarded && open()} className="flex h-9 items-center gap-2 rounded-[10px] border border-border bg-raised px-3 text-sm">
                 <WalletIcon size={16} className="text-muted-foreground" />
-                <NumberFlow value={acct.usdc} format={{ style: "currency", currency: "USD" }} className="font-medium tabular" />
+                <NumberFlow value={acct.spendable} format={{ style: "currency", currency: "USD" }} className="font-medium tabular" />
               </button>
               {!acct.onboarded && (
-                <Button size="sm" className="h-9 rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90" onClick={open}>
+                <Button size="sm" className="h-9 rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => open()}>
                   Finish setup
                 </Button>
               )}
               <AccountMenu />
             </>
           ) : (
-            <Button size="sm" className="h-9 rounded-full bg-brand px-5 font-semibold text-brand-foreground hover:bg-brand/90" onClick={open} disabled={!wallet.ready}>
+            <Button size="sm" className="h-9 rounded-full bg-brand px-5 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => open()} disabled={!wallet.ready}>
               Sign in
             </Button>
           )}

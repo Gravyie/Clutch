@@ -20,6 +20,9 @@ interface IClutchHookView {
 ///  - `back`: buy outcome shares through a ClutchHook pool. The hook trusts this router to pass `msg.sender` as the
 ///    trader, so a pass can only ever credit the wallet it was issued to.
 ///  - `swapExactIn`: a plain exact-input swap, used to top up USDC from ETH through the Blackout Guard pool.
+///  - `backWithEth`: both at once. ETH → USDC through the Blackout Guard pool, then USDC → outcome shares through the
+///    ClutchHook pool, inside a single `unlock`. The USDC credit from the first swap nets against the debt from the
+///    second (flash accounting), so USDC never leaves the PoolManager and the trader needs no USDC approval.
 contract ClutchRouter is IUnlockCallback {
     using SafeTransferLib for address;
 
@@ -44,7 +47,15 @@ contract ClutchRouter is IUnlockCallback {
         uint128 minOut;
     }
 
+    struct EthBackCall {
+        PoolKey ethKey;
+        BackCall back;
+        uint128 ethIn;
+        uint128 minUsdc;
+    }
+
     error NotPoolManager();
+    error NotAnEthPool();
     error InsufficientOutput(uint256 out, uint256 minOut);
 
     constructor(IPoolManager _poolManager) {
@@ -73,11 +84,57 @@ contract ClutchRouter is IUnlockCallback {
         if (address(this).balance > 0) msg.sender.safeTransferETH(address(this).balance);
     }
 
+    /// @notice Bet with ETH in one transaction: the whole `msg.value` is swapped to USDC on `ethKey` (an ETH/USDC
+    /// pool, e.g. the Blackout Guard pool) and all of it backs `yes` on `marketId`. Returns the USDC that went in and
+    /// the shares bought. The human pass and daily cap apply to the USDC amount.
+    function backWithEth(
+        PoolKey calldata ethKey,
+        PoolKey calldata key,
+        uint256 marketId,
+        bool yes,
+        uint128 minUsdc,
+        uint128 minShares,
+        bytes calldata gateData
+    ) external payable returns (uint256 usdcIn, uint256 shares) {
+        if (!ethKey.currency0.isAddressZero()) revert NotAnEthPool();
+        EthBackCall memory c = EthBackCall(ethKey, BackCall(key, msg.sender, marketId, yes, 0, minShares, gateData), uint128(msg.value), minUsdc);
+        (usdcIn, shares) = abi.decode(poolManager.unlock(abi.encode(uint8(2), abi.encode(c))), (uint256, uint256));
+        if (address(this).balance > 0) msg.sender.safeTransferETH(address(this).balance); // a price limit left ETH unspent
+    }
+
     function unlockCallback(bytes calldata raw) external returns (bytes memory) {
         if (msg.sender != address(poolManager)) revert NotPoolManager();
         (uint8 kind, bytes memory data) = abi.decode(raw, (uint8, bytes));
         if (kind == 0) return abi.encode(_back(abi.decode(data, (BackCall))));
+        if (kind == 2) return _backWithEth(abi.decode(data, (EthBackCall)));
         return abi.encode(_swap(abi.decode(data, (SwapCall))));
+    }
+
+    function _backWithEth(EthBackCall memory c) internal returns (bytes memory) {
+        address usdc = IClutchHookView(address(c.back.key.hooks)).usdc();
+        if (Currency.unwrap(c.ethKey.currency1) != usdc) revert NotAnEthPool();
+        // 1. ETH -> USDC. The router is now owed `usdcOut` USDC by the PoolManager; nothing is transferred.
+        BalanceDelta d = poolManager.swap(
+            c.ethKey,
+            SwapParams({zeroForOne: true, amountSpecified: -int256(uint256(c.ethIn)), sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1}),
+            ""
+        );
+        uint256 usdcOut = uint256(uint128(d.amount1()));
+        if (usdcOut < c.minUsdc) revert InsufficientOutput(usdcOut, c.minUsdc);
+        // 2. USDC -> shares. The hook takes exactly `usdcOut`, which cancels the credit from step 1.
+        bool zeroForOne = Currency.unwrap(c.back.key.currency0) == usdc;
+        poolManager.swap(
+            c.back.key,
+            SwapParams({
+                zeroForOne: zeroForOne,
+                amountSpecified: -int256(usdcOut),
+                sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            }),
+            abi.encode(c.back.marketId, c.back.yes, c.back.minShares, c.back.trader, c.back.gateData)
+        );
+        // 3. The only real transfer: the ETH the trader sent.
+        poolManager.settle{value: uint256(uint128(-d.amount0()))}();
+        return abi.encode(usdcOut, IClutchHookView(address(c.back.key.hooks)).lastFill());
     }
 
     function _back(BackCall memory c) internal returns (uint256) {

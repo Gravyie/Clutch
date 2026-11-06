@@ -23,7 +23,7 @@ export default function AccountPage() {
     return (
       <div className="flex min-h-[60dvh] flex-col items-center justify-center text-center">
         <h1 className="text-xl font-semibold">Sign in to manage your account</h1>
-        <Button className="mt-4 rounded-xl" onClick={open}>
+        <Button className="mt-4 rounded-xl" onClick={() => open()}>
           Sign in
         </Button>
       </div>
@@ -44,7 +44,7 @@ export default function AccountPage() {
               {acct.pass ? `Verified${acct.pass.dev ? " with the test verifier" : " with World ID"}. Pass renews in ${Math.max(0, Math.round((acct.pass.expiry - Date.now() / 1000) / 3600))}h.` : "Not verified yet."}
             </p>
           </div>
-          {acct.pass ? <CheckCircleIcon size={22} weight="fill" className="text-yes" /> : <Button size="sm" className="rounded-lg" onClick={open}>Verify</Button>}
+          {acct.pass ? <CheckCircleIcon size={22} weight="fill" className="text-yes" /> : <Button size="sm" className="rounded-lg" onClick={() => open()}>Verify</Button>}
         </div>
       </section>
 

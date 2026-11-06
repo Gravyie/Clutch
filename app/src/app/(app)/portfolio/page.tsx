@@ -35,7 +35,7 @@ export default function PortfolioPage() {
         <ChartLineUpIcon size={36} className="text-faint" />
         <h1 className="mt-3 text-xl font-semibold">Your positions live here</h1>
         <p className="mt-1 text-sm text-muted-foreground">Sign in to track open trades, winnings and history.</p>
-        <Button className="mt-5 rounded-xl" onClick={open}>
+        <Button className="mt-5 rounded-xl" onClick={() => open()}>
           Sign in
         </Button>
       </Center>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import NumberFlow from "@number-flow/react";
 import { CircleNotchIcon, LockSimpleIcon, ProhibitIcon, ScanIcon, SealCheckIcon, SparkleIcon } from "@phosphor-icons/react";
@@ -92,19 +92,23 @@ function OneTap({ m, pool }: { m: MarketView; pool?: PoolKey }) {
   const [refusal, setRefusal] = useState<Refusal | null>(null);
   const chainOk = !chain || chain.sequencerPhase === "Normal";
 
+  // The tapped side survives onboarding: after "Verify" the same tap runs with the then-current account.
+  const goRef = useRef<(yes: boolean) => void>(() => {});
   async function go(yes: boolean) {
     setRefusal(null);
-    if (!ensureReady() || !pool) return;
+    if (!ensureReady(() => goRef.current(yes)) || !pool) return;
     setBusy(yes ? "yes" : "no");
     try {
       const r = await acct.back({ marketId: m.id, pool, yes, amount: stake });
-      toast.success(`${yes ? "Yes" : "No"} · ${usd(stake, 0)} in`, { description: `${r.shares.toFixed(2)} shares · pays ${usd(r.shares)} if right` });
+      toast.success(`${yes ? "Yes" : "No"} · ${usd(stake, 0)} in`, { description: `${r.shares.toFixed(2)} shares · pays ${usd(r.shares)} if right${r.paidWith === "eth" ? " · paid in ETH, one transaction" : ""}` });
     } catch (e: any) {
       setRefusal(e?.title ? e : { code: "Error", title: "That didn't go through", body: String(e?.message ?? e) });
     } finally {
       setBusy(null);
     }
   }
+
+  goRef.current = go;
 
   return (
     <div className="flex flex-col gap-3">
@@ -157,7 +161,7 @@ function OneTap({ m, pool }: { m: MarketView; pool?: PoolKey }) {
           </motion.div>
         )}
       </AnimatePresence>
-      <p className="text-center text-[11px] text-faint">{acct.onboarded ? `Balance ${usd(acct.usdc)} · tap a side to trade` : "Sign in once, then every trade is one tap"}</p>
+      <p className="text-center text-[11px] text-faint">{acct.onboarded ? `${usd(acct.spendable)} available${acct.usdc < stake && acct.eth > 0 ? " · pays in ETH" : ""} · tap a side` : "One World ID check, then every trade is one tap"}</p>
     </div>
   );
 }

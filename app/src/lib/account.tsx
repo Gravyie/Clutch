@@ -7,6 +7,7 @@ import { ClutchHookAbi, ClutchRouterAbi, ERROR_COPY, HumanPassGateAbi, LPVaultAb
 import { chain } from "./env";
 import { api } from "./live";
 import { useWallet } from "./wallet";
+import { usd } from "./format";
 
 export const publicClient = createPublicClient({ chain, transport: http(undefined, { batch: true }) });
 
@@ -104,7 +105,9 @@ interface Account {
   approve(): Promise<void>;
   setPass(p: Pass | undefined): void;
   signIn(): Promise<string>;
-  back(p: { marketId: number; pool: PoolKey; yes: boolean; amount: number }): Promise<{ shares: number; tx: Hex }>;
+  back(p: { marketId: number; pool: PoolKey; yes: boolean; amount: number }): Promise<{ shares: number; tx: Hex; paidWith: "usdc" | "eth" }>;
+  /** what the wallet can stake right now, in USD: USDC plus ETH at the onramp pool's price */
+  spendable: number;
   quote(marketId: number, yes: boolean, amount: number): Promise<{ shares: number; priceYesAfter: number }>;
   claim(marketId: number): Promise<number>;
   selfExclude(days: number): Promise<void>;
@@ -130,6 +133,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const address = wallet.address;
   const [pass, setPassState] = useState<Pass>();
   const [token, setToken] = useState<string>();
+  const [ethUsd, setEthUsd] = useState(0);
   const [bal, setBal] = useState({ usdc: 0, eth: 0, allowance: 0n, stakedToday: 0, excludedUntil: 0, shares: 0, assets: 0, loaded: false });
 
   useEffect(() => {
@@ -143,6 +147,38 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     setPassState(parsed && parsed.expiry > Date.now() / 1000 + 60 ? parsed : undefined);
     setToken(localStorage.getItem(tokenKey(address)) ?? undefined);
   }, [address]);
+
+  // ETH's price on the onramp pool (the Blackout Guard ETH/USDC pool), quoted by simulating a 0.01 ETH swap. The rate
+  // includes the pool fee, so it is what a bet paid in ETH actually gets.
+  useEffect(() => {
+    if (!cfg) return;
+    const d = cfg.deployment;
+    const quote = async () => {
+      const value = parseEther("0.01");
+      const who = "0x000000000000000000000000000000000000dEaD" as const;
+      const { result } = await publicClient.simulateContract({
+        account: who,
+        address: d.router,
+        abi: ClutchRouterAbi,
+        functionName: "swapExactIn",
+        args: [{ ...d.ethPool, hooks: d.blackoutGuardHook }, true, value, 0n, who],
+        value,
+        stateOverride: [{ address: who, balance: parseEther("1") }],
+      });
+      setEthUsd(toUsdc(result) / 0.01);
+    };
+    void quote().catch(() => {});
+    const t = setInterval(() => void quote().catch(() => {}), 30_000);
+    return () => clearInterval(t);
+  }, [cfg]);
+
+  const ethFor = useCallback(
+    async (usdAmount: number) => {
+      if (!ethUsd) throw { code: "NoQuote", title: "Can't price ETH right now", body: "The ETH/USDC pool didn't answer. Try again in a moment." } satisfies Refusal;
+      return parseEther((usdAmount / ethUsd).toFixed(18));
+    },
+    [ethUsd],
+  );
 
   const refresh = useCallback(async () => {
     if (!address || !cfg) return;
@@ -202,7 +238,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       excludedUntil: bal.excludedUntil,
       vault: { shares: bal.shares, assets: bal.assets },
       token,
-      onboarded: Boolean(address && pass && bal.allowance > 10n ** 30n && (bal.usdc > 0 || bal.stakedToday > 0)),
+      onboarded: Boolean(address && pass && (bal.usdc > 0 || bal.eth * ethUsd > 1 || bal.stakedToday > 0)),
+      spendable: bal.usdc + Math.max(0, bal.eth - 0.0002) * ethUsd,
       refresh,
 
       async fund() {
@@ -254,13 +291,32 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         }
         try {
           const c = await wallet.client();
-          const sim = await publicClient.simulateContract({ account: c.account!, address: d.router, abi: ClutchRouterAbi, functionName: "back", args: [pool, BigInt(marketId), yes, fromUsdc(amount), 0n, pass.gateData] });
-          const tx = await send(sim.request);
+          let shares: bigint;
+          let tx: Hex;
+          let paidWith: "usdc" | "eth";
+          if (bal.usdc >= amount) {
+            // USDC path. The approval happens once, automatically, the first time it's needed.
+            if (bal.allowance < fromUsdc(amount)) await send({ address: d.usdc, abi: MockUSDCAbi, functionName: "approve", args: [d.router, maxUint256] });
+            const sim = await publicClient.simulateContract({ account: c.account!, address: d.router, abi: ClutchRouterAbi, functionName: "back", args: [pool, BigInt(marketId), yes, fromUsdc(amount), 0n, pass.gateData] });
+            tx = await send(sim.request);
+            shares = sim.result;
+            paidWith = "usdc";
+          } else {
+            // ETH path: one transaction swaps ETH → USDC on the Blackout Guard pool and backs the side on the market
+            // pool, inside a single PoolManager unlock. No USDC balance or approval needed.
+            const ethKey = { ...d.ethPool, hooks: d.blackoutGuardHook };
+            const value = await ethFor(amount);
+            if (value > parseEther(String(bal.eth)) - parseEther("0.0002")) throw { code: "NoFunds", title: "Not enough balance", body: `You need about ${usd(amount)} in USDC or ETH. Top up from the account menu.` } satisfies Refusal;
+            const sim = await publicClient.simulateContract({ account: c.account!, address: d.router, abi: ClutchRouterAbi, functionName: "backWithEth", args: [ethKey, pool, BigInt(marketId), yes, fromUsdc(amount * 0.97), 0n, pass.gateData], value });
+            tx = await send(sim.request);
+            shares = sim.result[1];
+            paidWith = "eth";
+          }
           void refresh();
           void qc.invalidateQueries({ queryKey: ["portfolio"] });
-          return { shares: toUsdc(sim.result), tx };
+          return { shares: toUsdc(shares), tx, paidWith };
         } catch (e) {
-          throw explain(e);
+          throw (e as Refusal)?.title ? e : explain(e);
         }
       },
 
@@ -308,7 +364,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         return toUsdc(sim.result);
       },
     };
-  }, [address, cfg, bal, pass, token, refresh, send, wallet, qc]);
+  }, [address, cfg, bal, pass, token, refresh, send, wallet, qc, ethUsd, ethFor]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

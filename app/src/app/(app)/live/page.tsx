@@ -84,7 +84,7 @@ function Intro() {
       {!acct.onboarded && (
         <div className="flex items-center gap-3">
           <span className="hidden text-sm text-muted-foreground md:inline">Free test funds. One tap per trade.</span>
-          <Button size="lg" className="h-11 rounded-full bg-brand px-6 font-semibold text-brand-foreground hover:bg-brand/90" onClick={open}>
+          <Button size="lg" className="h-11 rounded-full bg-brand px-6 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => open()}>
             Start trading
           </Button>
         </div>

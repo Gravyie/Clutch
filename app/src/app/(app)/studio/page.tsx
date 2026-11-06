@@ -48,7 +48,7 @@ function StudioPage() {
   if (!wallet.address) {
     return (
       <Hero>
-        <Button size="lg" className="h-11 rounded-xl px-6 font-semibold" onClick={openOnboarding}>
+        <Button size="lg" className="h-11 rounded-xl px-6 font-semibold" onClick={() => openOnboarding()}>
           Sign in to start
         </Button>
       </Hero>
@@ -179,7 +179,7 @@ function VideoSetup({ me, token, onDone }: { me: Me; token: string; onDone: () =
           <p className="mt-0.5 text-sm text-muted-foreground">Your verified ID is what blocks you from trading your own markets.</p>
         </div>
         {!verified && (
-          <Button size="sm" className="rounded-lg" onClick={openOnboarding}>
+          <Button size="sm" className="rounded-lg" onClick={() => openOnboarding()}>
             Verify
           </Button>
         )}
@@ -247,7 +247,7 @@ function LichessSetup({ me, token, onDone }: { me: Me; token: string; onDone: ()
   const [busy, setBusy] = useState(false);
   const verified = me.verifiedHuman || !!acct.pass;
   const steps = [
-    { done: verified, title: "Verify you're a unique human", body: "Your verified ID is what blocks you from trading your own markets.", action: !verified && <Button size="sm" className="rounded-lg" onClick={openOnboarding}>Verify</Button> },
+    { done: verified, title: "Verify you're a unique human", body: "Your verified ID is what blocks you from trading your own markets.", action: !verified && <Button size="sm" className="rounded-lg" onClick={() => openOnboarding()}>Verify</Button> },
     {
       done: !!me.lichess,
       title: me.lichess ? `Lichess connected: ${me.lichess}` : "Connect your Lichess account",

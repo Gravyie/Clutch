@@ -28,13 +28,17 @@ export function Onboarding() {
   const { onboarding, closeOnboarding } = useUI();
   const wallet = useWallet();
   const acct = useAccount();
-  const step: Step = !wallet.address ? "signin" : !acct.pass ? "human" : !acct.approved || (acct.usdc === 0 && acct.stakedToday === 0) ? "fund" : "done";
+  // A guest wallet is created silently, so a new viewer starts at "Verify". Email sign-in is offered, never required.
+  const step: Step = !wallet.address && wallet.kind === "privy" ? "signin" : !acct.pass ? "human" : !acct.onboarded ? "fund" : "done";
   const steps: { id: Step; label: string }[] = [
-    { id: "signin", label: "Sign in" },
-    { id: "human", label: "Verify" },
-    { id: "fund", label: "Fund" },
+    ...(wallet.kind === "privy" ? [{ id: "signin" as Step, label: "Sign in" }] : []),
+    { id: "human", label: "Verify you're human" },
+    { id: "fund", label: "Ready to trade" },
   ];
   const idx = steps.findIndex((s) => s.id === step);
+  useEffect(() => {
+    if (onboarding && wallet.kind === "guest" && wallet.ready && !wallet.address) wallet.login();
+  }, [onboarding, wallet]);
 
   return (
     <Dialog open={onboarding} onOpenChange={(o) => !o && closeOnboarding()}>
@@ -43,7 +47,7 @@ export function Onboarding() {
           <LogoMark className="size-8" />
           <div>
             <DialogTitle className="text-base font-semibold">{step === "done" ? "You're in" : "Get set up"}</DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">Takes about a minute. You only do this once.</DialogDescription>
+            <DialogDescription className="text-xs text-muted-foreground">One check, then every trade is one tap.</DialogDescription>
           </div>
         </div>
         <ol className="flex gap-1.5 px-6 pt-4" aria-label="Progress">
@@ -191,42 +195,35 @@ function HumanStep() {
   );
 }
 
+/** Runs by itself: free test funds land, and the viewer is ready. No buttons, no approvals. */
 function FundStep() {
   const acct = useAccount();
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [stage, setStage] = useState<"idle" | "faucet" | "approve">("idle");
-  async function go() {
-    setBusy(true);
+  const [tries, setTries] = useState(0);
+  useEffect(() => {
+    let live = true;
     setErr(null);
-    try {
-      if (acct.usdc === 0 || acct.eth < 0.0002) {
-        setStage("faucet");
-        await acct.fund();
-      }
-      if (!acct.approved) {
-        setStage("approve");
-        await acct.approve();
-      }
-    } catch (e: any) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-      setStage("idle");
-    }
-  }
+    acct.fund().catch((e: any) => live && setErr(e.message));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tries]);
   return (
     <div>
-      <StepHead icon={<WalletIcon size={20} />} title="Add test funds" body="Clutch runs on a test network. Get free test USDC to trade with, plus a little gas, and enable one-tap trading." />
+      <StepHead icon={<WalletIcon size={20} />} title="Setting up your wallet" body="Clutch runs on a test network, so your first funds are free. Winnings pay out in USDC." />
       <ul className="mb-5 space-y-2 text-sm">
-        <Check done={acct.usdc > 0} active={stage === "faucet"} label={acct.usdc > 0 ? `${usd(acct.usdc)} test USDC` : "Get test USDC and gas"} />
-        <Check done={acct.approved} active={stage === "approve"} label="Enable one-tap trading" />
+        <Check done={Boolean(acct.pass)} active={false} label="Verified human pass" />
+        <Check done={acct.spendable > 1} active={!err && acct.spendable <= 1} label={acct.spendable > 1 ? `${usd(acct.spendable)} ready to trade` : "Adding free test funds"} />
       </ul>
-      <Button size="lg" className="h-11 w-full rounded-[10px] text-sm font-semibold" onClick={go} disabled={busy}>
-        {busy ? <CircleNotchIcon className="animate-spin" /> : null}
-        {busy ? "Setting up…" : "Set up wallet"}
-      </Button>
-      {err && <p className="mt-3 text-sm text-no">{err}</p>}
+      {err && (
+        <div className="space-y-3">
+          <p className="text-sm text-no">{err}</p>
+          <Button variant="secondary" className="h-10 w-full rounded-full" onClick={() => setTries((t) => t + 1)}>
+            Try again
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -244,33 +241,35 @@ function Check({ done, active, label }: { done: boolean; active: boolean; label:
 
 function DoneStep({ onClose }: { onClose: () => void }) {
   const acct = useAccount();
+  const pending = useUI((s) => s.pending);
   useEffect(() => {
-    const t = setTimeout(onClose, 2600);
+    // Finish what they tapped: the trade goes through as soon as they're ready.
+    const t = setTimeout(() => {
+      onClose();
+      pending?.();
+    }, pending ? 900 : 2400);
     return () => clearTimeout(t);
-  }, [onClose]);
+  }, [onClose, pending]);
   return (
     <div className="flex flex-col items-center py-6 text-center">
       <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 260, damping: 18 }} className="grid size-14 place-items-center rounded-full bg-yes text-background">
         <CheckIcon size={28} weight="bold" />
       </motion.div>
-      <h3 className="mt-4 text-lg font-semibold">Every trade is one tap now</h3>
+      <h3 className="mt-4 text-lg font-semibold">{pending ? "Placing your trade…" : "Every trade is one tap now"}</h3>
       <p className="mt-1 text-sm text-muted-foreground">
-        {usd(acct.usdc)} ready. Daily limit {usd(acct.pass?.dailyCap ?? 0, 0)}.
+        {usd(acct.spendable)} ready. Daily limit {usd(acct.pass?.dailyCap ?? 0, 0)}.
       </p>
-      <Button variant="secondary" className="mt-6 rounded-[10px]" onClick={onClose}>
-        Start watching
-      </Button>
     </div>
   );
 }
 
-/** Opens onboarding if the user can't trade yet. Returns true when ready. */
+/** Opens onboarding if the user can't trade yet, remembering what they tapped. Returns true when ready. */
 export function useEnsureReady() {
   const acct = useAccount();
   const open = useUI((s) => s.openOnboarding);
-  return () => {
+  return (then?: () => void) => {
     if (acct.onboarded) return true;
-    open();
+    open(then);
     return false;
   };
 }
