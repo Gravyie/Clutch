@@ -10,6 +10,10 @@ hook (`BlackoutGuardHook`, on OpenZeppelin `BaseOverrideFee`). These are things 
   back-to-back rounds with no per-market pool setup.
 - **OpenZeppelin `uniswap-hooks`.** `BaseOverrideFee._getFee` being non-view let us update shared sequencer state on
   the swap path without a separate keeper.
+- **Flash accounting across two hooked pools.** `backWithEth` swaps ETH→USDC on the Blackout Guard pool and spends
+  that USDC on a ClutchHook market inside one `unlock`. The USDC delta nets to zero, so the only transfer is the ETH
+  in, and the trader never approves anything. This is the feature that made v4 the right base for a betting
+  product: the onramp and the bet are atomic, and both are guarded by the same sequencer state.
 - **`HookMiner` plus the CREATE2 factory** made flag-encoded addresses painless in scripts.
 
 ## Friction
@@ -35,6 +39,12 @@ hook (`BlackoutGuardHook`, on OpenZeppelin `BaseOverrideFee`). These are things 
 7. **Trusted routers for identity.** Because `sender` in `beforeSwap` is the router, any hook that needs the real
    trader must trust specific routers and read the trader from `hookData`. A documented convention for passing a
    verified `msgSender` through routers would make identity-aware hooks safer and composable.
+
+8. **Multi-pool routes need hand-written delta bookkeeping.** For the two-pool route we read the first swap's
+   `BalanceDelta`, feed `amount1` into the second swap as the exact input, and settle only the ETH leg. It works, but
+   nothing in the docs shows chaining a hooked custom-curve pool after a normal pool. A "swap then spend the output
+   in another pool, same unlock" example (and a note that `beforeSwapReturnDelta` hooks net against earlier credits)
+   would help.
 
 ## Docs we wished existed
 

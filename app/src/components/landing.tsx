@@ -494,9 +494,9 @@ function Pillars({ d }: { d: ReturnType<typeof useLanding> }) {
             tag="Uniswap v4"
             icon={<CodeIcon size={20} weight="duotone" />}
             title="Every market is a v4 pool."
-            body="ClutchHook replaces the AMM curve with an LMSR in beforeSwap, so odds always exist even with no one on the other side. Liquidity comes from a public vault. Blackout Guard, our sequencer-aware fee hook, pauses trading during an L2 outage and voids any market it overlapped."
-            breaks="Without the hook there is no price, no pool, and no payout."
-            code={`${REPO}/blob/main/contracts/src/clutch/ClutchHook.sol#L376`}
+            body="ClutchHook replaces the AMM curve with an LMSR in beforeSwap, so a 40-second market has a price at second zero with nobody on the other side. Bet straight from ETH: one transaction swaps through our Blackout Guard pool and buys shares in the market pool in a single unlock, and the USDC never leaves the PoolManager. During an L2 outage both hooks react to the same sequencer state."
+            breaks="Without v4 the onramp and the bet aren't atomic, and nothing guards both."
+            code={`${REPO}/blob/main/contracts/src/clutch/ClutchRouter.sol#L90`}
           >
             <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-4">
               <Metric
@@ -514,13 +514,13 @@ function Pillars({ d }: { d: ReturnType<typeof useLanding> }) {
             className="lg:col-span-2"
             tag="World ID"
             icon={<FingerprintIcon size={20} weight="duotone" />}
-            title="One person, one limit."
-            body="One Proof of Human check gives you a pass that the contract checks on every trade. Your daily cap follows you, not your wallet, and streamers can't trade their own markets."
-            breaks="Without it, a second wallet resets every limit."
+            title="One person, one limit. Agents too."
+            body="One Proof of Human check gives you a pass the contract checks on every trade. Your cap follows you, not your wallet. An agent can trade for you only after a fresh World ID approval, and it shares your cap onchain."
+            breaks="Without it, bot swarms and second wallets reset every limit."
             code={`${REPO}/blob/main/contracts/src/clutch/HumanPassGate.sol#L117`}
           >
             <ul className="space-y-2 text-sm">
-              {["Daily cap per human", "Self-exclusion that sticks", "Streamer can't bet on themselves"].map((t) => (
+              {["Daily cap per human, shared with their agents", "Streamer can't bet on themselves", "Self-exclusion that survives new wallets"].map((t) => (
                 <li key={t} className="flex items-center gap-2 text-muted-foreground">
                   <CheckCircleIcon size={16} weight="fill" className="text-yes" /> {t}
                 </li>
@@ -654,6 +654,7 @@ const FAQ = [
   ["Who decides the result?", "Nobody. Two different AI models read the stream independently, on their own frames, against a rule that was locked onchain before trading opened. If they don't agree, the market is voided and everyone is refunded."],
   ["Which streams work?", "Any live stream with something on screen that changes: scores, kill feeds, players left, rounds. Clutch reads Twitch, Kick and YouTube, plus Lichess games move by move."],
   ["Why do I need World ID?", "Limits only work if one person can't open ten wallets. One Proof of Human check gives you an anonymous pass. We never see your name, face or documents."],
+  ["Can bots trade?", "Only as someone's agent. A verified person approves an agent with World ID, and its pass carries that person's ID, so the agent shares their daily limit onchain. Anonymous bots can't trade at all."],
   ["What does “call a market” mean?", "Connect your own 0G account and you can ask the AI to open a market on the stream you're watching right now. The inference is billed to your 0G credits, and you can see the request on your 0G activity page."],
   ["What if the chain goes down mid-market?", "Blackout Guard watches the L2 sequencer. During an outage trading stops, and any market whose window overlapped the outage is voided and refunded."],
 ];

@@ -38,6 +38,8 @@ open http://localhost:3000
 | [`ClutchHook.sol#L284`](contracts/src/clutch/ClutchHook.sol#L284) | **The forward-only rule.** `windowStart < lockTime + latencyBuffer` reverts, so no market can be about a moment any viewer has already seen. Courtsiding is impossible by construction. |
 | [`ClutchHook.sol#L376-L397`](contracts/src/clutch/ClutchHook.sol#L376) | Custom curve: the hook consumes the whole exact-input USDC amount, prices shares on LMSR, and returns `toBeforeSwapDelta(amountIn, 0)`, so the CL swap is a no-op. |
 | [`ClutchHook.sol#L395`](contracts/src/clutch/ClutchHook.sol#L395) | Custody as ERC-6909 claims (`poolManager.mint`), because the router settles after `beforeSwap`. Redeemed through the hook's own `unlockCallback` ([L482](contracts/src/clutch/ClutchHook.sol#L482)) only when someone is paid. |
+| [`ClutchRouter.sol#L90-L138`](contracts/src/clutch/ClutchRouter.sol#L90) | **Bet with ETH in one transaction through both hooks.** ETH → USDC on the Blackout Guard pool, then USDC → outcome shares on the ClutchHook pool, inside one `unlock`. Flash accounting nets the USDC to zero, so the only transfer is the ETH in ([L136](contracts/src/clutch/ClutchRouter.sol#L136)); no USDC balance and no approval needed. Tests: [`OneTap.t.sol`](contracts/test/OneTap.t.sol). |
+| [`ClutchRouter.sol#L90-L138`](contracts/src/clutch/ClutchRouter.sol#L90) | **Bet with ETH in one transaction through both hooks.** ETH → USDC on the Blackout Guard pool, then USDC → outcome shares on the ClutchHook pool, inside one `unlock`. Flash accounting nets the USDC to zero, so the only transfer is the ETH in ([L136](contracts/src/clutch/ClutchRouter.sol#L136)); no USDC balance and no approval needed. Tests: [`OneTap.t.sol`](contracts/test/OneTap.t.sol). |
 | [`ClutchHook.sol#L291`](contracts/src/clutch/ClutchHook.sol#L291) | Each market draws its exact LMSR worst case from the vault before it opens. |
 | [`ClutchHook.sol#L322`](contracts/src/clutch/ClutchHook.sol#L322) | **Blackout void.** If the sequencer was down during trading, a YES/NO verdict becomes VOID. |
 | [`BlackoutGuardHook.sol#L50`](contracts/src/blackout/BlackoutGuardHook.sol#L50) | The recovery fee auction: 15% → 0.30% linearly over 40 L2 blocks; 25% ceiling while down; fail-closed when the feed is unreadable. |
@@ -52,7 +54,7 @@ so a sequencer outage is the courtsiding attack at the chain level. One `Sequenc
 - `ClutchHook` refuses trades outside `Phase.Normal`, and voids markets whose trading overlapped an outage, which
   covers back-dated trades nobody could see at trade time.
 
-Tests: `cd contracts && forge test` runs **29 tests**, including a 512-run fuzz test proving every winner or refund is
+Tests: `cd contracts && forge test` runs **35 tests**, including a 512-run fuzz test proving every winner or refund is
 paid in full and only fees remain (`testFuzz_solvency`). There is also a block-anchored auction test where warping
 six hours of wall-clock time doesn't move the fee.
 
@@ -73,6 +75,10 @@ Feedback: [`FEEDBACK.md`](FEEDBACK.md).
 - **Alternative paths**, each with the reason named in the UI: cancelling the World ID flow (nothing is shared, no pass
   is issued, trading stays locked), an ineligible credential (no pass), self-exclusion (`SelfExcludedUntil`, which
   survives a new wallet), and the streamer trading their own market (`StreamerCannotTradeOwnMarket`).
+- **Agent Pass (World IdP):** a human authorizes a trading agent with a fresh World ID approval (OIDC device grant,
+  `max_age=0`, Orb). The engine validates the ID token ([`agents.ts#L162`](engine/src/agents.ts#L162)) and only then
+  signs a pass for the agent's wallet carrying the human's nullifier, so the agent shares the human's onchain daily
+  cap. Declined, expired, non-Orb and stale approvals issue nothing. Run an agent with `pnpm --filter @clutch/engine agent`.
 - Debrief: [`docs/WORLD_DEBRIEF.md`](docs/WORLD_DEBRIEF.md).
 
 ## For 0G judges
@@ -143,7 +149,10 @@ pnpm sim                                 # Blackout Guard economics → sim/out/
 Configuration: [`engine/.env.example`](engine/.env.example). Without `ZG_API_KEY` the engine uses labelled base rates;
 without World credentials the app shows a labelled dev verifier with four personas (adult, adult, streamer, under-18).
 
-Pages: `/` (landing, live data) · `/live` · `/browse` · `/c/:channel` (watch and trade) · `/m/:id` (market and receipt) · `/portfolio` · `/leaderboard` · `/studio` (creators) · `/vault` (LPs) · `/account` · `/overlay/:channel` (OBS, 1920×1080).
+Pages: `/` (landing, live data) · `/live` · `/browse` · `/c/:channel` (watch and trade) · `/m/:id` (market and receipt) · `/portfolio` · `/agents` · `/leaderboard` · `/studio` (creators) · `/vault` (LPs) · `/account` · `/overlay/:channel` (OBS, 1920×1080).
+
+Why these sponsors, and what we learned from Twitch Predictions, CRSHMARKET, Polymarket/Kalshi and Bet Streams:
+[`docs/PRODUCT.md`](docs/PRODUCT.md).
 
 More: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/DEMO.md`](docs/DEMO.md) · [`docs/WORLD_DEBRIEF.md`](docs/WORLD_DEBRIEF.md) · [`FEEDBACK.md`](FEEDBACK.md)
 

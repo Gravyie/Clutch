@@ -50,3 +50,37 @@ paths, clearly labelled as dev in the UI and in the pass (`credential: "dev"`).
   We handle both.
 - **Session vs one-time proofs:** we use one-time proofs per session plus our own short-lived pass, so trades never wait
   on World App. A session proof (`createSession`) could replace the pass's expiry logic later.
+
+## Agent Pass (World IdP): authorizing a trading agent
+
+**Trust event:** "let this agent trade with my identity". Thirty-second markets will be traded by agents. We allow
+that, but only for an agent a verified person approved, inside that person's limits.
+
+**Flow** ([`engine/src/agents.ts`](../engine/src/agents.ts), [`app/src/app/(app)/agents/page.tsx`](../app/src/app/(app)/agents/page.tsx)):
+1. The signed-in, IDKit-verified human pastes the agent's wallet address and picks a cap. The engine starts an
+   OIDC **device authorization** with the World IdP: `scope=openid`, `max_age=0` (a fresh check, not a remembered
+   session), and an essential `acr` claim for Orb.
+2. The app shows the QR / user code, and the human approves in World App.
+3. The engine polls the token endpoint and handles `authorization_pending`, `slow_down`, `access_denied` (declined),
+   `expired_token` (expired) and `unmet_authentication_requirements`.
+4. On success it validates the ID token itself: JWKS signature, `iss`, `aud`, expiry, `acr` in the accepted list,
+   and `auth_time` no older than the attempt. The pairwise `sub` is bound to the person's IDKit nullifier on first
+   use. A different World ID account can't authorize agents for the same person, and one account can't serve two
+   Clutch accounts.
+5. **Protected action:** the engine signs a `HumanPass` for the *agent's* wallet carrying the *human's* nullifier.
+   `HumanPassGate` keys the daily cap by nullifier, so the agent and the human share one onchain budget.
+6. Agent passes last 1 hour and are re-signed while the 24-hour grant is active. Revoking stops renewal, and raising
+   the cap or renewing after 24 hours is a new World ID approval.
+
+**Denied paths (all issue nothing):** declined in World App, code expired, non-Orb account, stale `auth_time`,
+a token that fails validation, a World ID linked to someone else, or a revoked or expired grant (the agent's next
+pass fetch is refused).
+
+**Honest limits:** IDKit nullifiers and IdP subjects are different identifiers. We link them trust-on-first-use
+inside the verified human's signed-in session, which is as strong as that session. On a local chain without IdP
+credentials, a labelled dev approval stands in for World App so the rest of the flow can be exercised.
+
+**Friction:** the device grant was the right fit (the human approves on their phone while the agent runs headless),
+but the docs only list it in the getting-started table. A worked device-flow example with the exact error codes
+would have saved time. We also couldn't find whether `sub` is per-app pairwise or per-human from the docs alone;
+the discovery document says `pairwise`.
