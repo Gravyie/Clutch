@@ -13,7 +13,7 @@ const wallet = createWalletClient({ account: me, chain, transport: http(config.r
 const ownerWallet = createWalletClient({ account: owner, chain, transport: http(config.rpcUrl) });
 
 // gas money only: no USDC, no approvals
-await publicClient.waitForTransactionReceipt({ hash: await ownerWallet.sendTransaction({ to: me.address, value: parseEther("0.05") }) });
+await publicClient.waitForTransactionReceipt({ hash: await ownerWallet.sendTransaction({ to: me.address, value: parseEther("0.004") }) });
 const pass = await (await fetch(`${ENGINE}/pass/dev`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ persona: "bob", wallet: me.address }) })).json();
 
 let market: any;
@@ -30,7 +30,7 @@ const before = await publicClient.getBalance({ address: me.address });
 const ethKey = { ...d.ethPool, hooks: d.blackoutGuardHook };
 const { request, result } = await publicClient.simulateContract({
   account: me, address: d.router, abi: ClutchRouterAbi, functionName: "backWithEth",
-  args: [ethKey, pool.key, BigInt(market.id), true, 0n, 0n, pass.gateData], value: parseEther("0.003"),
+  args: [ethKey, pool.key, BigInt(market.id), true, 0n, 0n, pass.gateData], value: parseEther("0.002"),
 });
 const hash = await wallet.writeContract(request);
 const r = await publicClient.waitForTransactionReceipt({ hash });

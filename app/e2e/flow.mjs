@@ -95,8 +95,11 @@ if (!WORLD_REAL) {
   await ctx.close();
 }
 
-// 3. The replay channel's streamer: the contract refuses their trade on their own channel.
-if (!WORLD_REAL) {
+// 3. The replay channel's streamer: the contract refuses their trade on their own channel. The recorded-game channel
+// exists only on a local chain; on a testnet the same rule is covered by test_streamerCannotTradeOwnMarket.
+const HAS_REPLAY = (await (await fetch(`${ENGINE}/streams`)).json()).some((x) => x.slug === "replay");
+if (!HAS_REPLAY) console.log("- no replay channel on this network: streamer check is covered by the contract tests");
+if (!WORLD_REAL && HAS_REPLAY) {
   const ctx = await browser.newContext({ viewport: { width: 1512, height: 982 } });
   const page = await ctx.newPage();
   await onboard(page);

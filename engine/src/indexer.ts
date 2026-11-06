@@ -12,7 +12,8 @@ import { log } from "./log";
  */
 export class Indexer extends EventEmitter {
   private running = false;
-  private readonly step = BigInt(process.env.INDEX_STEP ?? (config.local ? "5000" : "2000"));
+  /** blocks per getLogs; halves automatically when a provider caps the range (public RPCs differ: 200 to 10k) */
+  private step = BigInt(process.env.INDEX_STEP ?? (config.local ? "5000" : "2000"));
 
   async start() {
     this.running = true;
@@ -21,6 +22,12 @@ export class Indexer extends EventEmitter {
         const caughtUp = await this.tick();
         if (caughtUp) await new Promise((r) => setTimeout(r, config.local ? 700 : 2000));
       } catch (e: any) {
+        const msg = `${e.shortMessage ?? ""} ${e.details ?? ""} ${e.message ?? ""}`;
+        if (/range|limit|too many|10000|block/i.test(msg) && this.step > 50n) {
+          this.step = this.step / 2n;
+          log.warn(`indexer: provider capped the range, now ${this.step} blocks per query`);
+          continue;
+        }
         log.warn("indexer", e.shortMessage ?? e.message);
         await new Promise((r) => setTimeout(r, 4000));
       }

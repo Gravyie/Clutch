@@ -142,7 +142,9 @@ function Hero({ d }: { d: ReturnType<typeof useLanding> }) {
             <span className="flex items-center gap-1.5 rounded-full bg-live/15 px-2 py-0.5 font-mono text-[10.5px] font-semibold tracking-wider text-live">
               <span className="size-1.5 animate-live rounded-full bg-live" /> LIVE
             </span>
-            {d.reading ? (
+            {d.agent?.enabled === false ? (
+              <span>The AI is paused right now. Markets resume when it’s back on.</span>
+            ) : d.reading ? (
               <span>
                 AI is watching <span className="font-medium text-foreground tabular">{d.reading}</span> stream{d.reading === 1 ? "" : "s"} right now
               </span>

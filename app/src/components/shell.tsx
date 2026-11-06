@@ -250,9 +250,9 @@ function SideFooter() {
     <div className="border-t border-border p-4 text-xs text-faint">
       <div className="flex items-center justify-between gap-2 whitespace-nowrap">
         <span>AI engine</span>
-        <span className={cn("flex items-center gap-1.5 font-medium", agent?.mode === "full" ? "text-yes" : "text-warn")}>
-          {agent?.mode === "full" && <span className="size-1.5 animate-live rounded-full bg-yes" />}
-          {agent ? (agent.provider === "0g" ? `0G · ${agent.requestsToday.toLocaleString()} calls today` : "Offline model") : "…"}
+        <span className={cn("flex items-center gap-1.5 font-medium", agent?.enabled !== false && agent?.mode === "full" ? "text-yes" : "text-warn")}>
+          {agent?.enabled !== false && agent?.mode === "full" && <span className="size-1.5 animate-live rounded-full bg-yes" />}
+          {!agent ? "…" : agent.enabled === false ? "AI paused" : agent.provider === "0g" ? `0G · ${agent.requestsToday.toLocaleString()} calls today` : "Offline model"}
         </span>
       </div>
       <div className="mt-2 flex gap-3">

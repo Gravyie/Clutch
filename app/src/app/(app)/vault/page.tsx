@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { chain as appChain } from "@/lib/env";
 import NumberFlow from "@number-flow/react";
 import { Area, AreaChart, ReferenceDot, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { CircleNotchIcon, ShieldWarningIcon, VaultIcon } from "@phosphor-icons/react";
@@ -165,7 +166,7 @@ function Blackout() {
           </Button>
         </div>
       </div>
-      {cfg?.local && (
+      {(cfg?.local || appChain.testnet) && (
         <Button
           variant="ghost"
           className="mt-3 w-full rounded-lg text-xs text-muted-foreground"
@@ -180,7 +181,7 @@ function Blackout() {
             }
           }}
         >
-          Simulate a sequencer outage (local network only)
+          Simulate a sequencer outage (test network demo)
         </Button>
       )}
     </section>

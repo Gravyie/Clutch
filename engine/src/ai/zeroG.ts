@@ -44,8 +44,25 @@ export class ZeroG {
     return this.client ? "0g" : "heuristic";
   }
 
+  /**
+   * The operator's switch for platform inference (persisted). Off: no 0G calls are made, readers rest and no new
+   * markets open; markets already open still settle. Viewer-paid calls use their own key and aren't affected.
+   */
+  static enabled = (process.env.AI_ENABLED ?? "1") !== "0";
+
+  static async loadSwitch() {
+    const v = await kvGet("ai:enabled").catch(() => undefined);
+    if (v !== undefined) ZeroG.enabled = v === "1";
+  }
+
+  static async setEnabled(on: boolean) {
+    ZeroG.enabled = on;
+    await kvSet("ai:enabled", on ? "1" : "0");
+  }
+
   get mode(): AgentState["mode"] {
     this.rollDay();
+    if (this.payer === "platform" && !ZeroG.enabled) return "paused";
     if (!this.client) return "full";
     if (this.spentTodayUsd >= config.zgDailyCapUsd) return "paused";
     if (this.spentTodayUsd >= config.zgDailyCapUsd * 0.8) return "degraded";
@@ -85,7 +102,7 @@ export class ZeroG {
   /** One JSON-mode completion. Returns the parsed object plus the 0G request id for receipts. */
   async json<T>(system: string, user: string, maxTokens = 1500): Promise<{ data: T; requestId: string; latencyMs: number; costUsd: number }> {
     if (!this.client) throw new Error("0G not configured");
-    if (this.mode === "paused") throw new Error("daily inference budget spent");
+    if (this.mode === "paused") throw new Error(ZeroG.enabled || this.payer === "viewer" ? "daily inference budget spent" : "AI is switched off");
     const t0 = Date.now();
     const { data: completion, response } = await this.client.chat.completions
       .create({
