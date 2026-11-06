@@ -24,7 +24,7 @@ import {
 } from "@phosphor-icons/react";
 import type { AgentState, ChainState, MarketView, Receipt, StreamSummary } from "@clutch/shared";
 import { DotType } from "@/components/dot-type";
-import { LogoMark } from "@/components/brand";
+import { LogoMark, Wordmark } from "@/components/brand";
 import { channelRank } from "@/components/shell";
 import { PlatformIcon, frameUrl } from "@/components/stream";
 import { isOpen } from "@/components/market";
@@ -153,8 +153,8 @@ function SiteNav() {
     <header className="pointer-events-none fixed inset-x-0 top-0 z-50">
       <div className="mx-auto flex h-[72px] max-w-[1280px] items-center justify-between px-5 sm:px-8">
         <Link href="/" aria-label="Clutch home" className={cn("pointer-events-auto flex items-center gap-2.5 transition-colors duration-300", night ? "text-[var(--l-snow)]" : "text-[var(--l-ink)]")}>
-          <LogoMark className="size-8" />
-          <span className={cn("text-[20px] font-extrabold leading-none tracking-[-0.06em] transition-all duration-300", scrolled && "pointer-events-none -translate-x-1 opacity-0")}>clutch</span>
+          <LogoMark className="size-[24px]" accent={night ? "#b8f36b" : "#5d8f17"} />
+          <Wordmark className={cn("text-[15px] transition-all duration-300", scrolled && "pointer-events-none -translate-x-1 opacity-0")} />
         </Link>
         <nav
           aria-label="Landing"
@@ -612,7 +612,7 @@ function SeeIt({ d }: { d: D }) {
           </figure>
           <div className="m-2 flex flex-col rounded-[16px] bg-[var(--l-paper)] p-7 ring-1 ring-[var(--l-line)] sm:p-8">
             <span className="flex items-center gap-2 text-[13px] font-medium text-[var(--l-ink-2)]">
-              <LogoMark className="size-5" frame={false} /> The record so far
+              <LogoMark className="size-4 text-[var(--l-ink)]" accent="#5d8f17" /> The record so far
             </span>
             <div className="mt-8 flex items-baseline gap-1">
               <span className="serif text-[64px] leading-none tabular-nums">{st ? <NumberFlow value={st.markets} /> : "…"}</span>
@@ -980,7 +980,9 @@ function Manifesto() {
           “Chat has always known what happens next. We just gave it a scoreboard, and made sure nobody can rig it.”
         </TextReveal>
         <BlurFade inView delay={0.1} className="mt-10 flex items-center gap-3 text-[13px]">
-          <LogoMark className="size-9" />
+          <span className="grid size-10 place-items-center rounded-full bg-[var(--l-card)] ring-1 ring-[var(--l-line)]">
+            <LogoMark className="size-[18px]" accent="#5d8f17" />
+          </span>
           <span>
             <span className="block font-medium">Why we built Clutch</span>
             <span className="text-[var(--l-ink-3)]">ETHGlobal Mumbai</span>
@@ -1120,8 +1122,8 @@ function Footer({ d }: { d: D }) {
       <Container className="grid grid-cols-2 gap-x-6 gap-y-10 py-16 md:grid-cols-[1.4fr_repeat(3,1fr)] md:gap-12">
         <div className="col-span-2 md:col-span-1">
           <div className="flex items-center gap-2.5">
-            <LogoMark className="size-8" />
-            <span className="text-[20px] font-extrabold leading-none tracking-[-0.06em]">clutch</span>
+            <LogoMark className="size-[24px]" accent="#b8f36b" />
+            <Wordmark className="text-[15px]" />
           </div>
           <p className="serif mt-4 max-w-[22ch] text-[19px] leading-snug text-[var(--l-snow-2)]">Every moment is a market.</p>
           <span className="mt-6 inline-flex items-center gap-2 rounded-full bg-white/[0.05] px-3 py-1.5 text-[12px] text-[var(--l-snow-2)] ring-1 ring-white/10">
