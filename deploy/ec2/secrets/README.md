@@ -1,4 +1,4 @@
-# Planned Secrets Manager integration — not applied to AWS
+# Secrets Manager integration — IAM read policy applied; secrets not created
 
 Region: **ap-south-1**. Planned record names:
 
@@ -25,7 +25,7 @@ Render locally (does not call AWS or attach anything):
 python3 deploy/ec2/secrets/render-policy.py --account-id YOUR_ACTUAL_12_DIGIT_ACCOUNT_ID > /tmp/clutch-secret-read-policy.json
 ```
 
-The account ID discovered by the earlier authorized CLI inspection was `136673894429`; verify the intended account before eventual application. The previously created management role/profile is `clutch-engine-ec2`. The new secrets read policy has **not** been attached. Applying it requires approval. This read policy assumes the default AWS-managed Secrets Manager encryption key; using a customer-managed KMS key requires separately approved, exact-key-scoped decrypt permission and a compatible key policy. No wildcard KMS permission is provided.
+The account ID discovered by the earlier authorized CLI inspection was `136673894429`; verify the intended account before eventual application. The previously created management role/profile is `clutch-engine-ec2`. With subsequent operator approval, inline policy `ClutchRuntimeSecretReadOnly` was applied to `clutch-engine-ec2` in account `136673894429` and read back to verify an exact match with the rendered policy. This grants read permission for the two planned names; it does not create those records or authorize any wallet on-chain. This read policy assumes the default AWS-managed Secrets Manager encryption key; using a customer-managed KMS key requires separately approved, exact-key-scoped decrypt permission and a compatible key policy. No wildcard KMS permission is provided.
 
 References: [AWS individual-secret permission and six-character suffix patterns](https://docs.aws.amazon.com/secretsmanager/latest/userguide/auth-and-access_iam-policies.html), [AWS Python GetSecretValue guidance](https://docs.aws.amazon.com/secretsmanager/latest/userguide/retrieving-secrets-python-sdk.html).
 
@@ -72,4 +72,4 @@ Python tests use deterministic fixture strings and a fake Secrets Manager client
 
 ## Existing AWS changes before the clarification
 
-Under the preceding explicit CLI-deployment authorization, an SSM management role/profile (`clutch-engine-ec2`) and a web-only security group (`sg-026849481c1180532`) were created. No EC2 instance, public IP/DNS hostname, Secrets Manager record or key upload was created. Further resource creation and secret-policy application are paused pending approval. No existing resource was deleted or modified by the preparation described above.
+Under the preceding explicit CLI-deployment authorization, an SSM management role/profile (`clutch-engine-ec2`) and a web-only security group (`sg-026849481c1180532`) were created. No EC2 instance, public IP/DNS hostname, Secrets Manager record or key upload was created. The operator subsequently approved applying the prepared IAM read policy; only that policy was attached and verified. Further instance/secret creation, credential uploads and on-chain role changes remain unperformed and require their prerequisites and approval. No existing resource was deleted.
