@@ -50,7 +50,7 @@ export default function AccountPage() {
             <p className="text-sm text-muted-foreground">
               {acct.verified && acct.pass
                 ? `Verified${acct.pass.dev ? " with the test verifier" : " with World ID"}. Pass renews in ${Math.max(0, Math.round((acct.pass.expiry - Date.now() / 1000) / 3600))}h.`
-                : `Starter limit: ${usd(acct.pass?.dailyCap ?? 10, 0)} a day on this wallet. Verify with World ID for ${usd(cfg?.passDailyCap ?? 100, 0)} a day across all your wallets, plus agents.`}
+                : `Starter limit: ${usd(acct.pass?.dailyCap ?? 10, 0)} a day on this wallet. Verify with World ID for ${usd(cfg?.passDailyCap ?? 100, 0)} a day across all your wallets, free funds every day, and a place on the leaderboard.`}
             </p>
           </div>
           {acct.verified ? <CheckCircleIcon size={22} weight="fill" className="text-yes" /> : <Button size="sm" className="rounded-full" onClick={() => verify()}>Verify with World ID</Button>}
@@ -62,7 +62,11 @@ export default function AccountPage() {
           <HandPalmIcon size={22} className="text-muted-foreground" />
           <h2 className="text-sm font-semibold">Limits and breaks</h2>
         </div>
-        <p className="mt-2 text-sm text-muted-foreground">Limits belong to you as a person, not to a wallet. A new wallet starts with the same limit and the same break.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {acct.verified
+            ? "Your limit belongs to you as a person, not to a wallet: every wallet you use shares it, and a break covers them all."
+            : "This wallet has a starter limit. Verify with World ID and one limit covers you across every wallet you use."}
+        </p>
         {acct.pass && (
           <div className="mt-4">
             <div className="flex justify-between text-sm">

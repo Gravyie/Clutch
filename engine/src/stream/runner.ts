@@ -61,7 +61,12 @@ interface Active {
  */
 export class StreamRunner extends EventEmitter {
   state: StreamState;
-  active?: Active;
+  /** markets open on this stream: at most two, and a new one only once the previous has locked (as the hook enforces) */
+  live: Active[] = [];
+  /** the market a viewer should see first: the one still trading, else the newest */
+  get active(): Active | undefined {
+    return this.live.find((m) => m.view.phase === "trading") ?? this.live[this.live.length - 1];
+  }
   private a?: Source;
   private b?: Source;
   private lastSettledAt = 0;
@@ -125,8 +130,8 @@ export class StreamRunner extends EventEmitter {
   // ─── Sources ─────────────────────────────────────────────────────────────────────────────────
 
   attach(a: Source, b: Source, orientation: "white" | "black") {
-    if (this.a && this.a !== this.active?.a) this.a.stop();
-    if (this.b && this.b !== this.active?.b) this.b.stop();
+    if (this.a && !this.live.some((m) => m.a === this.a)) this.a.stop();
+    if (this.b && !this.live.some((m) => m.b === this.b)) this.b.stop();
     this.a = a;
     this.b = b;
     this.refusedThisGame.clear();
@@ -140,8 +145,8 @@ export class StreamRunner extends EventEmitter {
 
   /** The streamer isn't in a game right now. Open markets keep their own sources until they resolve. */
   idle() {
-    if (this.a && this.a !== this.active?.a) this.a.stop();
-    if (this.b && this.b !== this.active?.b) this.b.stop();
+    if (this.a && !this.live.some((m) => m.a === this.a)) this.a.stop();
+    if (this.b && !this.live.some((m) => m.b === this.b)) this.b.stop();
     this.a = this.b = undefined;
     this.state.live = false;
     this.state.status = "offline";
@@ -181,9 +186,11 @@ export class StreamRunner extends EventEmitter {
 
   private async maybeOpen() {
     const f = this.a?.facts();
-    if (!f || f.status !== "started" || this.state.paused || this.proposing || this.active || !this.poolId) return;
+    if (!f || f.status !== "started" || this.state.paused || this.proposing || !this.poolId) return;
+    // Rounds overlap: the next market opens as soon as the previous one locks, so there is almost always one to trade.
+    if (this.live.some((m) => m.view.phase === "trading") || this.live.length >= 2) return;
     const now = Date.now();
-    if (now - this.lastSettledAt < config.cooldownSec * 1000 || now - this.lastProposalAt < 8000) return;
+    if ((!this.live.length && now - this.lastSettledAt < config.cooldownSec * 1000) || now - this.lastProposalAt < 8000) return;
     if (this.chainBlocked) return;
     const mode = this.zg.mode;
     if (mode === "paused") return;
@@ -250,11 +257,12 @@ export class StreamRunner extends EventEmitter {
       );
       // The game can end while the market is being opened onchain; then there is nothing to settle it from.
       if (!this.a || !this.b) {
-        this.active = { view, rule, a: undefined as any, b: undefined as any, resolving: true };
-        void this.settle(this.active, "VOID", "The game ended while the market was opening.", MISSING_READINGS);
+        const dead: Active = { view, rule, a: undefined as any, b: undefined as any, resolving: true };
+        this.live.push(dead);
+        void this.settle(dead, "VOID", "The game ended while the market was opening.", MISSING_READINGS);
         return;
       }
-      this.active = { view, rule, a: this.a, b: this.b, resolving: false };
+      this.live.push({ view, rule, a: this.a, b: this.b, resolving: false });
       log.market(`${this.row.slug} #${view.id}`, `"${p.question}"`, `p=${p.pYes}`, p.ai.provider, p.ai.requestId ?? "");
       this.moment(`New market: ${p.question}`, "market");
       this.emit("market", view);
@@ -281,8 +289,10 @@ export class StreamRunner extends EventEmitter {
   // ─── Lifecycle ───────────────────────────────────────────────────────────────────────────────
 
   private async tick() {
-    const act = this.active;
-    if (!act) return;
+    for (const act of [...this.live]) await this.tickOne(act);
+  }
+
+  private async tickOne(act: Active) {
     const now = Date.now() / 1000;
     const v = act.view;
     const phase = now < v.lockTime ? "trading" : now < v.windowStart ? "locked" : act.resolving ? "resolving" : "window";
@@ -358,10 +368,11 @@ export class StreamRunner extends EventEmitter {
       act.retryAt = Date.now() + 5000;
       return;
     }
-    act.b?.setActive?.(false);
-    if (act.a && act.a !== this.a) act.a.stop();
-    if (act.b && act.b !== this.b) act.b.stop();
-    this.active = undefined;
+    this.live = this.live.filter((m) => m !== act);
+    // Sources are shared by overlapping markets: only stand them down when nothing else needs them.
+    if (act.b && !this.live.some((m) => m.b === act.b && m.view.phase === "window")) act.b.setActive?.(false);
+    if (act.a && act.a !== this.a && !this.live.some((m) => m.a === act.a)) act.a.stop();
+    if (act.b && act.b !== this.b && !this.live.some((m) => m.b === act.b)) act.b.stop();
     this.lastSettledAt = Date.now();
     this.changed();
   }
@@ -399,13 +410,13 @@ export class StreamRunner extends EventEmitter {
       tx: { open: m.tx_open as Hex },
     };
     b.setActive?.(true);
-    this.active = { view, rule, a, b, resolving: false };
+    this.live.push({ view, rule, a, b, resolving: false });
     log.info(`${this.row.slug}: resumed market #${m.id} after restart`);
   }
 
   onTrade(marketId: number, amount: number, priceYesAfter: number, newTrader: boolean) {
-    const v = this.active?.view;
-    if (!v || v.id !== marketId) return;
+    const v = this.live.find((m) => m.view.id === marketId)?.view;
+    if (!v) return;
     v.priceYes = priceYesAfter;
     v.volume += amount;
     v.trades += 1;
@@ -436,7 +447,7 @@ export class StreamRunner extends EventEmitter {
     const sorted = [...this.latencySamples].sort((x, y) => x - y);
     const p95 = sorted[Math.floor(sorted.length * 0.95)] ?? ms;
     const want = Math.max(this.row.latency_buffer, Math.ceil((p95 * 1.5) / 1000));
-    if (want > this.state.latencyBufferSec && !this.active) {
+    if (want > this.state.latencyBufferSec && !this.live.length) {
       await chain.setLatencyBuffer(this.poolId, want);
       this.state.latencyBufferSec = want;
       await run(`UPDATE streams SET latency_buffer = ? WHERE slug = ?`, [want, this.row.slug]);

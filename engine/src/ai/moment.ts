@@ -108,7 +108,9 @@ export async function propose(
 ): Promise<Proposal | null> {
   const x = features(facts);
   const ctx = { facts, now: Date.now() };
-  const eligible = TEMPLATES.filter((t) => t.eligible(ctx));
+  // Rounds stay short: a market whose window runs for most of a game ("X wins this game?", 15 minutes) would hold the
+  // channel while trading lasts seconds, so the agent only picks templates that settle within a couple of minutes.
+  const eligible = TEMPLATES.filter((t) => t.eligible(ctx) && t.windowSeconds <= MAX_WINDOW_SEC);
 
   // Everything eligible goes through the validator; refusals are logged so the integrity story is visible.
   const candidates: { t: Template<any>; params: any; question: string; prior: number }[] = [];
@@ -124,6 +126,9 @@ export async function propose(
     candidates.push({ t, params, question, prior: pr });
   }
   if (!candidates.length) return null;
+  // Hard variety rule: the last two templates on this channel sit out whenever anything else is eligible.
+  const fresh = candidates.filter((c) => !recent.slice(0, 2).includes(c.t.id)); // recent is newest first
+  if (fresh.length) candidates.splice(0, candidates.length, ...fresh);
 
   let choice: z.infer<typeof Choice>;
   let ai: AiDecision;
@@ -163,5 +168,7 @@ export async function propose(
   }
   return { template: c.t, params: c.params, question: c.question, pYes, headline: choice.headline ?? c.t.title, ai };
 }
+
+const MAX_WINDOW_SEC = Number(process.env.CHESS_MAX_WINDOW_SEC ?? 150);
 
 export { templateById };

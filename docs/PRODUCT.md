@@ -6,8 +6,7 @@ Written November 2026 for ETHGlobal Mumbai.
 ## The one-line product
 
 An AI watches live streams, opens 30–60 second yes/no markets on what is about to happen on screen, and two
-independent models settle them. Viewers call it in one tap. Agents can trade too, but only on behalf of a verified
-human and inside that human's limits.
+independent models settle them. Viewers sign in and call it in one tap; the free stuff goes to real humans.
 
 ## What already exists, and what it gets wrong
 
@@ -18,15 +17,16 @@ human and inside that human's limits.
 | **Polymarket / Kalshi** | Deep order books, trusted resolution (UMA / exchange). Kalshi offers live in-game trading. | Order books need market makers, so a 45-second market on a mid-size streamer never fills. Resolution takes minutes to days. |
 | **Bet Streams** (ETHBogotá finalist) | Pay-per-view streams with bets, settled by UMA. | Outcomes are announced on air, so whoever is in the room knows first. Pools are parimutuel, so there's no price until the pool closes. UMA's dispute window is far too slow for a 60-second market. |
 
-From these, four problems any live-stream market has to solve:
+From these, five problems any live-stream market has to solve:
 
 1. **Who writes the market?** Humans can't write questions for thousands of streams, every minute. *(0G)*
 2. **Where does the price come from?** An order book or a parimutuel pool doesn't work for a 45-second market with
    twelve traders. The market needs instant, always-on liquidity and a price at second zero. *(Uniswap v4)*
-3. **Who decides, and can the people on stream cheat?** Insiders (the streamer, their team) and sybils
-   (one person, many wallets) are the main ways these products fail. *(World ID)*
+3. **Who decides, and can the people on stream cheat?** The result must come from something nobody controls, and
+   markets must be on outcomes the person on camera can't decide. *(0G readers + market design)*
 4. **Can anyone know the answer before betting?** Stream delay is 2–10 seconds. Anyone watching with lower latency
    is "courtsiding". *(the forward-only window, enforced in the hook)*
+5. **Who gets the free stuff?** Free stakes and prizes are what bot farms take. *(World ID)*
 
 ## Sponsors: why these three, and why not the others
 
@@ -36,7 +36,7 @@ We picked the three where removing the sponsor breaks a core loop, not the three
 - Reader A (`claude-haiku-5.5` on 0G) reads a frame every few seconds and lists every number on the HUD. The agent
   picks a contested one, writes the question and a machine-checkable rule, and prices it.
 - Reader B (`0gm-1.0-35b-a3b` on 0G), a *different* model, reads its own frames and settles. Disagreement voids.
-- Viewers can **call a market** on demand with their own 0G credits. Their trading agents use 0G to decide.
+- Viewers can **call a market** on demand with their own 0G credits.
 - **Without 0G:** no market ever opens or settles. Every receipt carries the 0G request IDs.
 
 ### Uniswap v4: the market *is* a pool, and the money never leaves the PoolManager
@@ -50,20 +50,21 @@ We picked the three where removing the sponsor breaks a core loop, not the three
 - **Without Uniswap v4:** we would have to write custody, accounting, routing and a separate onramp, and nothing
   would make the funding swap and the bet atomic. Blackout Guard couldn't protect both at once.
 
-### World: one person, one limit, for humans *and* their agents
-- **IDKit, Proof of Human** for viewers: a per-person daily cap, self-exclusion that survives a new wallet, and a
-  streamer who can never trade their own markets. Proof of Human is the minimum credential that makes "per person"
-  true; we don't ask for a passport.
-- **Agent Pass (World IdP, OIDC device grant)** for trading agents: an agent is authorized by a human approving it
-  in World App. Its wallet gets a pass bound to the *same* human, so the onchain daily cap is shared, and a human
-  checkpoint (`max_age=0` step-up) is required before an agent can raise its allowance. A denied or expired
-  approval means the action never happens.
-- **Without World:** sybil wallets reset every limit, the streamer can bet through a friend's wallet, and 30-second
-  markets get farmed by bot swarms.
+### World (Best Use of IDKit): rewards go to real people
+- Live streams are watched by people, so what makes Clutch fun to try is for people: free test funds every day,
+  a place on the leaderboard, and a higher daily limit. Each is what a bot farm with a thousand wallets would take.
+- **Proof of Human** is the minimum credential: one nullifier per person answers "have they had theirs today?".
+  Paid trading stays wallet-only and instant; World is an upgrade, never a gate.
+- **What World doesn't do:** stop rigging. No identity check can stop the person on camera throwing a game, so
+  Clutch never opens markets they control (their own survival) and keeps each market's payout small.
+- **Without World:** one person with a hundred wallets farms every free stake and fills the leaderboard.
 
 ### Considered and not picked
-- **ENSv2.** Channel and agent names (`ninja.clutch.eth`, `agent.ninja.clutch.eth`) would be nice, but a name doesn't
-  stop a sybil or an insider. It would duplicate World's job and decorate the product instead of carrying it.
+- **ENSv2.** Channel and market names (`ninja.clutch.eth`) would be nice, but nothing breaks without them.
+- **World ID Agent Pass.** Built (an agent trades for one verified human, inside their cap), but fans don't want an
+  agent to make their call on a live stream, so it isn't pitched.
+- **Chainlink CRE.** Settling through independent oracle nodes would remove our single resolver key: the strongest
+  "what's next", but a smaller prize than the tracks above.
 - **Arc.** USDC gas and sub-second finality fit 30-second markets well, and Uniswap v4 is on Arc. But Arc's tracks
   require Arc Studio as the starting point. Moving chains would also drop the L2 sequencer problem that Blackout
   Guard solves. Our USDC-native flow ports to Arc later.
@@ -75,8 +76,8 @@ We picked the three where removing the sponsor breaks a core loop, not the three
 **Viewer (about 60 seconds to a first trade)**
 1. Land on `/`: a live stream the AI is reading right now, the open market and the last receipt.
 2. Tap *Watch live* and see the stream with one market card under it.
-3. Tap *Yes* and get one sheet: *Verify with World ID* → test funds and one-tap trading are set up automatically →
-   the tapped trade goes through.
+3. Tap *Yes* and get one sheet: sign in (email, Google, a wallet, or as a guest) → a wallet, starter pass and free
+   funds are set up automatically → the tapped trade goes through.
 4. Watch it play out against the live counter the AI is reading, then see the verdict and receipt.
 
 **Viewer, nothing open:** *Call a market* uses the viewer's own 0G credits.
@@ -84,10 +85,10 @@ We picked the three where removing the sponsor breaks a core loop, not the three
 **Streamer:** claim the channel with a code in the stream title, verify with World ID (now barred from their own
 markets), add the OBS overlay, and veto or pause any market.
 
-**Agent owner:** run `clutch-agent` → it shows a code → approve in World App → the agent trades within its
-allowance → raising the allowance asks for a fresh World ID approval.
+**Verified human:** one Proof of Human check → free funds every day, a place on the leaderboard, a higher limit
+across all their wallets.
 
 ## What we deliberately don't do
-- No markets on reruns, clocks, or numbers one person controls (ammo, money).
+- No markets on reruns, clocks, or anything the person on camera controls (their survival, ammo, money).
 - No settlement by the streamer, by a single model, or by a single frame.
 - No trading inside the stream delay: every window starts after lock plus a latency buffer, enforced onchain.

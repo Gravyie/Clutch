@@ -71,8 +71,10 @@ export const config = {
   videoTradingSec: Number(env("VIDEO_TRADING_SEC", "15")),
   cooldownSec: Number(env("COOLDOWN_SEC", "8")),
   liquidityB: Number(env("MARKET_B_USDC", "80")),
-  faucetUsdc: Number(env("FAUCET_USDC", "250")),
-  faucetEth: env("FAUCET_ETH", local ? "1" : "0.0005")!,
+  /** free test funds: a one-time top-up per new wallet, and a daily refill per verified human (World ID) */
+  faucetStarterUsdc: Number(env("FAUCET_STARTER_USDC", "25")),
+  faucetHumanDailyUsdc: Number(env("FAUCET_HUMAN_DAILY_USDC", "100")),
+  faucetEth: env("FAUCET_ETH", local ? "0.003" : "0.0005")!, // gas only: the free money is the USDC
 
   // 0G: inference via the Router (OpenAI-compatible), evidence on 0G Storage.
   zgRouterUrl: env("ZG_ROUTER_URL", "https://router-api.0g.ai/v1")!,

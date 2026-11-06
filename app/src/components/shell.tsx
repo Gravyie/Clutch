@@ -15,7 +15,7 @@ import {
   MagnifyingGlassIcon,
   MoonIcon,
   PlusIcon,
-  RobotIcon,
+  QuestionIcon,
   SignOutIcon,
   SunIcon,
   TrophyIcon,
@@ -29,6 +29,7 @@ import type { StreamSummary } from "@clutch/shared";
 import { Avatar, LiveBadge, Logo } from "@/components/brand";
 import { Onboarding } from "@/components/onboarding";
 import { WalletSheet } from "@/components/wallet-sheet";
+import { Tutorial } from "@/components/tutorial";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -68,7 +69,6 @@ const NAV = [
   { href: "/browse", label: "Explore", icon: CompassIcon },
   { href: "/leaderboard", label: "Leaderboard", icon: TrophyIcon },
   { href: "/portfolio", label: "Portfolio", icon: ChartLineUpIcon },
-  { href: "/agents", label: "Agents", icon: RobotIcon },
 ];
 
 /** Bottom tabs on phones: the four places a viewer goes most. */
@@ -98,6 +98,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <MobileNav />
       <Onboarding />
       <WalletSheet />
+      <Tutorial />
       <CommandMenu />
     </SidebarProvider>
   );
@@ -109,6 +110,7 @@ function TopBar() {
   const open = useUI((s) => s.openOnboarding);
   const setCommand = useUI((s) => s.setCommand);
   const setWallet = useUI((s) => s.setWallet);
+  const setTutorial = useUI((s) => s.setTutorial);
   const chain = useLive((s) => s.chain);
   const connected = useLive((s) => s.connected);
   const path = usePathname();
@@ -135,6 +137,9 @@ function TopBar() {
           <MagnifyingGlassIcon size={19} />
         </button>
         <div className="flex items-center gap-2 md:ml-auto">
+          <Button variant="ghost" size="sm" onClick={() => setTutorial(true)} className="hidden h-9 gap-1.5 rounded-full px-3 text-muted-foreground hover:text-foreground md:inline-flex">
+            <QuestionIcon size={16} /> How it works
+          </Button>
           {appChain.testnet && (
             <Tooltip>
               <TooltipTrigger asChild>

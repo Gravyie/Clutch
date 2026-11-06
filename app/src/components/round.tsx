@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import NumberFlow from "@number-flow/react";
 import { ArrowRightIcon, CaretDownIcon, ProhibitIcon, ScanIcon, SealCheckIcon, ShieldCheckIcon } from "@phosphor-icons/react";
@@ -411,6 +411,19 @@ function AfterLock({ m, stream }: { m: MarketView; stream?: StreamState }) {
 
 function Waiting({ stream, hint }: { stream?: StreamState; hint?: string }) {
   const callable = stream?.media?.kind === "video" && stream.live && !stream.rerun;
+  const now = useNow(1000);
+  // Never a dead end: what's trading on other channels right now, soonest to lock first.
+  const markets = useLive((s) => s.markets);
+  const elsewhere = useMemo(
+    () =>
+      Object.values(markets)
+        .filter((m) => m.slug !== stream?.slug && m.phase === "trading" && m.lockTime - now > 6)
+        .sort((a, b) => a.lockTime - b.lockTime)
+        .slice(0, 3),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [markets, stream?.slug, Math.floor(now / 5)],
+  );
+  const title = !stream || !stream.live || stream.rerun ? (stream?.rerun ? "No markets on reruns" : stream && !stream.live ? "Channel is offline" : "No markets on this stream right now") : "Watching for the next moment";
   return (
     <Card className="gap-0 overflow-hidden py-0" aria-label="No market open">
       <div className="flex items-start gap-3.5 p-5">
@@ -419,10 +432,31 @@ function Waiting({ stream, hint }: { stream?: StreamState; hint?: string }) {
           {stream?.reading && <span className="absolute -top-0.5 -right-0.5 size-2.5 animate-live rounded-full border-2 border-card bg-yes" />}
         </span>
         <div className="min-w-0">
-          <div className="text-[15px] font-semibold tracking-tight">{stream?.rerun ? "No markets on reruns" : stream && !stream.live ? "Channel is offline" : "Watching for the next moment"}</div>
+          <div className="text-[15px] font-semibold tracking-tight">{title}</div>
           <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{hint ?? "Markets open when the action gets uncertain."}</p>
         </div>
       </div>
+      {elsewhere.length > 0 && (
+        <div className="border-t">
+          <div className="px-5 pt-3.5 pb-1 text-xs font-medium text-muted-foreground">Trading now on other streams</div>
+          <ItemGroup className="px-2 pb-2">
+            {elsewhere.map((m) => (
+              <Item key={m.id} asChild size="sm" className="gap-3 rounded-lg px-3 py-2.5 hover:bg-secondary/60">
+                <Link href={`/c/${m.slug}`}>
+                  <ItemContent className="min-w-0">
+                    <ItemTitle className="block w-full truncate text-[13px]">{m.question}</ItemTitle>
+                    <span className="truncate text-xs text-faint">{m.streamTitle}</span>
+                  </ItemContent>
+                  <ItemActions className="flex-col items-end gap-0.5 text-xs tabular">
+                    <span className="font-mono text-live">{Math.max(0, Math.ceil(m.lockTime - now))}s</span>
+                    <span className="font-mono font-semibold text-yes">Yes {Math.round(m.priceYes * 100)}¢</span>
+                  </ItemActions>
+                </Link>
+              </Item>
+            ))}
+          </ItemGroup>
+        </div>
+      )}
       {callable && stream && (
         <div className="border-t bg-secondary/30 p-5">
           <CallMarket slug={stream.slug} />

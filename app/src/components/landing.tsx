@@ -514,13 +514,13 @@ function Pillars({ d }: { d: ReturnType<typeof useLanding> }) {
             className="lg:col-span-2"
             tag="World ID"
             icon={<FingerprintIcon size={20} weight="duotone" />}
-            title="One person, one limit. Agents too."
-            body="One Proof of Human check gives you a pass the contract checks on every trade. Your cap follows you, not your wallet. An agent can trade for you only after a fresh World ID approval, and it shares your cap onchain."
-            breaks="Without it, bot swarms and second wallets reset every limit."
+            title="Rewards go to real people."
+            body="Live streams are watched by people, so the free daily funds, the leaderboard and the higher limit are for people too. One Proof of Human check, and they follow you across every wallet you use."
+            breaks="Without it, one person with a hundred wallets farms every free stake."
             code={`${REPO}/blob/main/contracts/src/clutch/HumanPassGate.sol#L117`}
           >
             <ul className="space-y-2 text-sm">
-              {["Daily cap per human, shared with their agents", "Streamer can't bet on themselves", "Self-exclusion that survives new wallets"].map((t) => (
+              {["Free test funds every day, once per person", "Leaderboard of real people only", "Higher daily limit across all your wallets"].map((t) => (
                 <li key={t} className="flex items-center gap-2 text-muted-foreground">
                   <CheckCircleIcon size={16} weight="fill" className="text-yes" /> {t}
                 </li>
@@ -653,8 +653,8 @@ const FAQ = [
   ["Is this real money?", "Not yet. Clutch runs on a testnet with test USDC from the built-in faucet, so you can try everything for free. The contracts, the AI and the settlement are the same ones that would run on mainnet."],
   ["Who decides the result?", "A rule, not a person. Two different AI models each read the stream on their own frames, against a rule that was locked onchain before trading opened. If they don't agree, the market is voided and everyone is refunded."],
   ["Which streams work?", "Any live stream with something on screen that changes: scores, kill feeds, players left, rounds. Clutch reads Twitch, Kick and YouTube, plus Lichess games move by move."],
-  ["Why do I need World ID?", "Limits only work if one person can't open ten wallets. One Proof of Human check gives you an anonymous pass. We never see your name, face or documents."],
-  ["Can bots trade?", "Only as someone's agent. A verified person approves an agent with World ID, and its pass carries that person's ID, so the agent shares their daily limit onchain. Anonymous bots can't trade at all."],
+  ["Do I need World ID?", "No. Sign in and you can trade right away. One Proof of Human check unlocks free funds every day, a place on the leaderboard and a higher daily limit. We never see your name, face or documents."],
+  ["Can the streamer rig a market?", "Clutch never opens markets the person on camera controls, like whether they survive. Markets are on what opponents or chance decide, such as team scores or who scores first, and each market's payout is small and capped."],
   ["What does “call a market” mean?", "Connect your own 0G account and you can ask the AI to open a market on the stream you're watching right now. The inference is billed to your 0G credits, and you can see the request on your 0G activity page."],
   ["What if the chain goes down mid-market?", "Blackout Guard watches the L2 sequencer. During an outage trading stops, and any market whose window overlapped the outage is voided and refunded."],
 ];

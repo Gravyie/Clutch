@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CrownSimpleIcon, InfoIcon, TrophyIcon } from "@phosphor-icons/react";
+import { CrownSimpleIcon, InfoIcon, SealCheckIcon, TrophyIcon } from "@phosphor-icons/react";
 import type { LeaderRow } from "@clutch/shared";
 import { Avatar } from "@/components/brand";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,7 @@ const name = (r: LeaderRow) => r.name ?? short(r.address, 6);
 export default function Leaderboard() {
   const acct = useAccount();
   const openSignIn = useUI((s) => s.openOnboarding);
+  const verify = useUI((s) => s.openVerify);
   const { data, isLoading } = useQuery({ queryKey: ["leaderboard"], queryFn: () => api<LeaderRow[]>("/leaderboard"), refetchInterval: 20_000 });
   const { data: stats } = useQuery({ queryKey: ["stats"], queryFn: () => api<Stats>("/stats"), refetchInterval: 20_000 });
   const [sort, setSort] = useState<Sort>("pnl");
@@ -57,8 +58,14 @@ export default function Leaderboard() {
               Testnet
             </Badge>
           </div>
-          <p className="mt-1.5 max-w-[64ch] text-sm text-muted-foreground">Wallets ranked on settled markets only. Open positions don&apos;t count until they resolve.</p>
+          <p className="mt-1.5 max-w-[64ch] text-sm text-muted-foreground">Real people only, ranked on settled markets. All of a person&apos;s wallets count as one, and open positions don&apos;t count until they resolve.</p>
         </div>
+        <div className="flex flex-col gap-2 sm:items-end">
+        {!acct.verified && (
+          <Button size="sm" className="h-9 rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => verify()}>
+            <SealCheckIcon weight="fill" /> Verify to get ranked
+          </Button>
+        )}
         <ToggleGroup type="single" variant="outline" value={sort} onValueChange={(v) => v && setSort(v as Sort)} aria-label="Rank by" className="w-full sm:w-auto">
           {SORTS.map((s) => (
             <ToggleGroupItem key={s.k} value={s.k} className="h-9 flex-1 px-4 text-[13px] data-[state=on]:bg-foreground data-[state=on]:text-background sm:flex-none">
@@ -66,6 +73,7 @@ export default function Leaderboard() {
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
+        </div>
       </header>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -98,7 +106,7 @@ export default function Leaderboard() {
           <Item variant="outline" className="border-dashed">
             <ItemContent>
               <ItemTitle>You&apos;re not ranked yet</ItemTitle>
-              <ItemDescription className="line-clamp-none">Your wallet appears here after your first market settles.</ItemDescription>
+              <ItemDescription className="line-clamp-none">{acct.verified ? "You appear here after your first market settles." : "Verify you're a real person, then your first settled market puts you on the board."}</ItemDescription>
             </ItemContent>
           </Item>
         )

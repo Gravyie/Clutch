@@ -3,11 +3,11 @@
 Clutch turns the moments of any live stream into short, fair, verifiable markets. A vision model on **0G** watches
 Twitch, Kick, YouTube or a Lichess game. When something is about to happen it opens a yes/no market on a number that's
 on screen ("Will LOS win this round to make it 4-6?", "Eliminations go up in the next 30s?"). Viewers call it in one
-tap through a **Uniswap v4 hook**, with limits tied to a **World ID** human rather than a wallet. A second, different
+tap through a **Uniswap v4 hook**, and the free funds, leaderboard and higher limits go only to **World ID**-verified humans. A second, different
 model reads its own frames to settle it. If the two disagree the market voids and everyone is refunded, and every
 verdict ships with a public receipt.
 
-ETHGlobal Mumbai · Uniswap Foundation (Build with Uniswap) · World (Best use of IDKit) · 0G (Build with 0G Private Computer)
+ETHGlobal Mumbai · Uniswap Foundation (Build with Uniswap) · 0G (Build with 0G Private Computer) · World (Best Use of IDKit)
 
 ```
 pnpm i && pnpm dev          # anvil → deploy → engine :8787 → app :3000
@@ -60,25 +60,29 @@ six hours of wall-clock time doesn't move the fee.
 
 Feedback: [`FEEDBACK.md`](FEEDBACK.md).
 
-## For World judges
+## For World judges (Best Use of IDKit)
 
-- **Trust event:** putting money on a live outcome, under a daily cap. A cap, self-exclusion and the "streamer can't
-  bet on their own stream" rule are only real if a second wallet can't reset them.
+- **Trust event: who gets free money and rewards.** Live streams are watched by people, so the things that make
+  Clutch fun to try are for people: free test funds every day, a place on the leaderboard, and a higher daily limit.
+  Each is exactly what a bot farm with a thousand wallets would take. Paid trading stays wallet-only and instant.
 - **Minimum sufficient credential: Proof of Human** (`proofOfHuman({ signal: wallet })`,
-  [`onboarding.tsx`](app/src/components/onboarding.tsx)). The per-action nullifier is exactly "one person, one limit".
-  Passport or selfie checks would collect more than this decision needs, so we don't ask for them. The signal binds the
-  proof to the wallet that will trade. We store only the nullifier.
+  [`onboarding.tsx`](app/src/components/onboarding.tsx)). The question is "is this one real person, and have they had
+  theirs today?", and the per-action nullifier answers exactly that. A passport or selfie check would collect more
+  than the decision needs. We store only the nullifier.
+- **What it gates, server-side:**
+  - Free funds ([`server.ts#L187`](engine/src/server.ts#L187)): a new wallet gets a one-time $25 starter top-up;
+    only a verified human gets a daily $100 refill, keyed by nullifier, so a second wallet gets nothing extra.
+  - The leaderboard ([`queries.ts#L188`](engine/src/queries.ts#L188)) ranks verified humans, all of a person's
+    wallets as one row.
+  - The daily limit: $10 per starter wallet, or $100 per person across wallets, enforced onchain by
+    [`HumanPassGate.sol#L117`](contracts/src/clutch/HumanPassGate.sol#L117) on every trade.
 - **Server-side verification:** [`engine/src/pass.ts`](engine/src/pass.ts) signs the RP request (`signRequest`, so the
   key never reaches the client), forwards the IDKit result to `POST developer.world.org/api/v4/verify/{rp_id}`, checks
-  `success` and `environment`, and only then signs an EIP-712 `HumanPass`. [`HumanPassGate.sol#L117`](contracts/src/clutch/HumanPassGate.sol#L117)
-  checks that pass onchain on every trade.
-- **Alternative paths**, each with the reason named in the UI: cancelling the World ID flow (nothing is shared, no pass
-  is issued, trading stays locked), an ineligible credential (no pass), self-exclusion (`SelfExcludedUntil`, which
-  survives a new wallet), and the streamer trading their own market (`StreamerCannotTradeOwnMarket`).
-- **Agent Pass (World IdP):** a human authorizes a trading agent with a fresh World ID approval (OIDC device grant,
-  `max_age=0`, Orb). The engine validates the ID token ([`agents.ts#L162`](engine/src/agents.ts#L162)) and only then
-  signs a pass for the agent's wallet carrying the human's nullifier, so the agent shares the human's onchain daily
-  cap. Declined, expired, non-Orb and stale approvals issue nothing. Run an agent with `pnpm --filter @clutch/engine agent`.
+  `success` and `environment`, and only then signs the EIP-712 `HumanPass` the contract checks.
+- **Alternative paths:** cancelling the World ID flow (nothing is shared, no pass, the free refill stays locked), and
+  a wallet that already used its starter funds (refused, with a "Verify with World ID" prompt).
+- **What World does not do here:** it doesn't stop rigging. Clutch handles that with market design: it never opens
+  markets the person on camera controls (like "will the streamer survive"), only ones opponents or chance decide.
 - Debrief: [`docs/WORLD_DEBRIEF.md`](docs/WORLD_DEBRIEF.md).
 
 ## For 0G judges
@@ -114,10 +118,10 @@ Feedback: [`FEEDBACK.md`](FEEDBACK.md).
   platform can scan in. With a Twitch embed, viewers report `getPlaybackStats().hlsLatencyBroadcaster`, and the engine
   raises the onchain latency buffer to 1.5× the p95.
 - **Vision markets settle on structure, not prose.** The AI may phrase the question, but settlement runs only the
-  structured rule (`goes_up` / `reaches` / `drops_below` / `race` / `survives` on a named counter,
+  structured rule (`goes_up` / `reaches` / `drops_below` / `race` on a named counter,
   [`counters.ts`](packages/shared/src/counters.ts)), evaluated separately on each reader's own frames. Reruns never get
-  markets, trading locks before the window plus a stream-delay buffer, and clocks, ammo and money are refused as
-  counters because one person controls them.
+  markets, trading locks before the window plus a stream-delay buffer, and anything the person on camera controls
+  (their own survival, ammo, money, clocks) is refused, so the streamer can't throw a market.
 - **The AI chooses, it never writes (chess).** Chess questions come only from templates whose facts both sources emit. Templates one
   person can decide for free (castling, giving check) or about behaviour ("rage-quits") are refused, and the refusal
   log is shown on screen.
