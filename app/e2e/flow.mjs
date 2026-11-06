@@ -16,9 +16,18 @@ const check = (name, ok = true, detail = "") => {
   console.log(`${ok ? "✓" : "✗"} ${name}${detail ? ` · ${detail}` : ""}`);
 };
 
-async function onboard(page, persona) {
+// Sign in and that's it: a starter pass and test funds land by themselves.
+async function onboard(page) {
   await page.goto(APP + "/live");
   await page.getByRole("button", { name: "Sign in" }).first().click();
+  await page.getByText("Every trade is one tap now").waitFor({ timeout: 60_000 });
+  await page.keyboard.press("Escape");
+}
+
+// The World ID upgrade, opened on purpose from the account page (dev verifier personas locally).
+async function verify(page, persona) {
+  await page.goto(APP + "/account");
+  await page.getByRole("button", { name: "Verify with World ID" }).first().click();
   await page.getByRole("button", { name: new RegExp(persona) }).click();
 }
 
@@ -36,11 +45,9 @@ async function liveMarket(slug, minLeft = 10, waitSec = 90) {
 {
   const ctx = await browser.newContext({ viewport: { width: 1512, height: 982 } });
   const page = await ctx.newPage();
-  await onboard(page, "Adult viewer");
-  await page.getByText("Every trade is one tap now").waitFor({ timeout: 60_000 }); // funds land by themselves
-  check("onboarding in one sheet: wallet created silently, human pass, funds land automatically");
+  await onboard(page);
+  check("sign in and that's it: wallet, starter pass and funds land automatically");
   await page.screenshot({ path: `${OUT}/1-onboarded.png` });
-  await page.keyboard.press("Escape");
 
   const s = await liveMarket(undefined, 12);
   await page.goto(`${APP}/c/${s.slug}`);
@@ -62,7 +69,8 @@ async function liveMarket(slug, minLeft = 10, waitSec = 90) {
 {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
   const page = await ctx.newPage();
-  await onboard(page, "Under 18");
+  await onboard(page);
+  await verify(page, "Under 18");
   const ok = await page.getByText(/18\+ requirement/).waitFor({ timeout: 15_000 }).then(() => true, () => false);
   check("under-18 is refused a pass", ok);
   await page.screenshot({ path: `${OUT}/4-minor.png` });
@@ -73,8 +81,9 @@ async function liveMarket(slug, minLeft = 10, waitSec = 90) {
 {
   const ctx = await browser.newContext({ viewport: { width: 1512, height: 982 } });
   const page = await ctx.newPage();
-  await onboard(page, "Replay streamer");
-  await page.getByText("Every trade is one tap now").waitFor({ timeout: 60_000 }); // funds land by themselves
+  await onboard(page);
+  await verify(page, "Replay streamer");
+  await page.getByText(/Every trade is one tap now|ready\. Daily limit/).first().waitFor({ timeout: 60_000 });
   await page.keyboard.press("Escape");
   await liveMarket("replay", 10, 360); // the replay channel opens about one market every few minutes
   await page.goto(`${APP}/c/replay`);
@@ -105,9 +114,8 @@ async function liveMarket(slug, minLeft = 10, waitSec = 90) {
   const s = await liveMarket(undefined, 16, 300);
   await page.goto(`${APP}/c/${s.slug}`);
   await page.getByTestId("round").getByRole("button", { name: /^Yes/ }).click();
-  await page.getByRole("button", { name: /Second adult/ }).click();
   const ok = await page.getByText(/^Yes · \$\d+ in$/).waitFor({ timeout: 60_000 }).then(() => true, () => false);
-  check("first tap survives onboarding: the trade goes through after verification", ok, `${s.slug} #${s.market.id}`);
+  check("first tap survives onboarding: the trade goes through once the wallet is ready", ok, `${s.slug} #${s.market.id}`);
   await page.screenshot({ path: `${OUT}/7-first-tap.png` });
   await ctx.close();
 }

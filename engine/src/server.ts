@@ -17,7 +17,7 @@ import { kvGet, kvSet, one, run } from "./db";
 import { readEvidence } from "./evidence";
 import { AuthError, newNonce, signIn, signInMessage, verifyToken } from "./auth";
 import { agentPass, agentPassConfigured, agentPassDev, devDecide, listAgents, pollAuthorization, revokeAgent, startAuthorization } from "./agents";
-import { PassRefused, devIssue, limits, nullifierOf, rpContext, verifyAndIssue, worldConfigured } from "./pass";
+import { PassRefused, starterIssue, devIssue, limits, nullifierOf, rpContext, verifyAndIssue, worldConfigured } from "./pass";
 import { leaderboard, listMarkets, marketDetail, platformStats, portfolio, receipt, recentReceipts, recentRefusals, recentTrades } from "./queries";
 import { lichessProfile } from "./sources/lichess";
 
@@ -55,6 +55,7 @@ export function serve(hub: Hub) {
         // public by design (it identifies the app, it doesn't authenticate it); lets viewers connect Twitch chat
         twitchClientId: process.env.TWITCH_CLIENT_ID,
         passDailyCap: config.passDailyCapUsdc,
+        starterDailyCap: config.starterDailyCapUsdc,
       }),
     },
 
@@ -163,6 +164,19 @@ export function serve(hub: Hub) {
     { method: "GET", re: /^\/agents\/(0x[0-9a-fA-F]{40})\/pass$/, h: ({ params: [a] }) => agentPass(a) },
     { method: "POST", re: /^\/pass\/context$/, h: () => rpContext() },
     { method: "POST", re: /^\/pass\/verify$/, h: ({ body }) => verifyAndIssue(body.result, wallet(body.wallet)) },
+    {
+      method: "POST",
+      re: /^\/pass\/starter$/,
+      h: async ({ body, ip }) => {
+        const w = wallet(body.wallet);
+        const day = new Date().toISOString().slice(0, 10);
+        const n = Number((await kvGet(`starter:ip:${ip}:${day}`)) ?? 0);
+        if (n >= 10 && !isLocalChain) throw httpError(429, "Too many new wallets from this network today. Verify with World ID to keep going.");
+        await kvSet(`starter:ip:${ip}:${day}`, String(n + 1));
+        const streamer = [...hub.runners.values()].some((r) => r.row.owner_address?.toLowerCase() === w.toLowerCase() && r.row.owner_nullifier !== "0");
+        return starterIssue(w, streamer);
+      },
+    },
     { method: "POST", re: /^\/pass\/dev$/, h: ({ body }) => devIssue(String(body.persona ?? "alice"), wallet(body.wallet)) },
     { method: "GET", re: /^\/pass\/limits\/(\d+)$/, h: ({ params: [n] }) => limits(n) },
 

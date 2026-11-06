@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import type { StreamSummary } from "@clutch/shared";
 import { Avatar, LiveBadge, Logo } from "@/components/brand";
 import { Onboarding } from "@/components/onboarding";
+import { WalletSheet } from "@/components/wallet-sheet";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -64,6 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
       <MobileNav />
       <Onboarding />
+      <WalletSheet />
       <CommandMenu />
     </div>
   );
@@ -74,6 +76,7 @@ function TopBar() {
   const acct = useAccount();
   const open = useUI((s) => s.openOnboarding);
   const setCommand = useUI((s) => s.setCommand);
+  const setWallet = useUI((s) => s.setWallet);
   const chain = useLive((s) => s.chain);
   const connected = useLive((s) => s.connected);
   return (
@@ -104,11 +107,15 @@ function TopBar() {
           {!connected && <span className="hidden text-xs text-faint sm:inline">Reconnecting…</span>}
           {wallet.address ? (
             <>
-              <button onClick={() => !acct.onboarded && open()} className="flex h-9 items-center gap-2 rounded-[10px] border border-border bg-raised px-3 text-sm">
+              <button onClick={() => (acct.pass ? setWallet(true) : open())} className="flex h-9 items-center gap-2 rounded-full border border-border bg-raised px-3.5 text-sm transition hover:border-border-strong">
                 <WalletIcon size={16} className="text-muted-foreground" />
                 <NumberFlow value={acct.spendable} format={{ style: "currency", currency: "USD" }} className="font-medium tabular" />
               </button>
-              {!acct.onboarded && (
+              {acct.onboarded ? (
+                <Button size="sm" className="hidden h-9 rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90 sm:inline-flex" onClick={() => setWallet("deposit")}>
+                  Deposit
+                </Button>
+              ) : (
                 <Button size="sm" className="h-9 rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => open()}>
                   Finish setup
                 </Button>

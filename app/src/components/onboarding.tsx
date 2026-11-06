@@ -14,7 +14,7 @@ import { useWallet } from "@/lib/wallet";
 import { usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type Step = "signin" | "human" | "fund" | "done";
+type Step = "signin" | "starter" | "human" | "fund" | "done";
 
 const PERSONAS = [
   { id: "alice", label: "Adult viewer", note: "Passes every check" },
@@ -28,13 +28,18 @@ export function Onboarding() {
   const { onboarding, closeOnboarding } = useUI();
   const wallet = useWallet();
   const acct = useAccount();
-  // A guest wallet is created silently, so a new viewer starts at "Verify". Email sign-in is offered, never required.
-  const step: Step = !wallet.address && wallet.kind === "privy" ? "signin" : !acct.pass ? "human" : !acct.onboarded ? "fund" : "done";
-  const steps: { id: Step; label: string }[] = [
-    ...(wallet.kind === "privy" ? [{ id: "signin" as Step, label: "Sign in" }] : []),
-    { id: "human", label: "Verify you're human" },
-    { id: "fund", label: "Ready to trade" },
-  ];
+  // Sign in, and that's it: a guest wallet is created silently, a starter pass and free test funds follow on their
+  // own. World ID is an upgrade the viewer opens on purpose (higher, per-person limits and agents), never a gate.
+  const verifying = useUI((s) => s.verifying);
+  const step: Step =
+    !wallet.address && wallet.kind === "privy" ? "signin" : verifying && !acct.verified ? "human" : !acct.pass ? "starter" : !acct.onboarded ? "fund" : "done";
+  const steps: { id: Step; label: string }[] = verifying
+    ? [{ id: "human", label: "Verify with World ID" }]
+    : [
+        ...(wallet.kind === "privy" ? [{ id: "signin" as Step, label: "Sign in" }] : []),
+        { id: "starter", label: "Wallet" },
+        { id: "fund", label: "Ready to trade" },
+      ];
   const idx = steps.findIndex((s) => s.id === step);
   useEffect(() => {
     if (onboarding && wallet.kind === "guest" && wallet.ready && !wallet.address) wallet.login();
@@ -46,8 +51,8 @@ export function Onboarding() {
         <div className="flex items-center gap-3 border-b border-border px-6 pb-4 pt-6">
           <LogoMark className="size-8" />
           <div>
-            <DialogTitle className="text-base font-semibold">{step === "done" ? "You're in" : "Get set up"}</DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">One check, then every trade is one tap.</DialogDescription>
+            <DialogTitle className="text-base font-semibold">{verifying ? "Raise your limits" : step === "done" ? "You're in" : "Setting up"}</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">{verifying ? "One World ID check. Your limit follows you, not your wallet." : "A few seconds. Every trade is one tap after this."}</DialogDescription>
           </div>
         </div>
         <ol className="flex gap-1.5 px-6 pt-4" aria-label="Progress">
@@ -62,6 +67,7 @@ export function Onboarding() {
           <AnimatePresence mode="wait">
             <motion.div key={step} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
               {step === "signin" && <SignInStep />}
+              {step === "starter" && <StarterStep />}
               {step === "human" && <HumanStep />}
               {step === "fund" && <FundStep />}
               {step === "done" && <DoneStep onClose={closeOnboarding} />}
@@ -97,6 +103,49 @@ function SignInStep() {
         <ArrowRightIcon />
       </Button>
       {wallet.kind === "guest" && <p className="mt-3 text-xs text-faint">Guest wallets live in this browser only. Clearing site data removes it.</p>}
+    </div>
+  );
+}
+
+/** No World ID needed to start: a small, wallet-bound pass is issued right away. */
+function StarterStep() {
+  const wallet = useWallet();
+  const acct = useAccount();
+  const verify = useUI((s) => s.openVerify);
+  const [err, setErr] = useState<string | null>(null);
+  const [tries, setTries] = useState(0);
+  useEffect(() => {
+    if (!wallet.address) return;
+    let live = true;
+    setErr(null);
+    api<Pass>("/pass/starter", { body: { wallet: wallet.address } })
+      .then((p) => live && acct.setPass(p))
+      .catch((e: any) => live && setErr(e.message));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wallet.address, tries]);
+  return (
+    <div>
+      <StepHead icon={<WalletIcon size={20} />} title="Creating your wallet" body="It lives in this browser and signs trades for you, so there are no pop-ups." />
+      <ul className="mb-5 space-y-2 text-sm">
+        <Check done={Boolean(wallet.address)} active={!wallet.address} label="Wallet" />
+        <Check done={Boolean(acct.pass)} active={Boolean(wallet.address) && !err} label="Trading pass" />
+      </ul>
+      {err && (
+        <div className="space-y-3">
+          <p className="text-sm text-no">{err}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="secondary" className="rounded-full" onClick={() => setTries((t) => t + 1)}>
+              Try again
+            </Button>
+            <Button className="rounded-full" onClick={() => verify()}>
+              Verify with World ID
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -137,7 +186,7 @@ function HumanStep() {
       <StepHead
         icon={<FingerprintIcon size={20} />}
         title="Prove you're one real person"
-        body="One World ID check, Proof of Human only. We never see your name or documents, just an anonymous ID your daily limit follows across every wallet you use."
+        body="One World ID check, Proof of Human only. It raises your limit to a per-person daily cap across every wallet you use, and lets you authorize trading agents. We never see your name or documents."
       />
       {cfg?.world.configured ? (
         <Button size="lg" className="h-11 w-full rounded-[10px] text-sm font-semibold" onClick={world}>
@@ -213,7 +262,7 @@ function FundStep() {
     <div>
       <StepHead icon={<WalletIcon size={20} />} title="Setting up your wallet" body="Clutch runs on a test network, so your first funds are free. Winnings pay out in USDC." />
       <ul className="mb-5 space-y-2 text-sm">
-        <Check done={Boolean(acct.pass)} active={false} label="Verified human pass" />
+        <Check done={Boolean(acct.pass)} active={false} label={acct.verified ? "Verified human pass" : "Trading pass"} />
         <Check done={acct.spendable > 1} active={!err && acct.spendable <= 1} label={acct.spendable > 1 ? `${usd(acct.spendable)} ready to trade` : "Adding free test funds"} />
       </ul>
       {err && (
@@ -257,7 +306,8 @@ function DoneStep({ onClose }: { onClose: () => void }) {
       </motion.div>
       <h3 className="mt-4 text-lg font-semibold">{pending ? "Placing your trade…" : "Every trade is one tap now"}</h3>
       <p className="mt-1 text-sm text-muted-foreground">
-        {usd(acct.spendable)} ready. Daily limit {usd(acct.pass?.dailyCap ?? 0, 0)}.
+        {usd(acct.spendable)} ready. Daily limit {usd(acct.pass?.dailyCap ?? 0, 0)}
+        {acct.verified ? "." : " on this wallet."}
       </p>
     </div>
   );

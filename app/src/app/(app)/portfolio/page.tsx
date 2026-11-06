@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 export default function PortfolioPage() {
   const acct = useAccount();
   const open = useUI((s) => s.openOnboarding);
+  const setWallet = useUI((s) => s.setWallet);
   const qc = useQueryClient();
   const myTrades = useLive((s) => s.trades.filter((t) => t.trader.toLowerCase() === acct.address?.toLowerCase()).length);
   const receipts = useLive((s) => s.receipts.length);
@@ -61,23 +62,44 @@ export default function PortfolioPage() {
     }
   }
 
+  const total = acct.spendable + (data?.stats.openValue ?? 0);
+  const pnl = data?.stats.realizedPnl ?? 0;
   return (
     <div className="mx-auto max-w-[1100px] space-y-6 px-4 py-6 sm:px-6">
-      <h1 className="display text-3xl font-bold">Portfolio</h1>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Cash" value={acct.usdc} money />
-        <Stat label="In open markets" value={data?.stats.openValue ?? 0} money />
-        <Stat label="All-time P&L" value={data?.stats.realizedPnl ?? 0} money signed />
-        <div className="surface flex flex-col justify-between p-4">
-          <div className="text-xs text-muted-foreground">Ready to collect</div>
-          <div className="mt-1 flex items-end justify-between gap-2">
-            <NumberFlow value={data?.stats.claimable ?? 0} format={{ style: "currency", currency: "USD" }} className="text-2xl font-semibold tabular" />
-            <Button size="sm" className="rounded-lg" disabled={!claimable.length || collecting} onClick={collectAll}>
-              {collecting ? <CircleNotchIcon className="animate-spin" /> : <HandCoinsIcon />} Collect
+      <section className="surface relative overflow-hidden p-6 sm:p-8">
+        <div aria-hidden className="absolute -right-24 -top-24 size-72 rounded-full bg-brand/15 blur-3xl" />
+        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="text-sm text-muted-foreground">Total value</div>
+            <NumberFlow value={total} format={{ style: "currency", currency: "USD" }} className="display mt-1 text-5xl font-bold tabular sm:text-6xl" />
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              <span className={cn("font-medium tabular", pnl > 0.005 ? "text-yes" : pnl < -0.005 ? "text-no" : "text-muted-foreground")}>
+                {pnl > 0 ? "+" : ""}
+                {usd(pnl)} all time
+              </span>
+              <span className="text-faint">{usd(acct.spendable)} available · {usd(data?.stats.openValue ?? 0)} in live markets</span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button className="h-11 rounded-full bg-brand px-6 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => setWallet("deposit")}>
+              Deposit
+            </Button>
+            <Button variant="secondary" className="h-11 rounded-full px-6 font-semibold" onClick={() => setWallet("withdraw")}>
+              Withdraw
             </Button>
           </div>
         </div>
-      </div>
+        {claimable.length > 0 && (
+          <div className="relative mt-6 flex items-center justify-between rounded-xl bg-yes-soft px-4 py-3 text-sm">
+            <span className="text-yes">
+              {usd(data?.stats.claimable ?? 0)} on its way to your balance. Winnings are paid automatically at settlement.
+            </span>
+            <Button size="sm" variant="ghost" className="rounded-full text-yes" disabled={collecting} onClick={collectAll}>
+              {collecting ? <CircleNotchIcon className="animate-spin" /> : <HandCoinsIcon />} Collect now
+            </Button>
+          </div>
+        )}
+      </section>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
         <TabsList className="h-10 rounded-xl bg-raised p-1">
@@ -145,18 +167,6 @@ function PositionRow({ p }: { p: Position }) {
   );
 }
 
-function Stat({ label, value, money, signed }: { label: string; value: number; money?: boolean; signed?: boolean }) {
-  return (
-    <div className="surface p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <NumberFlow
-        value={value}
-        format={money ? { style: "currency", currency: "USD", signDisplay: signed ? "exceptZero" : "auto" } : undefined}
-        className={cn("mt-1 text-2xl font-semibold tabular", signed && value > 0 && "text-yes", signed && value < 0 && "text-no")}
-      />
-    </div>
-  );
-}
 
 function Center({ children }: { children: React.ReactNode }) {
   return <div className="flex min-h-[60dvh] flex-col items-center justify-center px-4 text-center">{children}</div>;

@@ -12,6 +12,7 @@ import { useEnsureReady } from "@/components/onboarding";
 import { CallMarket } from "@/components/call";
 import { useAccount, type PoolKey, type Refusal } from "@/lib/account";
 import { useLive, useNow } from "@/lib/live";
+import { useUI } from "@/lib/ui";
 import { ENGINE_URL } from "@/lib/env";
 import { ago, cents, compactUsd, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -87,6 +88,7 @@ function Question({ m, stream }: { m: MarketView; stream?: StreamState }) {
 function OneTap({ m, pool }: { m: MarketView; pool?: PoolKey }) {
   const acct = useAccount();
   const ensureReady = useEnsureReady();
+  const verify = useUI((s) => s.openVerify);
   const chain = useLive((s) => s.chain);
   const [stake, setStake] = useState(5);
   const [busy, setBusy] = useState<"yes" | "no" | null>(null);
@@ -156,7 +158,12 @@ function OneTap({ m, pool }: { m: MarketView; pool?: PoolKey }) {
               <ProhibitIcon size={18} className="mt-0.5 shrink-0 text-no" weight="bold" />
               <div>
                 <div className="text-sm font-semibold">{refusal.title}</div>
-                <p className="text-xs text-muted-foreground">{refusal.body}</p>
+                <p className="text-xs text-muted-foreground">{refusal.code === "DailyCapExceeded" && !acct.verified ? `That's the ${usd(acct.pass?.dailyCap ?? 10, 0)} starter limit for this wallet.` : refusal.body}</p>
+                {refusal.code === "DailyCapExceeded" && !acct.verified && (
+                  <button onClick={() => verify()} className="mt-2 text-xs font-semibold text-brand underline underline-offset-4">
+                    Raise it with World ID
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>

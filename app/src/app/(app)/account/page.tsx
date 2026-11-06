@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar } from "@/components/brand";
-import { useAccount } from "@/lib/account";
+import { useConfig, useAccount } from "@/lib/account";
 import { api } from "@/lib/live";
 import { useUI } from "@/lib/ui";
 import { useWallet } from "@/lib/wallet";
@@ -19,6 +19,8 @@ export default function AccountPage() {
   const wallet = useWallet();
   const acct = useAccount();
   const open = useUI((s) => s.openOnboarding);
+  const verify = useUI((s) => s.openVerify);
+  const { data: cfg } = useConfig();
   if (!wallet.address) {
     return (
       <div className="flex min-h-[60dvh] flex-col items-center justify-center text-center">
@@ -41,10 +43,12 @@ export default function AccountPage() {
           <div className="flex-1">
             <h2 className="text-sm font-semibold">Human verification</h2>
             <p className="text-sm text-muted-foreground">
-              {acct.pass ? `Verified${acct.pass.dev ? " with the test verifier" : " with World ID"}. Pass renews in ${Math.max(0, Math.round((acct.pass.expiry - Date.now() / 1000) / 3600))}h.` : "Not verified yet."}
+              {acct.verified && acct.pass
+                ? `Verified${acct.pass.dev ? " with the test verifier" : " with World ID"}. Pass renews in ${Math.max(0, Math.round((acct.pass.expiry - Date.now() / 1000) / 3600))}h.`
+                : `Starter limit: ${usd(acct.pass?.dailyCap ?? 10, 0)} a day on this wallet. Verify with World ID for ${usd(cfg?.passDailyCap ?? 100, 0)} a day across all your wallets, plus agents.`}
             </p>
           </div>
-          {acct.pass ? <CheckCircleIcon size={22} weight="fill" className="text-yes" /> : <Button size="sm" className="rounded-lg" onClick={() => open()}>Verify</Button>}
+          {acct.verified ? <CheckCircleIcon size={22} weight="fill" className="text-yes" /> : <Button size="sm" className="rounded-full" onClick={() => verify()}>Verify with World ID</Button>}
         </div>
       </section>
 

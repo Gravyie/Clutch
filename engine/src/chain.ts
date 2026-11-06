@@ -16,6 +16,8 @@ import {
   type ChainState,
 } from "@clutch/shared";
 import { config, isLocalChain } from "./config";
+import { all } from "./db";
+import { log } from "./log";
 
 const local = defineChain({
   id: 31337,
@@ -126,8 +128,31 @@ export async function resolveMarket(id: number, outcome: keyof typeof OUTCOME, e
         if (ev.eventName === "MarketResolved") final = (["NONE", "YES", "NO", "VOID"] as const)[Number(ev.args.outcome)] as typeof final;
       } catch {}
     }
+    void payOut(id, final); // winners don't press "collect": the engine pays them (claim is permissionless)
     return { tx, blackout, outcome: final };
   });
+}
+
+/**
+ * Push winnings (or refunds, on VOID) into every trader's wallet right after settlement. `claim(id, trader)` can be
+ * called by anyone and always pays the trader, so this only spends the agent's gas. A trader can still claim
+ * themselves; anything already claimed is skipped.
+ */
+async function payOut(id: number, outcome: "YES" | "NO" | "VOID") {
+  const traders = await all<{ trader: string }>(`SELECT DISTINCT trader FROM trades WHERE market_id = ?`, [id]);
+  let paid = 0;
+  for (const { trader } of traders) {
+    try {
+      const [yes, no, cost, claimed] = await publicClient.readContract({ address: d.clutchHook, abi: ClutchHookAbi, functionName: "positions", args: [BigInt(id), trader as Hex] });
+      const owed = outcome === "VOID" ? cost > 0n : outcome === "YES" ? yes > 0n : no > 0n;
+      if (!owed || claimed) continue;
+      await asAgent(async () => confirm(await agentWallet.writeContract({ address: d.clutchHook, abi: ClutchHookAbi, functionName: "claim", args: [BigInt(id), trader as Hex] })));
+      paid++;
+    } catch (e: any) {
+      log.warn(`payout #${id} → ${trader}`, e.shortMessage ?? e.message);
+    }
+  }
+  if (paid) log.info(`#${id}: paid ${paid} trader${paid === 1 ? "" : "s"} automatically`);
 }
 
 export async function setLatencyBuffer(poolId: Hex, sec: number) {

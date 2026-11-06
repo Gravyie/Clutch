@@ -39,7 +39,7 @@ export default function Page() {
 function StudioPage() {
   const wallet = useWallet();
   const acct = useAccount();
-  const openOnboarding = useUI((s) => s.openOnboarding);
+  const openOnboarding = useUI((s) => s.openVerify);
   const [token, setToken] = useState<string | undefined>(acct.token);
   useEffect(() => setToken(acct.token), [acct.token]);
   const me = useQuery({ queryKey: ["me", token], queryFn: () => api<Me>("/me", { token }), enabled: !!token });
@@ -151,12 +151,12 @@ function Setup(props: { me: Me; token: string; onDone: () => void }) {
 }
 
 function VideoSetup({ me, token, onDone }: { me: Me; token: string; onDone: () => void }) {
-  const openOnboarding = useUI((s) => s.openOnboarding);
+  const openOnboarding = useUI((s) => s.openVerify);
   const acct = useAccount();
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
-  const verified = me.verifiedHuman || !!acct.pass;
+  const verified = me.verifiedHuman || acct.verified;
   const { data: code } = useQuery({ queryKey: ["claim", token], queryFn: () => api<{ code: string }>("/studio/claim-code", { body: {}, token }) });
   async function create() {
     setBusy(true);
@@ -240,12 +240,12 @@ function StepDot({ n, done }: { n: number; done: boolean }) {
 
 function LichessSetup({ me, token, onDone }: { me: Me; token: string; onDone: () => void }) {
   const { data: cfg } = useConfig();
-  const openOnboarding = useUI((s) => s.openOnboarding);
+  const openOnboarding = useUI((s) => s.openVerify);
   const acct = useAccount();
   const [twitch, setTwitch] = useState("");
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
-  const verified = me.verifiedHuman || !!acct.pass;
+  const verified = me.verifiedHuman || acct.verified;
   const steps = [
     { done: verified, title: "Verify you're a unique human", body: "Your verified ID is what blocks you from trading your own markets.", action: !verified && <Button size="sm" className="rounded-lg" onClick={() => openOnboarding()}>Verify</Button> },
     {

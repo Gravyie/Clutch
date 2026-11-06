@@ -27,10 +27,10 @@ const RUN = "pnpm --filter @clutch/engine agent";
 export default function AgentsPage() {
   const acct = useAccount();
   const { data: cfg } = useConfig();
-  const open = useUI((s) => s.openOnboarding);
+  const open = useUI((s) => s.openVerify);
   const qc = useQueryClient();
   const [token, setToken] = useState<string>();
-  const verified = Boolean(acct.pass);
+  const verified = acct.verified;
 
   const { data: agents } = useQuery({
     queryKey: ["agents", token],

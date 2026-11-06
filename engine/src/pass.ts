@@ -77,6 +77,19 @@ export async function devIssue(persona: string, wallet: `0x${string}`) {
   return issue(devNullifier(persona), wallet, "dev", true);
 }
 
+/**
+ * Starter pass: trade right after signing in, no World ID. Bound to the wallet itself (its "nullifier" is a hash of
+ * the address), so its cap is per wallet, and small. World ID lifts it to the per-person cap and unlocks agents.
+ * Streamers' own wallets never get one: they must verify, which is what bars them from their own markets.
+ */
+export const walletNullifier = (wallet: string) => BigInt(keccak256(toBytes(`clutch-wallet:${wallet.toLowerCase()}`))).toString();
+
+export async function starterIssue(wallet: `0x${string}`, isStreamerWallet: boolean) {
+  if (isStreamerWallet) throw new PassRefused("verification_failed", "This wallet streams on Clutch, so it needs World ID before it can trade.");
+  const signed = await signPass(wallet, walletNullifier(wallet), config.starterDailyCapUsdc, config.passTtlSec);
+  return { ...signed, credential: "wallet", dev: false, starter: true };
+}
+
 /** The human behind a wallet, if they've verified. */
 export async function nullifierOf(wallet: string) {
   return (await one<{ nullifier: string }>(`SELECT nullifier FROM human_wallets WHERE address = ?`, [wallet.toLowerCase()]))?.nullifier;

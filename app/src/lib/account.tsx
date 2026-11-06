@@ -41,6 +41,8 @@ export interface Pass {
   dailyCap: number;
   credential: string;
   dev: boolean;
+  /** a wallet-bound starter pass (no World ID): small cap, no agents */
+  starter?: boolean;
 }
 
 export interface Refusal {
@@ -96,6 +98,8 @@ interface Account {
   eth: number;
   approved: boolean;
   pass?: Pass;
+  /** verified with World ID (or the labelled dev verifier), not just a starter pass */
+  verified: boolean;
   stakedToday: number;
   excludedUntil: number;
   vault: { shares: number; assets: number };
@@ -109,6 +113,9 @@ interface Account {
   back(p: { marketId: number; pool: PoolKey; yes: boolean; amount: number }): Promise<{ shares: number; tx: Hex; paidWith: "usdc" | "eth" }>;
   /** what the wallet can stake right now, in USD: USDC plus ETH at the onramp pool's price */
   spendable: number;
+  ethUsd: number;
+  /** withdraw: send USDC or ETH from the Clutch wallet to any address on this chain */
+  send(p: { to: Hex; asset: "usdc" | "eth"; amount: number }): Promise<Hex>;
   quote(marketId: number, yes: boolean, amount: number): Promise<{ shares: number; priceYesAfter: number }>;
   claim(marketId: number): Promise<number>;
   selfExclude(days: number): Promise<void>;
@@ -235,6 +242,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       eth: bal.eth,
       approved: bal.allowance > 10n ** 30n,
       pass,
+      verified: Boolean(pass && !pass.starter),
       stakedToday: bal.stakedToday,
       excludedUntil: bal.excludedUntil,
       vault: { shares: bal.shares, assets: bal.assets },
@@ -242,6 +250,22 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       // Ready = verified and this wallet can pay. (The day's spend is per person, so it says nothing about this wallet.)
       onboarded: Boolean(address && pass && bal.usdc + Math.max(0, bal.eth - 0.0002) * ethUsd >= 1),
       spendable: bal.usdc + Math.max(0, bal.eth - 0.0002) * ethUsd,
+      ethUsd,
+
+      async send({ to, asset, amount }) {
+        const d = need();
+        const tx =
+          asset === "usdc"
+            ? await send({ address: d.usdc, abi: MockUSDCAbi, functionName: "transfer", args: [to, fromUsdc(amount)] })
+            : await (async () => {
+                const c = await wallet.client();
+                const hash = await c.sendTransaction({ chain, account: c.account!, to, value: parseEther(amount.toFixed(18)) });
+                await publicClient.waitForTransactionReceipt({ hash });
+                return hash;
+              })();
+        await refresh();
+        return tx;
+      },
       refresh,
 
       async fund() {

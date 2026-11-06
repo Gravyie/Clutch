@@ -104,6 +104,8 @@ export const config = {
   worldEnvironment: env("WORLD_ENVIRONMENT", "staging") as "production" | "staging",
   passTtlSec: Number(env("PASS_TTL_SEC", "43200")),
   passDailyCapUsdc: Number(env("PASS_DAILY_CAP_USDC", "100")),
+  /** daily cap for a wallet that hasn't verified with World ID */
+  starterDailyCapUsdc: Number(env("STARTER_DAILY_CAP_USDC", "10")),
 
   // Lichess OAuth (PKCE; no registration needed) for streamers proving they own a Lichess account.
   lichessClientId: env("LICHESS_CLIENT_ID", "clutch.gg")!,
