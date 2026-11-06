@@ -1,29 +1,38 @@
 import { cn } from "@/lib/utils";
 import { hueOf } from "@/lib/format";
 
-/** The Clutch mark: a rounded tile with a notch, the moment cut out of a frame. */
-export function LogoMark({ className }: { className?: string }) {
+/**
+ * The Clutch mark: a tilted "C" catching a dot (the moment) inside two viewfinder corners (the frame that catches it).
+ * Signal lime and ink in every theme, so the brand reads the same everywhere. Same drawing as app/icon.svg.
+ */
+export function LogoMark({ className, frame = true }: { className?: string; frame?: boolean }) {
   return (
-    <svg viewBox="0 0 32 32" className={cn("size-7", className)} aria-hidden>
-      <rect width="32" height="32" rx="9" className="fill-foreground" />
-      <path d="M21.5 11.2a7 7 0 1 0 0 9.6" fill="none" strokeWidth="3.4" strokeLinecap="round" className="stroke-background" />
-      <circle cx="23" cy="16" r="2.2" className="fill-brand" />
+    <svg viewBox="0 0 64 64" className={cn("size-7 shrink-0", className)} aria-hidden>
+      <rect width="64" height="64" rx="16" fill="#b8f36b" />
+      {frame && <path d="M47 9H55V17M9 47V55H17" fill="none" stroke="#101808" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />}
+      <g transform="rotate(-14 32 32)">
+        <path d="M40.4 22.63A14 14 0 1 0 40.4 41.37" fill="none" stroke="#101808" strokeWidth="8.5" strokeLinecap="round" />
+        <circle cx="46.5" cy="32" r="5.2" fill="#101808" />
+      </g>
     </svg>
   );
 }
 
 export function Logo({ className }: { className?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-2", className)}>
-      <LogoMark />
-      <span className="text-[17px] font-semibold tracking-tight">Clutch</span>
+    <span className={cn("inline-flex items-center gap-2.5", className)}>
+      <LogoMark className="size-8" />
+      <span className="text-[21px] font-extrabold leading-none tracking-[-0.06em]">
+        clutch<span className="text-brand">.</span>
+      </span>
     </span>
   );
 }
 
 export function LiveBadge({ className, label = "LIVE" }: { className?: string; label?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-[5px] bg-live px-1.5 py-[1px] text-[10.5px] font-semibold tracking-wide text-white", className)}>
+    <span className={cn("inline-flex items-center gap-1 rounded-[5px] bg-live px-1.5 py-[1px] text-[10.5px] font-bold tracking-wide text-[#1a0703]", className)}>
+      <span className="size-1 animate-live rounded-full bg-current" aria-hidden />
       {label}
     </span>
   );

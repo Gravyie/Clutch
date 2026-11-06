@@ -11,6 +11,8 @@ import { api, useNow } from "@/lib/live";
 import { ENGINE_URL } from "@/lib/env";
 import { cents, clock, compact, compactUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -88,7 +90,7 @@ export function StreamStage({ stream, overlay, compact }: { stream?: StreamState
   const twitch = stream.owner?.twitch;
 
   const board = (
-    <div className={cn("mx-auto w-full", compact ? "max-w-[min(100%,440px)]" : "max-w-[min(100%,calc(100dvh-15rem))]")}>
+    <div className={cn("mx-auto w-full", compact ? "max-w-[min(100%,440px)]" : "max-w-[min(100%,calc(100dvh-20.5rem),32rem)] xl:max-w-[min(100%,calc(100dvh-20.5rem))]")}>
       <PlayerStrip p={stream[top]} side={top} toMove={top === "white" ? whiteToMove : blackToMove} />
       <div className="relative">
         <LiveBoard id={`board-${stream.slug}`} fen={stream.fen} lastMove={stream.lastMove} orientation={stream.orientation} />
@@ -107,19 +109,21 @@ export function StreamStage({ stream, overlay, compact }: { stream?: StreamState
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border bg-[radial-gradient(120%_80%_at_50%_0%,var(--raised),var(--sunk))]">
-      <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
-        {stream.live ? <LiveBadge /> : <span className="rounded-[5px] bg-raised px-1.5 py-px text-[10.5px] font-semibold text-muted-foreground">OFFLINE</span>}
-        <span className="flex items-center gap-1 rounded-full bg-background/70 px-2 py-0.5 text-xs text-muted-foreground backdrop-blur">
-          <EyeIcon size={13} /> {stream.watching}
-        </span>
-      </div>
+      {compact && (
+        <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
+          {stream.live ? <LiveBadge /> : <span className="rounded-[5px] bg-raised px-1.5 py-px text-[10.5px] font-semibold text-muted-foreground">OFFLINE</span>}
+          <span className="flex items-center gap-1 rounded-full bg-background/70 px-2 py-0.5 text-xs text-muted-foreground backdrop-blur">
+            <EyeIcon size={13} /> {stream.watching}
+          </span>
+        </div>
+      )}
       {twitch ? (
         <div className="grid gap-3 p-3 lg:grid-cols-[1fr_260px]">
           <TwitchPlayer channel={twitch} slug={stream.slug} />
           <div className="hidden lg:block">{board}</div>
         </div>
       ) : (
-        <div className="px-4 pb-3 pt-10 sm:px-8">{board}</div>
+        <div className={cn("px-3 pb-2 sm:px-8", compact ? "pt-10" : "pt-2 sm:pt-3")}>{board}</div>
       )}
       {overlay}
     </div>
@@ -243,72 +247,95 @@ export function VisionBar({ s }: { s: StreamSummary }) {
   );
 }
 
-/** Browse card: a live miniature of the game, the channel, and its market if one is open. */
-export function ChannelCard({ s, size = "md" }: { s: StreamSummary; size?: "md" | "lg" }) {
+/**
+ * Explore tile, sized by what it shows so a masonry feed packs tightly: live video is 16:9, a chess board is square,
+ * an offline channel is a compact row. An open market sits under the picture, never over it.
+ */
+/** Relative tile height at unit width, for the masonry layout. */
+export function channelCardHeight(s: StreamSummary) {
+  const m = s.market && (s.market.phase === "trading" || s.market.phase === "locked" || s.market.phase === "window");
+  if (!s.live) return 0.2;
+  return (s.media?.kind === "video" ? 0.5625 : 1.06) + 0.25 + (m ? 0.14 : 0);
+}
+
+export function ChannelCard({ s }: { s: StreamSummary; size?: "md" | "lg" }) {
   const m = s.market && (s.market.phase === "trading" || s.market.phase === "locked" || s.market.phase === "window") ? s.market : undefined;
+  const video = s.media?.kind === "video";
+  const thumb = video && s.live ? (frameUrl(s) ?? (s.media?.kind === "video" && s.media.platform === "twitch" ? `https://static-cdn.jtvnw.net/previews-ttv/live_user_${s.media.channel}-640x360.jpg` : undefined)) : undefined;
+  const sub = video ? (s.live ? (s.streamTitle ?? s.subtitle) : "Offline") : s.live && s.white.name ? `${s.white.name} vs ${s.black.name}` : s.subtitle;
+  const offline = !s.live;
+  const [broken, setBroken] = useState<string>();
+
   return (
-    <Link href={`/c/${s.slug}`} className="group block">
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-[radial-gradient(120%_80%_at_50%_0%,var(--raised),var(--sunk))] transition group-hover:border-border-strong">
-        {s.media?.kind === "video" ? (
-          <div className="relative aspect-video">
-            {s.live && (frameUrl(s) || s.media.platform === "twitch") ? (
-              <img
-                src={frameUrl(s) ?? `https://static-cdn.jtvnw.net/previews-ttv/live_user_${s.media.channel}-640x360.jpg`}
-                alt=""
-                className="absolute inset-0 size-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                loading="lazy"
-              />
+    <Link href={`/c/${s.slug}`} className="group block min-w-0 outline-none" aria-label={`${s.title}${s.live ? ", live" : ", offline"}${m ? `, market: ${m.question}` : ""}`}>
+      <Card className="gap-0 overflow-hidden py-0 transition duration-200 group-hover:-translate-y-0.5 group-hover:border-border-strong group-hover:shadow-md group-focus-visible:ring-2 group-focus-visible:ring-ring">
+        {!offline && (
+          <div className="relative overflow-hidden bg-secondary">
+            {video ? (
+              <div className="relative aspect-video">
+                {thumb && broken !== thumb ? (
+                  <img src={thumb} alt="" loading="lazy" onError={() => setBroken(thumb)} className="absolute inset-0 size-full object-cover transition duration-300 group-hover:scale-[1.03]" />
+                ) : (
+                  <div className="absolute inset-0 grid place-items-center text-faint">
+                    <PlatformIcon p={s.media?.kind === "video" ? s.media.platform : undefined} size={26} />
+                  </div>
+                )}
+              </div>
             ) : (
-              <div className="absolute inset-0 grid place-items-center text-faint">
-                <PlatformIcon p={s.media.platform} size={28} />
+              <div className="bg-[radial-gradient(120%_90%_at_50%_0%,var(--raised),var(--sunk))] p-3 pt-10">
+                <div className="pointer-events-none overflow-hidden rounded-[10px] transition duration-300 group-hover:scale-[1.015]">
+                  <LiveBoard id={`thumb-${s.slug}`} fen={s.fen} lastMove={s.lastMove} orientation={s.orientation} animate={false} />
+                </div>
               </div>
             )}
-            <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/60 to-transparent" />
-          </div>
-        ) : (
-          <div className={cn("mx-auto py-4", size === "lg" ? "w-[62%]" : "w-[58%]")}>
-            <div className={cn("pointer-events-none transition duration-300 group-hover:scale-[1.02]", !s.live && "opacity-40 grayscale")}>
-              <LiveBoard id={`thumb-${s.slug}`} fen={s.fen} lastMove={s.lastMove} orientation={s.orientation} animate={false} />
+            <div className="absolute left-2.5 top-2.5 flex flex-wrap items-center gap-1.5">
+              <LiveBadge />
+              {s.rerun && <Badge className="h-[18px] rounded-[5px] bg-warn px-1.5 text-[10.5px] font-bold text-black">RERUN</Badge>}
+              <Badge variant="secondary" className="h-[18px] gap-1 rounded-full bg-background/80 px-1.5 text-[11px] font-normal backdrop-blur">
+                <EyeIcon /> {s.platformViewers ? compact(s.platformViewers) : s.watching}
+              </Badge>
+              {s.reading && (
+                <Badge className="h-[18px] gap-1 rounded-full bg-yes px-1.5 text-[11px] text-[#04140f]">
+                  <ScanIcon weight="bold" /> AI watching
+                </Badge>
+              )}
             </div>
           </div>
         )}
-        <div className="absolute left-3 top-3 flex items-center gap-1.5">
-          {s.live && <LiveBadge />}
-          {s.rerun && <span className="rounded-[5px] bg-warn px-1.5 py-px text-[10.5px] font-semibold text-black">RERUN</span>}
-          {s.live && (
-            <span className="flex items-center gap-1 rounded-full bg-background/75 px-1.5 py-0.5 text-[11px] text-muted-foreground backdrop-blur">
-              <EyeIcon size={12} /> {s.platformViewers ? compact(s.platformViewers) : s.watching}
-            </span>
-          )}
-          {s.reading && (
-            <span className="flex items-center gap-1 rounded-full bg-yes/90 px-1.5 py-0.5 text-[11px] font-medium text-black">
-              <ScanIcon size={12} weight="bold" /> AI watching
-            </span>
-          )}
-        </div>
+
         {m && (
-          <div className="absolute inset-x-3 bottom-3 rounded-xl border border-border bg-background/85 px-3 py-2 backdrop-blur-md">
-            <div className="flex items-center justify-between gap-2">
-              <span className="truncate text-xs font-medium">{m.question}</span>
-              <span className="shrink-0 font-mono text-xs font-semibold text-yes tabular">{cents(m.priceYes)}</span>
-            </div>
+          <div className="flex items-center gap-2 border-b bg-secondary/40 px-3.5 py-2.5">
+            <span className={cn("size-1.5 shrink-0 rounded-full", m.phase === "trading" ? "animate-live bg-live" : "bg-warn")} aria-hidden />
+            <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium">{m.question}</span>
+            {m.phase === "trading" ? (
+              <Badge className="shrink-0 rounded-full bg-yes-soft font-mono text-yes tabular">Yes {cents(m.priceYes)}</Badge>
+            ) : (
+              <Badge variant="outline" className="shrink-0 rounded-full border-warn/30 text-warn">
+                Locked
+              </Badge>
+            )}
           </div>
         )}
-      </div>
-      <div className="mt-3 flex gap-3">
-        <Avatar name={s.title} size={36} />
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold leading-tight">{s.title}</div>
-          <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-            {s.media?.kind === "video" && <PlatformIcon p={s.media.platform} size={12} />}
-            <span className="truncate">{s.media?.kind === "video" ? (s.live ? (s.streamTitle ?? s.game ?? s.subtitle) : "Offline") : s.live && s.white.name ? `${s.white.name} vs ${s.black.name}` : s.subtitle}</span>
+
+        <div className={cn("flex gap-3 px-3.5", offline ? "items-center py-3" : "py-3")}>
+          <Avatar name={s.title} size={offline ? 32 : 36} className={cn(offline && "opacity-60 grayscale")} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-sm font-semibold leading-tight">{s.title}</span>
+              {video && <PlatformIcon p={s.media?.kind === "video" ? s.media.platform : undefined} size={12} />}
+            </div>
+            {!offline && <div className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{sub}</div>}
+            <div className="mt-0.5 truncate text-xs text-faint">
+              {[s.game, s.settledToday ? `${s.settledToday} markets today` : null, s.volumeToday > 0 ? `${compactUsd(s.volumeToday)} traded` : null].filter(Boolean).join(" · ")}
+            </div>
           </div>
-          {s.game && s.media?.kind === "video" && <div className="truncate text-xs text-faint">{s.game}</div>}
-          <div className="mt-0.5 text-xs text-faint">
-            {s.settledToday} markets today{s.volumeToday > 0 ? ` · ${compactUsd(s.volumeToday)} traded` : ""}
-          </div>
+          {offline && (
+            <Badge variant="outline" className="shrink-0 rounded-full text-faint">
+              Offline
+            </Badge>
+          )}
         </div>
-      </div>
+      </Card>
     </Link>
   );
 }

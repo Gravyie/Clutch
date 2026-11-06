@@ -23,11 +23,16 @@ export default function AccountPage() {
   const { data: cfg } = useConfig();
   if (!wallet.address) {
     return (
-      <div className="flex min-h-[60dvh] flex-col items-center justify-center text-center">
-        <h1 className="text-xl font-semibold">Sign in to manage your account</h1>
-        <Button className="mt-4 rounded-xl" onClick={() => open()}>
+      <div className="mx-auto flex min-h-[60dvh] max-w-[420px] flex-col items-center justify-center px-6 text-center">
+        <span className="grid size-14 place-items-center rounded-2xl bg-raised text-muted-foreground">
+          <UserIcon size={26} />
+        </span>
+        <h1 className="mt-4 text-xl font-semibold tracking-tight">Your account</h1>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">Sign in to see your wallet and network, your daily limit, optional World ID verification, and self-exclusion controls.</p>
+        <Button className="mt-5 h-11 rounded-full bg-brand px-6 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => open()}>
           Sign in
         </Button>
+        <p className="mt-3 text-xs text-faint">Testnet only. We never ask for a seed phrase or private key.</p>
       </div>
     );
   }

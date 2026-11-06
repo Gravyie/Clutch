@@ -161,14 +161,14 @@ function Hero({ d }: { d: ReturnType<typeof useLanding> }) {
             <br />
             is a <span className="text-brand">market.</span>
           </motion.h1>
-          <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease, delay: 0.15 }} className="mt-6 max-w-[46ch] text-lg leading-relaxed text-muted-foreground">
-            An AI watches live streams and opens a yes-or-no market the moment something is about to happen. You call it with one tap.
-            Two independent readers settle it in seconds, and every result gets a public receipt.
+          <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease, delay: 0.15 }} className="mt-6 max-w-[44ch] text-[17px] leading-relaxed text-muted-foreground sm:text-lg">
+            Catch the moment. Call what happens next. An AI spots a tense moment on a live stream and asks one yes-or-no question; you
+            back a side in one tap before it locks. A rule fixed before trading decides it, with a public receipt.
           </motion.p>
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease, delay: 0.25 }} className="mt-9 flex flex-wrap items-center gap-3">
             <Link
               href={d.featured ? `/c/${d.featured.slug}` : "/live"}
-              className="group inline-flex h-13 items-center gap-2.5 rounded-full bg-brand pl-6 pr-2 text-[15px] font-semibold text-brand-foreground shadow-[0_10px_40px_-10px_var(--brand)] transition hover:brightness-110 active:scale-[0.98]"
+              className="group inline-flex h-13 items-center gap-2.5 rounded-full bg-brand pl-6 pr-2 text-[15px] font-semibold text-brand-foreground shadow-[0_10px_36px_-14px_var(--brand)] transition hover:brightness-110 active:scale-[0.98]"
             >
               Watch live
               <span className="grid size-9 place-items-center rounded-full bg-black/15 transition group-hover:translate-x-0.5">
@@ -651,7 +651,7 @@ function ScaledOverlay({ slug }: { slug: string }) {
 
 const FAQ = [
   ["Is this real money?", "Not yet. Clutch runs on a testnet with test USDC from the built-in faucet, so you can try everything for free. The contracts, the AI and the settlement are the same ones that would run on mainnet."],
-  ["Who decides the result?", "Nobody. Two different AI models read the stream independently, on their own frames, against a rule that was locked onchain before trading opened. If they don't agree, the market is voided and everyone is refunded."],
+  ["Who decides the result?", "A rule, not a person. Two different AI models each read the stream on their own frames, against a rule that was locked onchain before trading opened. If they don't agree, the market is voided and everyone is refunded."],
   ["Which streams work?", "Any live stream with something on screen that changes: scores, kill feeds, players left, rounds. Clutch reads Twitch, Kick and YouTube, plus Lichess games move by move."],
   ["Why do I need World ID?", "Limits only work if one person can't open ten wallets. One Proof of Human check gives you an anonymous pass. We never see your name, face or documents."],
   ["Can bots trade?", "Only as someone's agent. A verified person approves an agent with World ID, and its pass carries that person's ID, so the agent shares their daily limit onchain. Anonymous bots can't trade at all."],

@@ -6,8 +6,10 @@ import { motion } from "motion/react";
 import NumberFlow from "@number-flow/react";
 import { ArrowRightIcon, BroadcastIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { ChannelCard, StreamStage } from "@/components/stream";
-import { MarketCard, MarketPanel, ReceiptRow, isOpen } from "@/components/market";
+import { Masonry } from "@/components/masonry";
+import { ChannelCard, channelCardHeight, StreamStage } from "@/components/stream";
+import { MarketCard, ReceiptRow, isOpen } from "@/components/market";
+import { RoundPanel } from "@/components/round";
 import { useAccount } from "@/lib/account";
 import { api, useChannel, useLive } from "@/lib/live";
 import { useUI } from "@/lib/ui";
@@ -46,14 +48,11 @@ export default function Home() {
 
       <section>
         <SectionHead title="Live now" href="/browse" />
-        <div className="grid gap-x-5 gap-y-8 sm:grid-cols-2 xl:grid-cols-4">
-          {list.filter((s) => s.live).slice(0, 12).map((s) => (
-            <ChannelCard key={s.slug} s={s} />
-          ))}
-        </div>
+        <Masonry items={list.filter((s) => s.live).slice(0, 12)} getKey={(s) => s.slug} estimate={channelCardHeight} render={(s) => <ChannelCard s={s} />} />
+        
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div>
           <SectionHead title="Just settled" />
           <div className="surface p-1.5">
@@ -100,7 +99,7 @@ function Featured({ slug }: { slug: string }) {
   const market = useLive((s) => (summary?.market ? s.markets[summary.market.id] : undefined));
   const { data } = useQuery({ queryKey: ["stream", slug], queryFn: () => api<{ pool: { key: any } }>(`/streams/${slug}`), staleTime: 60_000 });
   return (
-    <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
+    <section className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
       <Link href={`/c/${slug}`} className="block min-w-0">
         <StreamStage stream={stream} compact />
       </Link>
@@ -111,7 +110,7 @@ function Featured({ slug }: { slug: string }) {
             Open channel <ArrowRightIcon size={14} />
           </span>
         </Link>
-        <MarketPanel m={market && isOpen(market) ? market : undefined} pool={data?.pool.key} />
+        <RoundPanel m={market && isOpen(market) ? market : undefined} stream={stream} pool={data?.pool.key} />
       </div>
     </section>
   );
@@ -135,10 +134,10 @@ function ProofPanel() {
   return (
     <div className="surface flex flex-col justify-between overflow-hidden">
       <div className="p-5">
-        <ShieldCheckIcon size={28} weight="fill" className="text-yes" />
-        <h3 className="mt-3 text-lg font-semibold tracking-tight">Nobody decides who wins</h3>
+        <ShieldCheckIcon size={28} weight="fill" className="text-info" />
+        <h3 className="mt-3 text-lg font-semibold tracking-tight">Rules first, results second</h3>
         <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-          Two independent sources must agree on every result. If they don't, the market voids and everyone gets their money back. The streamer can't trade their own markets.
+          Every result is decided by a rule committed onchain before trading opens, and two separate read paths must agree. If they don't, the market voids and stakes are refunded. The streamer can't trade their own markets.
         </p>
       </div>
       <dl className="grid grid-cols-3 border-t border-border">

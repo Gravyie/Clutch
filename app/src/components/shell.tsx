@@ -19,6 +19,7 @@ import {
   SignOutIcon,
   SunIcon,
   TrophyIcon,
+  UserCircleIcon,
   VaultIcon,
   WalletIcon,
   WarningIcon,
@@ -36,15 +37,46 @@ import { useAccount } from "@/lib/account";
 import { useLive } from "@/lib/live";
 import { useUI } from "@/lib/ui";
 import { useWallet } from "@/lib/wallet";
+import { chain as appChain } from "@/lib/env";
 import { cents, compact, short } from "@/lib/format";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { Separator } from "@/components/ui/separator";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupAction,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSkeleton,
+  SidebarProvider,
+  SidebarRail,
+  SidebarSeparator,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/live", label: "Live", icon: BroadcastIcon },
-  { href: "/browse", label: "Browse", icon: CompassIcon },
-  { href: "/portfolio", label: "Portfolio", icon: ChartLineUpIcon },
+  { href: "/browse", label: "Explore", icon: CompassIcon },
   { href: "/leaderboard", label: "Leaderboard", icon: TrophyIcon },
+  { href: "/portfolio", label: "Portfolio", icon: ChartLineUpIcon },
   { href: "/agents", label: "Agents", icon: RobotIcon },
+];
+
+/** Bottom tabs on phones: the four places a viewer goes most. */
+const MOBILE_NAV = [
+  { href: "/live", label: "Live", icon: BroadcastIcon },
+  { href: "/browse", label: "Explore", icon: CompassIcon },
+  { href: "/portfolio", label: "Portfolio", icon: ChartLineUpIcon },
+  { href: "/account", label: "Account", icon: UserCircleIcon },
 ];
 
 /** Live markets first, then live video, then live chess, then offline; audience breaks ties. */
@@ -57,17 +89,17 @@ export function channelRank(a: StreamSummary, b: StreamSummary) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-dvh">
-      <TopBar />
-      <div className="flex">
-        <SideRail />
-        <main className="min-w-0 flex-1 pb-20 lg:pb-0">{children}</main>
-      </div>
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset className="min-w-0 bg-background">
+        <TopBar />
+        <main className="min-w-0 flex-1 pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
+      </SidebarInset>
       <MobileNav />
       <Onboarding />
       <WalletSheet />
       <CommandMenu />
-    </div>
+    </SidebarProvider>
   );
 }
 
@@ -79,21 +111,40 @@ function TopBar() {
   const setWallet = useUI((s) => s.setWallet);
   const chain = useLive((s) => s.chain);
   const connected = useLive((s) => s.connected);
+  const path = usePathname();
   return (
-    <header className="sticky top-0 z-40 h-14 border-b border-border bg-background/80 backdrop-blur-xl">
-      <div className="flex h-full items-center gap-3 px-3 sm:px-4">
-        <Link href="/" className="flex w-[216px] shrink-0 items-center" aria-label="Clutch home">
+    <header className="sticky top-0 z-40 h-14 shrink-0 border-b border-border bg-background/85 backdrop-blur-xl lg:h-[60px]">
+      <div className="flex h-full items-center gap-2 px-3 sm:px-5">
+        <SidebarTrigger className="-ml-1 size-9 text-muted-foreground" />
+        <Separator orientation="vertical" className="mx-1 hidden !h-5 md:block" />
+        <Link href="/" className="flex shrink-0 items-center rounded-lg md:hidden" aria-label="Clutch home">
           <Logo />
         </Link>
         <button
           onClick={() => setCommand(true)}
-          className="hidden h-9 w-full max-w-[420px] items-center gap-2 rounded-[10px] border border-border bg-raised px-3 text-sm text-faint transition hover:border-border-strong md:flex"
+          className="hidden h-9 w-[260px] items-center gap-2 rounded-lg border border-border bg-raised/50 pl-3 pr-1.5 text-sm text-faint shadow-xs transition hover:border-border-strong md:flex xl:w-[320px]"
         >
           <MagnifyingGlassIcon size={16} />
-          Search channels and markets
-          <kbd className="ml-auto rounded-md border border-border px-1.5 font-mono text-[11px]">⌘K</kbd>
+          Search channels
+          <KbdGroup className="ml-auto">
+            <Kbd>⌘</Kbd>
+            <Kbd>K</Kbd>
+          </KbdGroup>
         </button>
-        <div className="ml-auto flex items-center gap-2">
+        <button onClick={() => setCommand(true)} className="ml-auto grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-raised md:hidden" aria-label="Search">
+          <MagnifyingGlassIcon size={19} />
+        </button>
+        <div className="flex items-center gap-2 md:ml-auto">
+          {appChain.testnet && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="hidden h-7 items-center gap-1.5 rounded-full border border-border px-2.5 text-[11.5px] font-medium text-muted-foreground xl:flex">
+                  <span className={cn("size-1.5 rounded-full", connected ? "bg-yes" : "bg-warn")} /> {appChain.name}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Testnet only. Balances are test USDC with no real-world value.</TooltipContent>
+            </Tooltip>
+          )}
           {chain && chain.sequencerPhase !== "Normal" && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -104,10 +155,10 @@ function TopBar() {
               <TooltipContent>Blackout Guard paused trading until the L2 sequencer is healthy again.</TooltipContent>
             </Tooltip>
           )}
-          {!connected && <span className="hidden text-xs text-faint sm:inline">Reconnecting…</span>}
+          {!connected && <span className="hidden text-xs text-warn sm:inline">Reconnecting…</span>}
           {wallet.address ? (
             <>
-              <button onClick={() => (acct.pass ? setWallet(true) : open())} className="flex h-9 items-center gap-2 rounded-full border border-border bg-raised px-3.5 text-sm transition hover:border-border-strong">
+              <button onClick={() => (acct.pass ? setWallet(true) : open())} className="flex h-9 items-center gap-2 rounded-full border border-border bg-raised px-3.5 text-sm transition hover:border-border-strong" aria-label="Wallet balance">
                 <WalletIcon size={16} className="text-muted-foreground" />
                 <NumberFlow value={acct.spendable} format={{ style: "currency", currency: "USD" }} className="font-medium tabular" />
               </button>
@@ -182,99 +233,126 @@ function AccountMenu() {
   );
 }
 
-function SideRail() {
+/** The left rail: where to go, which channels are live right now, and whether the AI engine is up. */
+function AppSidebar() {
   const path = usePathname();
   const streams = useLive((s) => s.streams);
-  const list = Object.values(streams).sort(channelRank);
-  return (
-    <aside className="sticky top-14 hidden h-[calc(100dvh-3.5rem)] w-[240px] shrink-0 flex-col border-r border-border lg:flex">
-      <nav className="space-y-0.5 p-3">
-        {NAV.map(({ href, label, icon: Icon }) => {
-          const active = path.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn("relative flex h-9 items-center gap-3 rounded-[10px] px-3 text-sm transition-colors", active ? "bg-raised font-medium text-foreground" : "text-muted-foreground hover:bg-raised/60 hover:text-foreground")}
-            >
-              {active && <span className="absolute -left-3 top-2 h-5 w-[3px] rounded-r-full bg-brand" />}
-              <Icon size={18} weight={active ? "fill" : "regular"} className={active ? "text-brand" : undefined} />
-              {label}
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="mx-3 border-t border-border" />
-      <div className="flex items-center justify-between px-6 pb-1 pt-4">
-        <span className="text-xs font-medium text-muted-foreground">Live channels</span>
-        <Link href="/studio" className="text-faint hover:text-foreground" aria-label="Add your channel">
-          <PlusIcon size={14} />
-        </Link>
-      </div>
-      <div className="scrollbar-none flex-1 space-y-0.5 overflow-y-auto px-3 pb-3">
-        {list.length === 0 && Array.from({ length: 4 }).map((_, i) => <div key={i} className="shimmer h-12 rounded-[10px] bg-raised/50" />)}
-        {list.map((s) => {
-          const active = path === `/c/${s.slug}`;
-          return (
-            <Link key={s.slug} href={`/c/${s.slug}`} className={cn("group flex items-center gap-3 rounded-[10px] px-2.5 py-2 transition-colors", active ? "bg-raised" : "hover:bg-raised/60")}>
-              <span className="relative">
-                <Avatar name={s.title} size={30} className={cn(!s.live && "opacity-50 grayscale")} />
-                {s.live && <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background bg-live" />}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium leading-tight">{s.title}</span>
-                <span className="block truncate text-xs text-faint">{s.market && s.market.phase === "trading" ? s.market.question : !s.live ? "Offline" : s.media?.kind === "video" ? (s.rerun ? `Rerun · ${s.game ?? ""}` : (s.game ?? s.streamTitle ?? "Live")) : `${s.white.name || "…"} vs ${s.black.name || "…"}`}</span>
-              </span>
-              {s.market && s.market.phase === "trading" ? (
-                <span className="rounded-full bg-yes-soft px-1.5 py-0.5 font-mono text-[11px] font-medium text-yes tabular">{cents(s.market.priceYes)}</span>
-              ) : s.live ? (
-                <span className="text-xs text-faint tabular">{s.platformViewers ? compact(s.platformViewers) : s.watching}</span>
-              ) : null}
-            </Link>
-          );
-        })}
-      </div>
-      <SideFooter />
-    </aside>
-  );
-}
-
-function SideFooter() {
   const agent = useLive((s) => s.agent);
+  const { isMobile, setOpenMobile } = useSidebar();
+  const list = Object.values(streams).sort(channelRank);
+  const close = () => isMobile && setOpenMobile(false);
   return (
-    <div className="border-t border-border p-4 text-xs text-faint">
-      <div className="flex items-center justify-between gap-2 whitespace-nowrap">
-        <span>AI engine</span>
-        <span className={cn("flex items-center gap-1.5 font-medium", agent?.mode === "full" ? "text-yes" : "text-warn")}>
-          {agent?.mode === "full" && <span className="size-1.5 animate-live rounded-full bg-yes" />}
-          {agent ? (agent.provider === "0g" ? `0G · ${agent.requestsToday.toLocaleString()} calls today` : "Offline model") : "…"}
-        </span>
-      </div>
-      <div className="mt-2 flex gap-3">
-        <Link href="/how-it-works" className="hover:text-foreground">
-          How it works
-        </Link>
-        <Link href="/responsible-play" className="hover:text-foreground">
-          Responsible play
-        </Link>
-      </div>
-    </div>
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border lg:h-[60px]">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild size="lg" className="h-10 hover:bg-transparent active:bg-transparent">
+              <Link href="/" onClick={close} aria-label="Clutch home">
+                <Logo />
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent className="scrollbar-none">
+        <SidebarGroup>
+          <SidebarMenu>
+            {NAV.map(({ href, label, icon: Icon }) => {
+              const active = path.startsWith(href) || (href === "/live" && path.startsWith("/c/"));
+              return (
+                <SidebarMenuItem key={href}>
+                  <SidebarMenuButton asChild isActive={active} tooltip={label} className="h-9 data-[active=true]:font-medium">
+                    <Link href={href} onClick={close}>
+                      <Icon weight={active ? "fill" : "regular"} className={cn("!size-[18px]", active && "text-brand")} />
+                      <span>{label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
+        <SidebarSeparator className="mx-0" />
+        <SidebarGroup className="min-h-0">
+          <SidebarGroupLabel>Live channels</SidebarGroupLabel>
+          <SidebarGroupAction asChild title="Add your channel">
+            <Link href="/studio" onClick={close}>
+              <PlusIcon />
+              <span className="sr-only">Add your channel</span>
+            </Link>
+          </SidebarGroupAction>
+          <SidebarMenu>
+            {list.length === 0 && Array.from({ length: 6 }).map((_, i) => <SidebarMenuSkeleton key={i} showIcon />)}
+            {list.slice(0, 40).map((s) => {
+              const trading = s.market?.phase === "trading";
+              const sub = trading
+                ? s.market!.question
+                : !s.live
+                  ? "Offline"
+                  : s.media?.kind === "video"
+                    ? s.rerun
+                      ? `Rerun · ${s.game ?? ""}`
+                      : (s.game ?? s.streamTitle ?? "Live")
+                    : `${s.white.name || "…"} vs ${s.black.name || "…"}`;
+              return (
+                <SidebarMenuItem key={s.slug}>
+                  <SidebarMenuButton asChild size="lg" isActive={path === `/c/${s.slug}`} tooltip={`${s.title} · ${sub}`} className={cn("h-11 gap-2.5", (trading || s.live) && "pr-14")}>
+                    <Link href={`/c/${s.slug}`} onClick={close}>
+                      <span className="relative shrink-0">
+                        <Avatar name={s.title} size={28} className={cn(!s.live && "opacity-50 grayscale")} />
+                        {s.live && <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-sidebar bg-live" />}
+                      </span>
+                      <span className="grid min-w-0 flex-1 leading-tight">
+                        <span className="truncate text-[13px] font-medium text-sidebar-accent-foreground">{s.title}</span>
+                        <span className="truncate text-xs text-faint">{sub}</span>
+                      </span>
+                    </Link>
+                  </SidebarMenuButton>
+                  {trading ? (
+                    <SidebarMenuBadge className="top-1.5 h-5 rounded-full bg-yes-soft px-1.5 font-mono text-[11px] text-yes tabular peer-hover/menu-button:text-yes">{cents(s.market!.priceYes)}</SidebarMenuBadge>
+                  ) : s.live ? (
+                    <SidebarMenuBadge className="top-1.5 h-5 text-[11px] font-normal text-faint tabular">{s.platformViewers ? compact(s.platformViewers) : s.watching}</SidebarMenuBadge>
+                  ) : null}
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
+      </SidebarContent>
+      <SidebarFooter className="border-t border-sidebar-border p-3 text-xs text-faint group-data-[collapsible=icon]:hidden">
+        <div className="flex items-center justify-between gap-2 whitespace-nowrap">
+          <span>AI engine</span>
+          <span className={cn("flex items-center gap-1.5 font-medium", agent?.mode === "full" ? "text-yes" : "text-warn")}>
+            <span className={cn("size-1.5 rounded-full", agent?.mode === "full" ? "animate-live bg-yes" : "bg-warn")} />
+            {agent ? (agent.provider === "0g" ? `0G · ${agent.requestsToday.toLocaleString()} today` : "Offline model") : "connecting…"}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          <Link href="/how-it-works" onClick={close} className="hover:text-foreground">How it works</Link>
+          <Link href="/responsible-play" onClick={close} className="hover:text-foreground">Responsible play</Link>
+        </div>
+        <div>Testnet only · test USDC has no real value</div>
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
   );
 }
 
 function MobileNav() {
   const path = usePathname();
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-5 border-t border-border bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
-      {NAV.map(({ href, label, icon: Icon }) => {
-        const active = path.startsWith(href);
-        return (
-          <Link key={href} href={href} className={cn("flex flex-col items-center justify-center gap-1 text-[11px]", active ? "text-foreground" : "text-faint")}>
-            <Icon size={22} weight={active ? "fill" : "regular"} className={active ? "text-brand" : undefined} />
-            {label}
-          </Link>
-        );
-      })}
+    <nav aria-label="Primary" className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/92 backdrop-blur-xl md:hidden">
+      <div className="grid h-[68px] grid-cols-4">
+        {MOBILE_NAV.map(({ href, label, icon: Icon }) => {
+          const active = path.startsWith(href) || (href === "/live" && path.startsWith("/c/"));
+          return (
+            <Link key={href} href={href} aria-current={active ? "page" : undefined} className={cn("flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors", active ? "text-foreground" : "text-faint")}>
+              <Icon size={23} weight={active ? "fill" : "regular"} className={active ? "text-brand" : undefined} />
+              {label}
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }
