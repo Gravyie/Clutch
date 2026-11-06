@@ -78,12 +78,12 @@ function Intro() {
         <div className="eyebrow flex items-center gap-2">
           <span className="size-1.5 animate-live rounded-full bg-live" /> {live} live · AI reading {reading}
         </div>
-        <h1 className="display mt-2 text-4xl font-bold sm:text-5xl">Live now</h1>
+        <h1 className="display mt-2 text-[2.9rem] sm:text-[3.6rem]">Live now</h1>
       </div>
       {!acct.onboarded && (
         <div className="flex items-center gap-3">
           <span className="hidden text-sm text-muted-foreground md:inline">Free test funds. One tap per trade.</span>
-          <Button size="lg" className="h-11 rounded-full bg-brand px-6 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => open()}>
+          <Button size="lg" className="h-11 rounded-full bg-foreground px-6 font-medium text-background hover:bg-foreground/90" onClick={() => open()}>
             Start trading
           </Button>
         </div>
@@ -119,7 +119,7 @@ function Featured({ slug }: { slug: string }) {
 function SectionHead({ title, href }: { title: string; href?: string }) {
   return (
     <div className="mb-4 flex items-center justify-between">
-      <h2 className="display text-2xl font-bold">{title}</h2>
+      <h2 className="display text-[2rem]">{title}</h2>
       {href && (
         <Link href={href} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           See all <ArrowRightIcon size={14} />

@@ -13,15 +13,15 @@
 :root {
   --radius: 0.625rem;
 
-  --background: #f4f6f8;
-  --surface: #ffffff;
-  --raised: #eceff3;
-  --sunk: #e4e8ed;
-  --foreground: #0b0f14;
-  --muted-foreground: #4f5b69;
-  --faint: #7a8594;
-  --border: rgb(15 23 34 / 0.09);
-  --border-strong: rgb(15 23 34 / 0.18);
+  --background: #f2f1ec;
+  --surface: #fbfaf7;
+  --raised: #e9e8e2;
+  --sunk: #e4e2db;
+  --foreground: #171614;
+  --muted-foreground: #55524b;
+  --faint: #8b877e;
+  --border: rgb(23 22 20 / 0.09);
+  --border-strong: rgb(23 22 20 / 0.17);
 
   --brand: #5d8f17;
   --brand-soft: rgb(93 143 23 / 0.12);
@@ -35,16 +35,16 @@
   --warn-soft: rgb(168 112 13 / 0.11);
   --info: #2f63d6;
   --info-soft: rgb(47 99 214 / 0.1);
-  --void: #6b7585;
-  --void-soft: rgb(107 117 133 / 0.12);
+  --void: #7a7468;
+  --void-soft: rgb(122 116 104 / 0.13);
 
   /* shadcn bridge */
   --card: var(--surface);
   --card-foreground: var(--foreground);
   --popover: var(--surface);
   --popover-foreground: var(--foreground);
-  --primary: #0b0f14;
-  --primary-foreground: #f4f6f8;
+  --primary: #171614;
+  --primary-foreground: #f2f1ec;
   --secondary: var(--raised);
   --secondary-foreground: var(--foreground);
   --muted: var(--raised);
@@ -54,8 +54,8 @@
   --input: var(--border-strong);
   --ring: rgb(93 143 23 / 0.55);
 
-  --shadow-card: 0 1px 2px rgb(15 23 34 / 0.04), 0 8px 24px -14px rgb(15 23 34 / 0.16);
-  --shadow-float: 0 30px 80px -30px rgb(15 23 34 / 0.35), 0 0 0 1px rgb(15 23 34 / 0.06);
+  --shadow-card: 0 1px 2px rgb(40 30 20 / 0.04), 0 14px 40px -24px rgb(40 30 20 / 0.28);
+  --shadow-float: 0 40px 120px -40px rgb(40 30 20 / 0.4), 0 0 0 1px rgb(23 22 20 / 0.07);
   --ease: cubic-bezier(0.2, 0.75, 0.25, 1);
   --sidebar: var(--background);
   --sidebar-foreground: var(--muted-foreground);
@@ -68,15 +68,15 @@
 }
 
 .dark {
-  --background: #080b10;
-  --surface: #0f141b;
-  --raised: #151c25;
-  --sunk: #0b1016;
-  --foreground: #f2f5f6;
-  --muted-foreground: #a6b0bd;
-  --faint: #778596;
-  --border: rgb(203 218 232 / 0.1);
-  --border-strong: rgb(203 218 232 / 0.2);
+  --background: #131211;
+  --surface: #1b1a18;
+  --raised: #242320;
+  --sunk: #0e0d0c;
+  --foreground: #f1efe9;
+  --muted-foreground: #a7a39a;
+  --faint: #75716a;
+  --border: rgb(241 239 233 / 0.085);
+  --border-strong: rgb(241 239 233 / 0.17);
 
   --brand: #b8f36b;
   --brand-soft: rgb(184 243 107 / 0.12);
@@ -90,15 +90,15 @@
   --warn-soft: rgb(243 193 106 / 0.13);
   --info: #91b9ff;
   --info-soft: rgb(145 185 255 / 0.13);
-  --void: #9aa6b5;
-  --void-soft: rgb(154 166 181 / 0.13);
+  --void: #a8a296;
+  --void-soft: rgb(168 162 150 / 0.13);
 
-  --primary: #f2f5f6;
-  --primary-foreground: #080b10;
+  --primary: #f1efe9;
+  --primary-foreground: #131211;
   --ring: rgb(184 243 107 / 0.6);
 
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.035) inset, 0 16px 40px -22px rgb(0 0 0 / 0.75);
-  --shadow-float: 0 40px 120px -40px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(203 218 232 / 0.1), 0 1px 0 rgb(255 255 255 / 0.06) inset;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 18px 44px -26px rgb(0 0 0 / 0.8);
+  --shadow-float: 0 40px 120px -40px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(241 239 233 / 0.09), 0 1px 0 rgb(255 255 255 / 0.05) inset;
 }
 
 @theme inline {
@@ -225,10 +225,13 @@
   .tabular {
     font-variant-numeric: tabular-nums;
   }
+  /* page titles and big numbers: the landing's editorial serif, never bold */
   .display {
-    font-family: var(--font-geist-sans), ui-sans-serif, sans-serif;
-    letter-spacing: -0.04em;
-    font-feature-settings: "ss01";
+    font-family: var(--font-serif), ui-serif, Georgia, serif;
+    font-optical-sizing: auto;
+    font-weight: 400 !important;
+    letter-spacing: -0.022em;
+    line-height: 1.04;
   }
   .eyebrow {
     font-family: var(--font-mono);
@@ -240,7 +243,7 @@
   .surface {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 16px;
+    border-radius: 20px;
     box-shadow: var(--shadow-card);
   }
   /* the "moment frame": four crop corners around something that is happening now */

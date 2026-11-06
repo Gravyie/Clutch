@@ -110,7 +110,7 @@ export function Tutorial() {
                 <c.icon size={24} weight="duotone" />
               </span>
               <div className="eyebrow mt-6 text-brand">{c.tag}</div>
-              <h2 className="display mt-2 text-[28px] font-bold leading-tight">{c.title}</h2>
+              <h2 className="display mt-2 text-[32px] leading-tight">{c.title}</h2>
               <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">{c.body}</p>
               <div className="mt-6">{c.demo}</div>
             </motion.div>
@@ -128,7 +128,7 @@ export function Tutorial() {
                 Skip
               </button>
             )}
-            <Button onClick={() => (last ? close() : setI(i + 1))} className="h-10 rounded-full bg-brand px-5 font-semibold text-brand-foreground hover:bg-brand/90">
+            <Button onClick={() => (last ? close() : setI(i + 1))} className="h-10 rounded-full bg-foreground px-5 font-medium text-background hover:bg-foreground/90">
               {last ? "Start watching" : "Next"} <ArrowRightIcon weight="bold" />
             </Button>
           </div>

@@ -53,7 +53,7 @@ export default function Leaderboard() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="display text-3xl font-bold">Leaderboard</h1>
+            <h1 className="display text-[2.6rem]">Leaderboard</h1>
             <Badge variant="outline" className="rounded-full text-muted-foreground">
               Testnet
             </Badge>
@@ -62,7 +62,7 @@ export default function Leaderboard() {
         </div>
         <div className="flex flex-col gap-2 sm:items-end">
         {!acct.verified && (
-          <Button size="sm" className="h-9 rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => verify()}>
+          <Button size="sm" className="h-9 rounded-full bg-foreground px-4 font-medium text-background hover:bg-foreground/90" onClick={() => verify()}>
             <SealCheckIcon weight="fill" /> Verify to get ranked
           </Button>
         )}
@@ -117,7 +117,7 @@ export default function Leaderboard() {
             <ItemDescription className="line-clamp-none">Sign in and back a side on any live market. You&apos;re ranked once it settles.</ItemDescription>
           </ItemContent>
           <ItemActions>
-            <Button size="sm" className="rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => openSignIn()}>
+            <Button size="sm" className="rounded-full bg-foreground px-4 font-medium text-background hover:bg-foreground/90" onClick={() => openSignIn()}>
               Sign in
             </Button>
           </ItemActions>
@@ -216,7 +216,7 @@ function Stat({ label, value }: { label: string; value?: string }) {
   return (
     <Card className="gap-1.5 px-4 py-4">
       <CardDescription className="text-xs">{label}</CardDescription>
-      {value === undefined ? <Skeleton className="h-7 w-20" /> : <CardTitle className="text-2xl font-semibold tracking-tight tabular">{value}</CardTitle>}
+      {value === undefined ? <Skeleton className="h-7 w-20" /> : <CardTitle className="display text-[2.1rem] leading-none tabular-nums">{value}</CardTitle>}
     </Card>
   );
 }

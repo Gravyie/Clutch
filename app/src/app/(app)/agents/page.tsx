@@ -52,7 +52,7 @@ export default function AgentsPage() {
           <div className="eyebrow flex items-center gap-2 text-brand">
             <RobotIcon size={14} weight="bold" /> World ID Agent Pass
           </div>
-          <h1 className="display mt-3 text-4xl font-bold sm:text-5xl">Let an agent trade for you.</h1>
+          <h1 className="display mt-3 text-[2.9rem] sm:text-[3.6rem]">Let an agent trade for you.</h1>
           <p className="mt-4 max-w-[58ch] text-[15px] leading-relaxed text-muted-foreground">
             Markets last thirty seconds, so agents will trade them. On Clutch an agent always acts for one verified person: you approve it with World ID, and
             its pass carries your human ID, so it shares your daily limit onchain. It can never spend past what you could.
@@ -82,7 +82,7 @@ export default function AgentsPage() {
             <div className="font-semibold">Verify yourself first</div>
             <p className="text-sm text-muted-foreground">An agent can only act for a verified person. One World ID check.</p>
           </div>
-          <Button className="rounded-full bg-brand px-5 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => open()}>
+          <Button className="rounded-full bg-foreground px-5 font-medium text-background hover:bg-foreground/90" onClick={() => open()}>
             Verify with World ID
           </Button>
         </section>
@@ -105,7 +105,7 @@ export default function AgentsPage() {
 
       {token && (
         <section>
-          <h2 className="display text-2xl font-bold">Your agents</h2>
+          <h2 className="display text-[2rem]">Your agents</h2>
           <div className="mt-4 divide-y divide-border overflow-hidden rounded-[18px] border border-border">
             {!agents?.length ? (
               <p className="p-6 text-sm text-faint">No agents yet. Authorized agents appear here, and you can revoke them at any time.</p>
@@ -216,7 +216,7 @@ function Authorize({ token, cap, dev, onDone }: { token: string; cap: number; de
             <input id="cap" type="range" min={1} max={cap} value={limit} onChange={(e) => setLimit(Number(e.target.value))} className="mt-4 w-full accent-[var(--brand)]" />
           </div>
         </div>
-        <Button onClick={begin} disabled={busy || !/^0x[0-9a-fA-F]{40}$/.test(agent)} className="h-11 w-full rounded-full bg-brand font-semibold text-brand-foreground hover:bg-brand/90">
+        <Button onClick={begin} disabled={busy || !/^0x[0-9a-fA-F]{40}$/.test(agent)} className="h-11 w-full rounded-full bg-foreground font-medium text-background hover:bg-foreground/90">
           {busy ? <CircleNotchIcon className="animate-spin" /> : <FingerprintIcon weight="bold" />}
           Approve with World ID
         </Button>

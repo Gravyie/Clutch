@@ -31,7 +31,7 @@ export default function Browse() {
     <div className="mx-auto max-w-[1680px] px-4 py-6 sm:px-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="display text-3xl font-bold">Explore</h1>
+          <h1 className="display text-[2.6rem]">Explore</h1>
           <p className="mt-1 text-sm text-muted-foreground">Every channel the AI can read. Live markets first; a channel with no market is still worth a watch.</p>
         </div>
         <label className="flex h-10 w-full items-center gap-2 rounded-xl border border-border bg-raised/60 px-3 text-sm focus-within:border-border-strong sm:w-[280px]">

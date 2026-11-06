@@ -27,9 +27,9 @@ export default function AccountPage() {
         <span className="grid size-14 place-items-center rounded-2xl bg-raised text-muted-foreground">
           <UserIcon size={26} />
         </span>
-        <h1 className="mt-4 text-xl font-semibold tracking-tight">Your account</h1>
+        <h1 className="display mt-4 text-[2.2rem]">Your account</h1>
         <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">Sign in to see your wallet and network, your daily limit, optional World ID verification, and self-exclusion controls.</p>
-        <Button className="mt-5 h-11 rounded-full bg-brand px-6 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => open()}>
+        <Button className="mt-5 h-11 rounded-full bg-foreground px-6 font-medium text-background hover:bg-foreground/90" onClick={() => open()}>
           Sign in
         </Button>
         <p className="mt-3 text-xs text-faint">Testnet only. We never ask for a seed phrase or private key.</p>
@@ -39,7 +39,7 @@ export default function AccountPage() {
   const excluded = acct.excludedUntil > Date.now() / 1000;
   return (
     <div className="mx-auto max-w-[760px] space-y-6 px-4 py-6 sm:px-6">
-      <h1 className="display text-3xl font-bold">Account</h1>
+      <h1 className="display text-[2.6rem]">Account</h1>
       <Profile />
 
       <section className="surface p-5">

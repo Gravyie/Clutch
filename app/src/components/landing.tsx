@@ -732,6 +732,8 @@ function Integrity({ d }: { d: D }) {
                   role="tab"
                   aria-selected={k === i}
                   onClick={() => setI(k)}
+                  onMouseEnter={() => setI(k)}
+                  onFocus={() => setI(k)}
                   className={cn(
                     "relative flex w-full items-center gap-3 overflow-hidden rounded-xl px-4 py-3.5 text-left transition-all duration-300",
                     k === i ? "bg-[var(--l-card)] shadow-[0_10px_30px_-18px_rgb(60_30_20/0.5)]" : "bg-white/30 hover:bg-white/50",

@@ -61,7 +61,7 @@ export default function ChannelPage() {
     return (
       <div className="grid min-h-[60dvh] place-items-center px-4 text-center">
         <div>
-          <h1 className="text-xl font-semibold">Channel not found</h1>
+          <h1 className="display text-[2.2rem]">Channel not found</h1>
           <p className="mt-1 text-sm text-muted-foreground">It may have been removed or the link is wrong.</p>
           <Button asChild className="mt-4 rounded-xl">
             <Link href="/browse">Browse channels</Link>
