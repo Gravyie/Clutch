@@ -25,6 +25,7 @@ export interface Deployment {
 
 const chainId = Number(env("CHAIN_ID", "31337"));
 const local = chainId === 31337;
+if (process.env.NODE_ENV === "production" && chainId !== 84532) throw new Error("Production requires Base Sepolia chain 84532");
 
 /** Lichess TV channels Clutch runs as house streams. Streamers add their own channels from the studio. */
 export const HOUSE_CHANNELS = [
@@ -113,8 +114,17 @@ export const config = {
   lichessClientId: env("LICHESS_CLIENT_ID", "clutch.gg")!,
 };
 
-for (const [k, v] of Object.entries({ OWNER_PRIVATE_KEY: config.ownerKey, AGENT_PRIVATE_KEY: config.agentKey, PASS_SIGNER_PRIVATE_KEY: config.passSignerKey })) {
+for (const [k, v] of Object.entries({ AGENT_PRIVATE_KEY: config.agentKey, PASS_SIGNER_PRIVATE_KEY: config.passSignerKey })) {
   if (!v) throw new Error(`${k} is required on chain ${chainId}`);
 }
 
 export const isLocalChain = local;
+
+if (process.env.NODE_ENV === "production") {
+  if (chainId !== 84532 || config.deployment.chainId !== 84532) throw new Error("Production requires Base Sepolia chain 84532");
+  if (config.ownerKey) throw new Error("Do not supply the owner/deployer key to the production engine");
+  if (config.authSecret.length < 32 || config.authSecret === "dev-only-secret-change-me" || /REPLACE|CHANGE_ME|YOUR_/i.test(config.authSecret)) throw new Error("Production AUTH_SECRET must have at least 32 characters");
+  if (!config.worldAppId || !config.worldRpId || !config.worldSigningKey) throw new Error("Configure World verification before public production startup");
+  if (config.replay) throw new Error("Production REPLAY must be 0");
+  if (!config.rpcUrl.startsWith("https://")) throw new Error("Production RPC_URL must use HTTPS");
+}

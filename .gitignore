@@ -16,3 +16,7 @@ app/e2e/out
 app/next-env.d.ts
 *.tsbuildinfo
 .env*.local
+
+# Local EC2 runtime configuration (templates are tracked).
+deploy/ec2/compose.env
+deploy/ec2/engine.env

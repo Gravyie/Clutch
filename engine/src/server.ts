@@ -49,6 +49,13 @@ export function serve(hub: Hub) {
       },
     },
     { method: "GET", re: /^\/health$/, h: () => ({ ok: true, chainId: config.chainId }) },
+    { method: "GET", re: /^\/ready$/, h: async () => {
+      try {
+        const [chainId, block] = await Promise.all([chain.publicClient.getChainId(), chain.publicClient.getBlock(), one("SELECT 1 AS ok")]);
+        if (chainId !== config.chainId || Math.abs(Date.now() / 1000 - Number(block.timestamp)) > 180) throw new Error("stale chain");
+        return { ok: true, chainId, block: Number(block.number) };
+      } catch { throw httpError(503, "Backend dependencies are not ready"); }
+    } },
     {
       method: "GET",
       re: /^\/config$/,
@@ -400,7 +407,8 @@ export function serve(hub: Hub) {
     for (const [ws, set] of subs) if (set.has(channel) && ws.readyState === ws.OPEN) ws.send(data);
   });
 
-  server.listen(config.port, () => log.info(`engine on http://localhost:${config.port} (ws /ws)`));
+  server.listen(config.port, "0.0.0.0", () => log.info(`engine on http://localhost:${config.port} (ws /ws)`));
+  return server;
 }
 
 /** One-time code a streamer puts in their live title to prove they control the channel. */
