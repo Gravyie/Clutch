@@ -194,6 +194,7 @@ export class OpenAIVision implements VisionReader {
       try {
         return await this.askOnce(img, prompt, schema);
       } catch (e: any) {
+        if (e.status === 402) ZeroG.markNoCredits();
         // A provider outage (5xx, connection reset) moves to the next model; anything else is a real error.
         const outage = (e.status ?? 0) >= 500 || /EOF|ECONNRESET|Connection error|timed out/i.test(e.message ?? "");
         if (!outage || this.current >= this.models.length - 1) throw e;
@@ -284,6 +285,7 @@ export function makeReaders(zg: ZeroG): { a: VisionReader; b: VisionReader; inde
   if (!config.zgApiKey) return undefined;
   const gate = () => {
     if (!ZeroG.enabled) throw new Error("AI is switched off");
+    if (ZeroG.outOfCredits) throw new Error("0G account out of credits");
     if (zg.mode === "paused") throw new Error("daily 0G budget spent; markets pause until 00:00 UTC");
   };
   const a = new OpenAIVision("0g", config.zgRouterUrl, config.zgApiKey, config.zgVisionModel, (usage, id) => zg.record(usage, id), false, "none");

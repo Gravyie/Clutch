@@ -1,0 +1,16 @@
+**/node_modules
+**/.next
+**/.env
+**/.env.*
+!**/.env.example
+engine/data
+app
+sim
+design
+docs
+contracts/lib
+contracts/out
+contracts/cache
+contracts/broadcast
+.git
+*.log

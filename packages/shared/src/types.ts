@@ -165,6 +165,8 @@ export interface AgentState {
   lastRequestId?: string;
   /** the operator's switch: false = no platform inference, no new markets */
   enabled?: boolean;
+  /** the platform's 0G account has no balance: no new markets until it's topped up */
+  outOfCredits?: boolean;
 }
 
 export interface ChainState {

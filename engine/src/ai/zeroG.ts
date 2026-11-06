@@ -55,6 +55,19 @@ export class ZeroG {
     if (v !== undefined) ZeroG.enabled = v === "1";
   }
 
+  /**
+   * The platform's 0G account ran dry (HTTP 402). Everything platform-paid rests until then and retries every few
+   * minutes, so a top-up resumes markets by itself without hammering the router meanwhile.
+   */
+  static noCreditsUntil = 0;
+  static markNoCredits() {
+    if (Date.now() > ZeroG.noCreditsUntil) log.warn("0G account has no balance left: AI paused; retrying in 3 minutes (top up at pc.0g.ai)");
+    ZeroG.noCreditsUntil = Date.now() + 3 * 60_000;
+  }
+  static get outOfCredits() {
+    return Date.now() < ZeroG.noCreditsUntil;
+  }
+
   static async setEnabled(on: boolean) {
     ZeroG.enabled = on;
     await kvSet("ai:enabled", on ? "1" : "0");
@@ -62,7 +75,7 @@ export class ZeroG {
 
   get mode(): AgentState["mode"] {
     this.rollDay();
-    if (this.payer === "platform" && !ZeroG.enabled) return "paused";
+    if (this.payer === "platform" && (!ZeroG.enabled || ZeroG.outOfCredits)) return "paused";
     if (!this.client) return "full";
     if (this.spentTodayUsd >= config.zgDailyCapUsd) return "paused";
     if (this.spentTodayUsd >= config.zgDailyCapUsd * 0.8) return "degraded";
@@ -102,9 +115,10 @@ export class ZeroG {
   /** One JSON-mode completion. Returns the parsed object plus the 0G request id for receipts. */
   async json<T>(system: string, user: string, maxTokens = 1500): Promise<{ data: T; requestId: string; latencyMs: number; costUsd: number }> {
     if (!this.client) throw new Error("0G not configured");
-    if (this.mode === "paused") throw new Error(ZeroG.enabled || this.payer === "viewer" ? "daily inference budget spent" : "AI is switched off");
+    if (this.mode === "paused")
+      throw new Error(this.payer === "platform" && !ZeroG.enabled ? "AI is switched off" : this.payer === "platform" && ZeroG.outOfCredits ? "0G account out of credits" : "daily inference budget spent");
     const t0 = Date.now();
-    const { data: completion, response } = await this.client.chat.completions
+    const call = this.client.chat.completions
       .create({
         model: config.zgModel,
         max_tokens: maxTokens,
@@ -116,6 +130,13 @@ export class ZeroG {
         ],
       })
       .withResponse();
+    let completion: Awaited<typeof call>["data"], response: Response;
+    try {
+      ({ data: completion, response } = await call);
+    } catch (e: any) {
+      if (e.status === 402 && this.payer === "platform") ZeroG.markNoCredits();
+      throw e;
+    }
     const requestId = response.headers.get("x-request-id") ?? response.headers.get("zg-res-key") ?? completion.id;
     const u = completion.usage;
     const costUsd = (u?.prompt_tokens ?? 0) * this.price.prompt + (u?.completion_tokens ?? 0) * this.price.completion;

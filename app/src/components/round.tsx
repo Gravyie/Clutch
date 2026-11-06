@@ -412,6 +412,9 @@ function AfterLock({ m, stream }: { m: MarketView; stream?: StreamState }) {
 function Waiting({ stream, hint }: { stream?: StreamState; hint?: string }) {
   const callable = stream?.media?.kind === "video" && stream.live && !stream.rerun;
   const now = useNow(1000);
+  // When the platform AI is off (or its 0G account is empty), say so instead of promising a market that won't come.
+  const agent = useLive((s) => s.agent);
+  if (agent?.mode === "paused" && !hint?.includes("rerun")) hint = "The AI that opens markets is paused right now. You can still call one yourself with your own 0G credits.";
   // Never a dead end: what's trading on other channels right now, soonest to lock first.
   const markets = useLive((s) => s.markets);
   const elsewhere = useMemo(

@@ -424,6 +424,7 @@ export class Hub extends EventEmitter {
       earnedUsd: this.earnedUsd,
       lastRequestId: this.zg.lastRequestId,
       enabled: ZeroG.enabled,
+      outOfCredits: ZeroG.outOfCredits,
     };
   }
 
