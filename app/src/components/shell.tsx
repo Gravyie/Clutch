@@ -327,9 +327,9 @@ function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border p-3 text-xs text-faint group-data-[collapsible=icon]:hidden">
         <div className="flex items-center justify-between gap-2 whitespace-nowrap">
           <span>AI engine</span>
-          <span className={cn("flex items-center gap-1.5 font-medium", agent?.mode === "full" ? "text-yes" : "text-warn")}>
-            <span className={cn("size-1.5 rounded-full", agent?.mode === "full" ? "animate-live bg-yes" : "bg-warn")} />
-            {agent ? (agent.provider === "0g" ? `0G · ${agent.requestsToday.toLocaleString()} today` : "Offline model") : "connecting…"}
+          <span className={cn("flex items-center gap-1.5 font-medium", agent?.enabled !== false && agent?.mode === "full" ? "text-yes" : "text-warn")}>
+            {agent?.enabled !== false && agent?.mode === "full" && <span className="size-1.5 animate-live rounded-full bg-yes" />}
+            {!agent ? "connecting…" : agent.enabled === false ? "AI paused" : agent.provider === "0g" ? `0G · ${agent.requestsToday.toLocaleString()} today` : "Offline model"}
           </span>
         </div>
         <div className="flex flex-wrap gap-x-3 gap-y-1">

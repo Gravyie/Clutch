@@ -1,0 +1,23 @@
+{
+  "agent": "0x5Fc7EC11Fac094DAAa7a75F0Eb52c035533A4E44",
+  "blackoutGuardHook": "0x3794E8F320449518086cd8dBE9CdD34B20601080",
+  "chainId": 84532,
+  "clutchHook": "0x6826872452e7Eea21D8a022E8533CEA0F4236888",
+  "deployBlock": 55318087,
+  "ethPool": {
+    "currency0": "0x0000000000000000000000000000000000000000",
+    "currency1": "0x7942bc2E19a89f4544638C1A0f8E4792b0da00F0",
+    "fee": 8388608,
+    "poolId": "0x7a77ce84af8a1d21a5f5930fda6516aab5195e4d6ecdaa385d451c4ab4fdc71c",
+    "tickSpacing": 60
+  },
+  "humanPassGate": "0xb5cc8d4f0A9d81BE6ff704d0eBd48cf382eee5f2",
+  "lpVault": "0xb7dccDbeA0A05CaF3804382eaB824379F1615319",
+  "owner": "0x83e60BfbB74b20F1E1279e02F879594527D176da",
+  "passSigner": "0x8Af096a0C69B9Dd514cAaf3B51D6d5D3685c57d8",
+  "poolManager": "0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408",
+  "router": "0x1B1F8484a4d2D54fFAAC2Ee9AAFb5B2F77352959",
+  "sequencerFeed": "0xEaCB89972B32c3eCcD06d233140F09Ba85f29386",
+  "sequencerGuard": "0x7eb09f12d6c5f3A150cFddCe5D589a4A829CA23D",
+  "usdc": "0x7942bc2E19a89f4544638C1A0f8E4792b0da00F0"
+}

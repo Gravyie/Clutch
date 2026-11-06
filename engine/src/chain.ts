@@ -220,7 +220,7 @@ export async function faucet(to: `0x${string}`, usdc: number) {
 
 /** Demo control for the mock sequencer feed (local only): an outage that ended just now. */
 export async function simulateOutage(downSec: number) {
-  if (!isLocalChain) throw new Error("outage simulation is local-only");
+  if (!isLocalChain && !chain.testnet) throw new Error("outage simulation needs the mock sequencer feed (local or testnet)");
   return asOwner(async () => {
     const t = Number((await publicClient.getBlock()).timestamp);
     await confirm(await ownerWallet.writeContract({ address: d.sequencerFeed, abi: MockSequencerFeedAbi, functionName: "setStatus", args: [true, BigInt(t - downSec)] }));

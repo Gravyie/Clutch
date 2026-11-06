@@ -163,6 +163,8 @@ export interface AgentState {
   capTodayUsd: number;
   earnedUsd: number;
   lastRequestId?: string;
+  /** the operator's switch: false = no platform inference, no new markets */
+  enabled?: boolean;
 }
 
 export interface ChainState {

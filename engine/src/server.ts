@@ -27,9 +27,27 @@ type Route = { method: string; re: RegExp; auth?: boolean; h: Handler };
 
 const httpError = (status: number, message: string) => Object.assign(new Error(message), { status });
 
+/** Operator actions: from this machine (the socket, never X-Forwarded-For), or with ADMIN_TOKEN when it is set. */
+function operator(req: IncomingMessage) {
+  const token = process.env.ADMIN_TOKEN;
+  if (token) return req.headers["x-admin-token"] === token;
+  const peer = req.socket.remoteAddress ?? "";
+  return peer === "127.0.0.1" || peer === "::1" || peer === "::ffff:127.0.0.1";
+}
+
 export function serve(hub: Hub) {
   const d = config.deployment;
   const routes: Route[] = [
+    // ── Operator: AI on/off. From this machine only, or with ADMIN_TOKEN when set. ──
+    { method: "GET", re: /^\/admin\/ai$/, h: () => hub.agentState() },
+    {
+      method: "POST",
+      re: /^\/admin\/ai$/,
+      h: ({ body, req }) => {
+        if (!operator(req)) throw httpError(403, "Not allowed.");
+        return hub.setAi(Boolean(body.enabled));
+      },
+    },
     { method: "GET", re: /^\/health$/, h: () => ({ ok: true, chainId: config.chainId }) },
     {
       method: "GET",
@@ -284,7 +302,8 @@ export function serve(hub: Hub) {
     },
 
     // ── Local demo controls ──
-    { method: "POST", re: /^\/demo\/outage$/, h: ({ body }) => (isLocalChain ? chain.simulateOutage(Number(body.seconds ?? 30)) : Promise.reject(httpError(403, "local only"))) },
+    // Demo control for the mock sequencer feed: operator only (it voids markets), like the AI switch.
+    { method: "POST", re: /^\/demo\/outage$/, h: ({ body, req }) => (operator(req) ? chain.simulateOutage(Number(body.seconds ?? 30)) : Promise.reject(httpError(403, "Operator only."))) },
   ];
 
   const server = createServer(async (req, res) => {

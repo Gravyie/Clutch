@@ -319,7 +319,8 @@ export class Hub extends EventEmitter {
     const likely = (c?: string) => (c === "fps" || c === "battle-royale" || c === "sports" || c === "moba" ? 2e8 : c === "irl" || c === "other" ? 0 : 1e8);
     const rank = (r: VideoRunner) => (r.active ? 1e9 : 0) + likely(r.state.category) + r.state.watching * 1e6 + (r.state.platformViewers ?? 0);
     const want = video.filter((r) => r.active || (r.wantsVision && (r.benchedUntil < now || r.state.watching > 0))).sort((a, b) => rank(b) - rank(a));
-    const granted = new Set(want.slice(0, config.maxVideoStreams));
+    // With the AI switched off nothing is read (and no frames are pulled), so it costs nothing.
+    const granted = new Set(ZeroG.enabled ? want.slice(0, config.maxVideoStreams) : []);
     for (const r of video) {
       if (granted.has(r) && !r.row.pool_id) void this.ensurePool(r);
       r.setSlot(granted.has(r));
@@ -422,7 +423,17 @@ export class Hub extends EventEmitter {
       capTodayUsd: config.zgDailyCapUsd,
       earnedUsd: this.earnedUsd,
       lastRequestId: this.zg.lastRequestId,
+      enabled: ZeroG.enabled,
     };
+  }
+
+  /** Flip platform inference on or off at runtime (and for good): readers start or rest within one allocation. */
+  async setAi(on: boolean) {
+    await ZeroG.setEnabled(on);
+    log.info(`AI switched ${on ? "on" : "off"}`);
+    this.allocateSlots();
+    this.broadcast("global", { type: "agent", agent: this.agentState() });
+    return this.agentState();
   }
 
   async hello(): Promise<ServerMessage> {

@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import sharp from "sharp";
 import type { Category, SceneState } from "@clutch/shared";
 import { config } from "../config";
-import type { ZeroG } from "../ai/zeroG";
+import { ZeroG } from "../ai/zeroG";
 
 /**
  * Vision readers. Each turns one frame into a SceneState in two passes:
@@ -283,6 +283,7 @@ export class OpenAIVision implements VisionReader {
 export function makeReaders(zg: ZeroG): { a: VisionReader; b: VisionReader; independent: string } | undefined {
   if (!config.zgApiKey) return undefined;
   const gate = () => {
+    if (!ZeroG.enabled) throw new Error("AI is switched off");
     if (zg.mode === "paused") throw new Error("daily 0G budget spent; markets pause until 00:00 UTC");
   };
   const a = new OpenAIVision("0g", config.zgRouterUrl, config.zgApiKey, config.zgVisionModel, (usage, id) => zg.record(usage, id), false, "none");

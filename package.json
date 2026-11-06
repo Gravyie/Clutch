@@ -11,6 +11,7 @@
     "sim": "pnpm --filter @clutch/sim start",
     "dev": "bash scripts/dev.sh",
     "test:contracts": "cd contracts && forge test",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "ai": "bash scripts/ai.sh"
   }
 }
