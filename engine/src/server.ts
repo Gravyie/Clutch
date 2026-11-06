@@ -105,8 +105,8 @@ export function serve(hub: Hub) {
       h: async ({ params: [id] }) => {
         const m = await marketDetail(Number(id));
         if (!m) throw httpError(404, "No such market");
-        const live = [...hub.runners.values()].find((r) => r.active?.view.id === Number(id));
-        if (live) m.market = { ...live.active!.view };
+        const view = [...hub.runners.values()].flatMap((r) => r.live.map((x) => x.view)).find((v) => v.id === Number(id));
+        if (view) m.market = { ...view };
         return m;
       },
     },

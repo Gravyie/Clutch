@@ -105,7 +105,7 @@ function SignInStep() {
       {wallet.kind === "guest" && <p className="mt-3 text-xs text-faint">Guest wallets live in this browser only. Clearing site data removes it.</p>}
       {wallet.continueAsGuest && (
         <button onClick={() => wallet.continueAsGuest?.()} className="mt-4 w-full text-center text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
-          Continue as guest
+          Use a test wallet
         </button>
       )}
     </div>

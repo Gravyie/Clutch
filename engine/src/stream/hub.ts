@@ -26,6 +26,8 @@ type Row = StreamRow & { platform: string | null; channel: string | null; catego
  * onchain pools on first run, restores markets that were open when the engine last stopped, and fans state out
  * to WebSocket subscribers.
  */
+const BENCH_MS = 5 * 60_000;
+
 export class Hub extends EventEmitter {
   readonly zg = new ZeroG();
   readonly runners = new Map<string, Runner>();
@@ -70,6 +72,7 @@ export class Hub extends EventEmitter {
       setInterval(() => void this.refreshTwitch(), 60_000);
     }
     setInterval(() => void this.refreshChain(), 3000);
+    setInterval(() => this.allocateSlots(), 15_000); // rotate unproductive reader slots
     setInterval(() => void this.refreshPaused(), 10_000);
     setInterval(() => void this.refreshToday(), 30_000);
     setInterval(() => this.flush(), 1000);
@@ -307,10 +310,15 @@ export class Hub extends EventEmitter {
    * channels with an open market first, then gaming categories, then by audience.
    */
   private allocateSlots() {
+    const now = Date.now();
     const video = [...this.runners.values()].filter((r): r is VideoRunner => r instanceof VideoRunner);
-    const rank = (r: VideoRunner) =>
-      (r.active ? 1e9 : 0) + (r.state.category === "irl" || r.state.category === "other" ? 0 : 1e8) + r.state.watching * 1e6 + (r.state.platformViewers ?? 0);
-    const want = video.filter((r) => r.wantsVision || r.active).sort((a, b) => rank(b) - rank(a));
+    // Rotate: a slot that has shown nothing tradeable for a while (a menu, an IRL stream, a HUD with no score) goes to
+    // the next channel, so readers spend their time where markets can actually open. A channel someone on Clutch is
+    // watching keeps its slot.
+    for (const r of video) if (r.unproductive && !r.state.watching) r.benchedUntil = now + BENCH_MS;
+    const likely = (c?: string) => (c === "fps" || c === "battle-royale" || c === "sports" || c === "moba" ? 2e8 : c === "irl" || c === "other" ? 0 : 1e8);
+    const rank = (r: VideoRunner) => (r.active ? 1e9 : 0) + likely(r.state.category) + r.state.watching * 1e6 + (r.state.platformViewers ?? 0);
+    const want = video.filter((r) => r.active || (r.wantsVision && (r.benchedUntil < now || r.state.watching > 0))).sort((a, b) => rank(b) - rank(a));
     const granted = new Set(want.slice(0, config.maxVideoStreams));
     for (const r of video) {
       if (granted.has(r) && !r.row.pool_id) void this.ensurePool(r);
@@ -418,7 +426,7 @@ export class Hub extends EventEmitter {
   }
 
   async hello(): Promise<ServerMessage> {
-    const live = [...this.runners.values()].flatMap((r) => (r.active ? [r.active.view] : []));
+    const live = [...this.runners.values()].flatMap((r) => r.live.map((m) => m.view));
     const recent = await listMarkets({ open: false, limit: 12 });
     return {
       type: "hello",

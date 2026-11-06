@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import NumberFlow from "@number-flow/react";
 import { CircleNotchIcon, LockSimpleIcon, ProhibitIcon, ScanIcon, SealCheckIcon, SparkleIcon } from "@phosphor-icons/react";
@@ -216,6 +216,17 @@ function AfterLock({ m, stream }: { m: MarketView; stream?: StreamState }) {
 
 function Waiting({ stream, hint }: { stream?: StreamState; hint?: string }) {
   const callable = stream?.media?.kind === "video" && stream.live && !stream.rerun;
+  const now = useNow(1000);
+  // Never a dead end: what's trading on other channels right now, soonest to lock first.
+  const markets = useLive((s) => s.markets);
+  const elsewhere = useMemo(
+    () =>
+      Object.values(markets)
+        .filter((m) => m.slug !== stream?.slug && m.phase === "trading" && m.lockTime - now > 6)
+        .sort((a, b) => a.lockTime - b.lockTime)
+        .slice(0, 3),
+    [markets, stream?.slug, Math.floor(now / 5)],
+  );
   return (
     <section className="surface p-5">
       <div className="flex items-center gap-4">
@@ -224,10 +235,30 @@ function Waiting({ stream, hint }: { stream?: StreamState; hint?: string }) {
           {stream?.reading && <span className="absolute -right-0.5 -top-0.5 size-2.5 animate-live rounded-full bg-yes" />}
         </div>
         <div className="min-w-0">
-          <div className="text-sm font-semibold">Next market is coming</div>
+          <div className="text-sm font-semibold">Next market on this stream is coming</div>
           <div className="text-sm text-muted-foreground">{hint ?? "Markets open when the action gets uncertain."}</div>
         </div>
       </div>
+      {elsewhere.length > 0 && (
+        <div className="mt-4">
+          <div className="eyebrow mb-2">Trading now on other streams</div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {elsewhere.map((m) => (
+              <Link key={m.id} href={`/c/${m.slug}`} className="group rounded-xl border border-border bg-raised/40 p-3 transition hover:border-brand/50">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="truncate font-medium text-muted-foreground">{m.streamTitle}</span>
+                  <span className="shrink-0 font-mono text-live tabular">{Math.max(0, Math.ceil(m.lockTime - now))}s</span>
+                </div>
+                <div className="mt-1 line-clamp-2 text-[13px] font-semibold leading-snug">{m.question}</div>
+                <div className="mt-2 flex gap-1.5 font-mono text-[11px] font-semibold">
+                  <span className="rounded-md bg-yes-soft px-1.5 py-0.5 text-yes">Yes {Math.round(m.priceYes * 100)}¢</span>
+                  <span className="rounded-md bg-no-soft px-1.5 py-0.5 text-no">No {100 - Math.round(m.priceYes * 100)}¢</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
       {callable && stream && <CallMarket slug={stream.slug} className="mt-4" />}
     </section>
   );

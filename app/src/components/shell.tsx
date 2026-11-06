@@ -15,6 +15,7 @@ import {
   MagnifyingGlassIcon,
   MoonIcon,
   PlusIcon,
+  QuestionIcon,
   SignOutIcon,
   SunIcon,
   TrophyIcon,
@@ -27,6 +28,7 @@ import type { StreamSummary } from "@clutch/shared";
 import { Avatar, LiveBadge, Logo } from "@/components/brand";
 import { Onboarding } from "@/components/onboarding";
 import { WalletSheet } from "@/components/wallet-sheet";
+import { Tutorial } from "@/components/tutorial";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -64,6 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <MobileNav />
       <Onboarding />
       <WalletSheet />
+      <Tutorial />
       <CommandMenu />
     </div>
   );
@@ -75,6 +78,7 @@ function TopBar() {
   const open = useUI((s) => s.openOnboarding);
   const setCommand = useUI((s) => s.setCommand);
   const setWallet = useUI((s) => s.setWallet);
+  const setTutorial = useUI((s) => s.setTutorial);
   const chain = useLive((s) => s.chain);
   const connected = useLive((s) => s.connected);
   return (
@@ -92,6 +96,9 @@ function TopBar() {
           <kbd className="ml-auto rounded-md border border-border px-1.5 font-mono text-[11px]">⌘K</kbd>
         </button>
         <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setTutorial(true)} className="hidden h-9 items-center gap-1.5 rounded-full px-3 text-sm text-muted-foreground transition hover:bg-raised hover:text-foreground md:flex">
+            <QuestionIcon size={16} /> How it works
+          </button>
           {chain && chain.sequencerPhase !== "Normal" && (
             <Tooltip>
               <TooltipTrigger asChild>

@@ -69,6 +69,9 @@ const MAX_LIVE = 2; // one trading + one playing out, so there's almost always s
  * the same verdict or the market voids and everyone is refunded. Reruns never get markets.
  */
 /** how long a counter rests after carrying a market (a market is open ~60-90s, so this is roughly "not back to back") */
+/** a reader slot with nothing tradeable on screen for this long moves to another channel */
+const UNPRODUCTIVE_SEC = Number(process.env.UNPRODUCTIVE_SEC ?? 75);
+
 /** seconds between reader A reads while no market is live on the channel */
 const IDLE_READ_SEC = Number(process.env.IDLE_READ_SEC ?? 6);
 
@@ -79,7 +82,8 @@ const SCREEN: Record<string, string> = { menu: "a menu", replay: "a replay", bre
 export class VideoRunner extends EventEmitter {
   state: StreamState;
   readonly ref: ChannelRef;
-  private live: Live[] = [];
+  /** markets open on this channel (read-only outside the runner) */
+  live: Live[] = [];
   private sampler?: FrameSampler;
   private timeline: Reading[] = [];
   private perceiving = false;
@@ -188,9 +192,21 @@ export class VideoRunner extends EventEmitter {
     this.changed();
   }
 
+  /** when the slot was granted, the last time the screen had something tradeable, and a rest after a dry spell */
+  slotSince = 0;
+  lastTradeableAt = 0;
+  benchedUntil = 0;
+
+  /** Holding a reader slot but nothing on screen has been tradeable for a while (menus, IRL, a HUD with no score). */
+  get unproductive() {
+    if (!this.slotGranted || this.live.length) return false;
+    return Date.now() - Math.max(this.slotSince, this.lastTradeableAt) > UNPRODUCTIVE_SEC * 1000;
+  }
+
   setSlot(granted: boolean) {
     if (granted === this.slotGranted) return;
     this.slotGranted = granted;
+    if (granted) this.slotSince = Date.now();
     this.state.reading = granted;
     if (granted) {
       this.sampler = new FrameSampler(this.ref, { intervalSec: 2, width: 1024, keep: 60 }).start();
@@ -225,6 +241,7 @@ export class VideoRunner extends EventEmitter {
       this.timeline.push({ at: f.at, sha: f.sha, state: r.state });
       if (this.timeline.length > 300) this.timeline.splice(0, 60);
       this.state.vision = { state: r.state, at: f.at, reader: this.readers.a.name, ms: r.ms };
+      if (r.state.mode === "gameplay" && this.steadyCounters().length) this.lastTradeableAt = Date.now();
       this.changed();
       // A decisive change for a live market: ask B to confirm right away.
       for (const m of this.live) if (m.view.phase === "window" && !m.resolving && this.evalA(m, false) !== "PENDING") void this.confirm(m);

@@ -10,6 +10,13 @@ const OUT = process.argv[2] ?? "e2e/out";
 mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true });
+// Tests start past the first-visit tour (it's covered by its own check below).
+const _newContext = browser.newContext.bind(browser);
+browser.newContext = async (o) => {
+  const c = await _newContext(o);
+  await c.addInitScript(() => localStorage.setItem("clutch.tutorial.v1", "1"));
+  return c;
+};
 const results = [];
 const check = (name, ok = true, detail = "") => {
   results.push({ name, ok });
@@ -18,13 +25,13 @@ const check = (name, ok = true, detail = "") => {
 
 // With Privy on, tests take the "Continue as guest" path (the same fallback a viewer has).
 async function guest(page) {
-  const b = page.getByRole("button", { name: "Continue as guest" });
+  const b = page.getByRole("button", { name: "Use a test wallet" });
   if (await b.waitFor({ timeout: 8000 }).then(() => true, () => false)) await b.click();
 }
 
 // Sign in and that's it: a starter pass and test funds land by themselves.
 async function onboard(page) {
-  await page.goto(APP + "/live");
+  await page.goto(APP + "/live?test-wallet=1");
   await page.getByRole("button", { name: "Sign in" }).first().click();
   await guest(page);
   await page.getByText("Every trade is one tap now").waitFor({ timeout: 60_000 });
@@ -59,7 +66,7 @@ async function liveMarket(slug, minLeft = 10, waitSec = 90) {
   const s = await liveMarket(undefined, 12);
   await page.goto(`${APP}/c/${s.slug}`);
   const panel = page.getByTestId("round");
-  await panel.getByRole("radio", { name: "$5" }).click();
+  await panel.getByRole("radio", { name: "$5" }).click().catch(async (e) => { await page.screenshot({ path: `${OUT}/fail-trade.png` }); throw e; });
   await panel.getByRole("button", { name: /^Yes/ }).click();
   await page.getByText(/Yes · \$5 in/).waitFor({ timeout: 30_000 });
   check("trade: one tap, no wallet prompt", true, `${s.slug} #${s.market.id}`);
@@ -119,12 +126,29 @@ async function liveMarket(slug, minLeft = 10, waitSec = 90) {
   const ctx = await browser.newContext({ viewport: { width: 1512, height: 982 } });
   const page = await ctx.newPage();
   const s = await liveMarket(undefined, 16, 300);
-  await page.goto(`${APP}/c/${s.slug}`);
+  await page.goto(`${APP}/c/${s.slug}?test-wallet=1`);
   await page.getByTestId("round").getByRole("button", { name: /^Yes/ }).click();
   await guest(page);
   const ok = await page.getByText(/^Yes · \$\d+ in$/).waitFor({ timeout: 60_000 }).then(() => true, () => false);
   check("first tap survives onboarding: the trade goes through once the wallet is ready", ok, `${s.slug} #${s.market.id}`);
   await page.screenshot({ path: `${OUT}/7-first-tap.png` });
+  await ctx.close();
+}
+
+// 6. The first-visit tour shows once and can be reopened.
+{
+  const ctx = await _newContext({ viewport: { width: 1512, height: 982 } });
+  const page = await ctx.newPage();
+  await page.goto(`${APP}/live`);
+  const shown = await page.getByText("An AI watches the stream").waitFor({ timeout: 30_000 }).then(() => true, () => false);
+  for (let k = 0; k < 3; k++) await page.getByRole("dialog").getByRole("button", { name: "Next" }).click();
+  await page.getByRole("button", { name: "Start watching" }).click();
+  await page.reload();
+  await page.waitForTimeout(4000);
+  const gone = !(await page.getByText("An AI watches the stream").isVisible());
+  await page.getByRole("button", { name: "How it works" }).click();
+  const again = await page.getByText("An AI watches the stream").waitFor({ timeout: 5000 }).then(() => true, () => false);
+  check("first-visit tour shows once and reopens from How it works", shown && gone && again);
   await ctx.close();
 }
 
