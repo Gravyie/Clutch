@@ -83,7 +83,7 @@ export class OpenAIVision implements VisionReader {
     baseURL: string,
     apiKey: string,
     private readonly model: string,
-    private readonly onCost?: (usd: number, requestId?: string) => void,
+    private readonly onCost?: (usage: { prompt_tokens?: number; completion_tokens?: number } | undefined, requestId?: string) => void,
     private readonly constrained = true,
   ) {
     this.client = new OpenAI({ baseURL, apiKey, timeout: 60_000, maxRetries: 1 });
@@ -94,8 +94,12 @@ export class OpenAIVision implements VisionReader {
       .create({
         model: this.model,
         temperature: 0,
-        max_tokens: 300,
-        response_format: (this.constrained ? { type: "json_schema", json_schema: { name: "read", schema } } : { type: "json_object" }) as any,
+        // 0G's Claude models think adaptively by default; keep it brief and leave room for the answer.
+        max_tokens: this.constrained ? 300 : 1500,
+        ...(this.constrained ? {} : { reasoning_effort: "low" as any }),
+        // Constrained decoding where supported (llama.cpp). 0G's Claude models reject JSON mode, so for them the
+        // prompt asks for JSON only and the parser extracts it.
+        ...(this.constrained ? { response_format: { type: "json_schema", json_schema: { name: "read", schema } } as any } : {}),
         messages: [
           { role: "system", content: "You read live-stream frames into strict JSON. Report only what is clearly visible; use null when unsure. Never guess numbers. Reply with JSON only." },
           {
@@ -109,11 +113,15 @@ export class OpenAIVision implements VisionReader {
       })
       .withResponse();
     const requestId = response.headers.get("x-request-id") ?? data.id;
-    this.onCost?.(0, requestId);
+    this.onCost?.(data.usage ?? undefined, requestId);
     return { json: parseJson(data.choices[0]?.message?.content ?? "{}"), requestId };
   }
 
+  /** Optional guard, e.g. the daily 0G budget; throws to skip a read. */
+  gate?: () => void;
+
   async read(jpeg: Buffer, category: Category, hint?: string) {
+    this.gate?.();
     const t0 = Date.now();
     const img = sharp(jpeg);
     const meta = await img.metadata();
@@ -158,7 +166,10 @@ export class OpenAIVision implements VisionReader {
 export function makeReaders(zg: ZeroG): { a: VisionReader; b: VisionReader; independent: string } {
   const local = (suffix = "") => new OpenAIVision(`local:${config.localVisionModel}${suffix}`, config.localVisionUrl, "local", config.localVisionModel);
   if (config.zgApiKey) {
-    const zero = new OpenAIVision(`0g:${config.zgVisionModel}`, config.zgRouterUrl, config.zgApiKey, config.zgVisionModel, (usd, id) => zg.record(usd, id), false);
+    const zero = new OpenAIVision(`0g:${config.zgVisionModel}`, config.zgRouterUrl, config.zgApiKey, config.zgVisionModel, (usage, id) => zg.record(usage, id), false);
+    zero.gate = () => {
+      if (zg.mode === "paused") throw new Error("daily 0G budget spent; markets pause until 00:00 UTC");
+    };
     return { a: zero, b: local(), independent: "different model families, different frames, different connections" };
   }
   return { a: local(), b: local("#b"), independent: "same open-weights model on different frames over a separate connection (add a 0G key for a second model family)" };

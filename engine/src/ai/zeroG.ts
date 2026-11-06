@@ -56,16 +56,16 @@ export class ZeroG {
     }
   }
 
-  /** Book an inference made elsewhere (e.g. a vision read) against the daily budget. */
-  record(costUsd: number, requestId?: string) {
+  /** Book an inference made elsewhere (e.g. a vision read) against the daily budget, priced from token usage. */
+  record(usage: { prompt_tokens?: number; completion_tokens?: number } | undefined, requestId?: string) {
     this.rollDay();
     this.requestsToday++;
-    this.spentTodayUsd += costUsd;
+    this.spentTodayUsd += (usage?.prompt_tokens ?? 0) * this.price.prompt + (usage?.completion_tokens ?? 0) * this.price.completion;
     if (requestId) this.lastRequestId = requestId;
   }
 
   /** One JSON-mode completion. Returns the parsed object plus the 0G request id for receipts. */
-  async json<T>(system: string, user: string, maxTokens = 400): Promise<{ data: T; requestId: string; latencyMs: number; costUsd: number }> {
+  async json<T>(system: string, user: string, maxTokens = 1500): Promise<{ data: T; requestId: string; latencyMs: number; costUsd: number }> {
     if (!this.client) throw new Error("0G not configured");
     if (this.mode === "paused") throw new Error("daily inference budget spent");
     const t0 = Date.now();
@@ -74,7 +74,7 @@ export class ZeroG {
         model: config.zgModel,
         max_tokens: maxTokens,
         temperature: 0.2,
-        response_format: { type: "json_object" },
+        reasoning_effort: "low" as any,
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
