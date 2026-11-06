@@ -57,7 +57,11 @@ export default function AccountPage() {
           <HandPalmIcon size={22} className="text-muted-foreground" />
           <h2 className="text-sm font-semibold">Limits and breaks</h2>
         </div>
-        <p className="mt-2 text-sm text-muted-foreground">Limits belong to you as a person, not to a wallet. A new wallet starts with the same limit and the same break.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {acct.verified
+            ? "Your limit belongs to you as a person, not to a wallet: every wallet you use shares it, and a break covers them all."
+            : "This wallet has a starter limit. Verify with World ID and one limit covers you across every wallet you use."}
+        </p>
         {acct.pass && (
           <div className="mt-4">
             <div className="flex justify-between text-sm">
