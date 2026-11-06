@@ -92,6 +92,13 @@ export const config = {
 
   // World ID (IDKit 4). Without these, the engine offers a clearly labelled dev verifier.
   worldAppId: env("WORLD_APP_ID"),
+  /** World ID Agent Pass (World IdP, OIDC). Register a client at auth.world.org/portal with the device grant enabled. */
+  worldIdpIssuer: env("WORLD_IDP_ISSUER", "https://auth.world.org")!,
+  worldIdpClientId: env("WORLD_IDP_CLIENT_ID"),
+  worldIdpClientSecret: env("WORLD_IDP_CLIENT_SECRET"),
+  /** accepted authentication classes for authorizing an agent */
+  worldIdpAcr: (env("WORLD_IDP_ACR", "https://world.org/oidc/acr/orb") ?? "").split(",").filter(Boolean),
+  agentPassTtlSec: Number(env("AGENT_PASS_TTL_SEC", "86400")),
   worldRpId: env("WORLD_RP_ID"),
   worldSigningKey: env("WORLD_RP_SIGNING_KEY"),
   worldAction: env("WORLD_ACTION", "clutch-human-pass")!,

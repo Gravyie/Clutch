@@ -16,6 +16,7 @@ import * as chain from "./chain";
 import { kvGet, kvSet, one, run } from "./db";
 import { readEvidence } from "./evidence";
 import { AuthError, newNonce, signIn, signInMessage, verifyToken } from "./auth";
+import { agentPass, agentPassConfigured, agentPassDev, devDecide, listAgents, pollAuthorization, revokeAgent, startAuthorization } from "./agents";
 import { PassRefused, devIssue, limits, nullifierOf, rpContext, verifyAndIssue, worldConfigured } from "./pass";
 import { leaderboard, listMarkets, marketDetail, platformStats, portfolio, receipt, recentReceipts, recentRefusals, recentTrades } from "./queries";
 import { lichessProfile } from "./sources/lichess";
@@ -48,7 +49,7 @@ export function serve(hub: Hub) {
           sequencerGuard: d.sequencerGuard,
           ethPool: d.ethPool,
         },
-        world: { configured: worldConfigured, appId: config.worldAppId, action: config.worldAction, environment: config.worldEnvironment },
+        world: { configured: worldConfigured, appId: config.worldAppId, action: config.worldAction, environment: config.worldEnvironment, agentPass: agentPassConfigured, agentPassDev },
         zeroG: { provider: hub.zg.provider, model: config.zgModel, storage: config.zgStorageKey ? "0g" : "local" },
         lichessClientId: config.lichessClientId,
         passDailyCap: config.passDailyCapUsdc,
@@ -150,6 +151,14 @@ export function serve(hub: Hub) {
     },
 
     // ── Human pass ──
+    // ── World ID Agent Pass: a human authorizes a trading agent ──
+    { method: "POST", re: /^\/agents\/authorize$/, auth: true, h: ({ user, body }) => startAuthorization(user! as `0x${string}`, body) },
+    { method: "GET", re: /^\/agents\/authorize\/([a-f0-9]{24})$/, auth: true, h: ({ user, params: [id] }) => pollAuthorization(user! as `0x${string}`, id) },
+    { method: "POST", re: /^\/agents\/authorize\/([a-f0-9]{24})\/dev$/, auth: true, h: ({ user, params: [id], body }) => devDecide(user! as `0x${string}`, id, Boolean(body.approve)) },
+    { method: "GET", re: /^\/agents$/, auth: true, h: ({ user }) => listAgents(user!) },
+    { method: "POST", re: /^\/agents\/(0x[0-9a-fA-F]{40})\/revoke$/, auth: true, h: ({ user, params: [a] }) => revokeAgent(user!, a) },
+    // The agent's own endpoint. A pass only lets the agent's own key trade, so it isn't secret.
+    { method: "GET", re: /^\/agents\/(0x[0-9a-fA-F]{40})\/pass$/, h: ({ params: [a] }) => agentPass(a) },
     { method: "POST", re: /^\/pass\/context$/, h: () => rpContext() },
     { method: "POST", re: /^\/pass\/verify$/, h: ({ body }) => verifyAndIssue(body.result, wallet(body.wallet)) },
     { method: "POST", re: /^\/pass\/dev$/, h: ({ body }) => devIssue(String(body.persona ?? "alice"), wallet(body.wallet)) },

@@ -97,11 +97,20 @@ async function issue(nullifier: string, wallet: `0x${string}`, credential: strin
     Date.now(),
   ]);
 
+  const signed = await signPass(wallet, nullifier, config.passDailyCapUsdc, config.passTtlSec);
+  return { ...signed, credential, dev: credential === "dev" };
+}
+
+/**
+ * Sign an EIP-712 HumanPass. Every pass for the same person carries the same nullifier, so the gate's daily cap is
+ * shared across all of them onchain: the person's own wallets, and any agent they authorize.
+ */
+export async function signPass(wallet: `0x${string}`, nullifier: string, dailyCapUsdc: number, ttlSec: number) {
   const pass = {
     trader: wallet,
     nullifier: BigInt(nullifier),
-    expiry: BigInt(Math.floor(Date.now() / 1000) + config.passTtlSec),
-    dailyCap: fromUsdc(config.passDailyCapUsdc),
+    expiry: BigInt(Math.floor(Date.now() / 1000) + ttlSec),
+    dailyCap: fromUsdc(dailyCapUsdc),
   };
   const signature = await signer.signTypedData({
     domain: { name: "Clutch Human Pass", version: "1", chainId: config.chainId, verifyingContract: d.humanPassGate },
@@ -113,7 +122,7 @@ async function issue(nullifier: string, wallet: `0x${string}`, credential: strin
     [{ type: "tuple", components: [{ name: "trader", type: "address" }, { name: "nullifier", type: "uint256" }, { name: "expiry", type: "uint64" }, { name: "dailyCap", type: "uint128" }] }, { type: "bytes" }],
     [pass, signature],
   );
-  return { gateData: gateData as Hex, nullifier, expiry: Number(pass.expiry), dailyCap: config.passDailyCapUsdc, credential, dev: credential === "dev" };
+  return { gateData: gateData as Hex, nullifier, expiry: Number(pass.expiry), dailyCap: dailyCapUsdc };
 }
 
 export async function limits(nullifier: string) {

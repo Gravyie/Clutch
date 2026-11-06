@@ -7,6 +7,7 @@
     "dev": "tsx watch --env-file-if-exists=.env src/main.ts",
     "start": "tsx --env-file-if-exists=.env src/main.ts",
     "test": "tsx --test src/*.test.ts",
+    "agent": "tsx --env-file-if-exists=.env src/agent/run.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -16,6 +17,7 @@
     "@worldcoin/idkit-core": "^4.6.0",
     "chess.js": "^1.4.0",
     "ethers": "^6.15.0",
+    "jose": "^6.2.15",
     "openai": "^7.52.0",
     "sharp": "^0.34.5",
     "viem": "^2.57.16",

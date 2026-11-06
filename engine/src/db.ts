@@ -98,6 +98,21 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS human_wallets (address TEXT PRIMARY KEY, nullifier TEXT NOT NULL, linked_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS profiles (address TEXT PRIMARY KEY, name TEXT, lichess TEXT, created_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL)`,
+  // World IdP account (pairwise sub) linked to the person's IDKit nullifier, the first time they authorize an agent
+  `CREATE TABLE IF NOT EXISTS idp_links (iss TEXT NOT NULL, sub TEXT NOT NULL, nullifier TEXT NOT NULL UNIQUE, linked_at INTEGER NOT NULL, PRIMARY KEY (iss, sub))`,
+  `CREATE TABLE IF NOT EXISTS agents (
+    address TEXT PRIMARY KEY,
+    nullifier TEXT NOT NULL,
+    owner TEXT NOT NULL,
+    name TEXT NOT NULL,
+    cap_usdc REAL NOT NULL,
+    pass TEXT,
+    expires_at INTEGER NOT NULL,
+    authorized_at INTEGER NOT NULL,
+    auth_time INTEGER NOT NULL,
+    acr TEXT,
+    revoked_at INTEGER
+  )`,
 ];
 
 const COLUMNS = [`ALTER TABLE streams ADD COLUMN platform TEXT`, `ALTER TABLE streams ADD COLUMN channel TEXT`, `ALTER TABLE streams ADD COLUMN category TEXT`];

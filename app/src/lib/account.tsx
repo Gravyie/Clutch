@@ -25,7 +25,7 @@ export interface EngineConfig {
     sequencerGuard: `0x${string}`;
     ethPool: { currency0: `0x${string}`; currency1: `0x${string}`; fee: number; tickSpacing: number };
   };
-  world: { configured: boolean; appId?: `app_${string}`; action: string; environment: "production" | "staging" };
+  world: { configured: boolean; appId?: `app_${string}`; action: string; environment: "production" | "staging"; agentPass?: boolean; agentPassDev?: boolean };
   zeroG: { provider: "0g" | "heuristic"; model: string; storage: "0g" | "local" };
   lichessClientId: string;
   passDailyCap: number;
@@ -238,7 +238,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       excludedUntil: bal.excludedUntil,
       vault: { shares: bal.shares, assets: bal.assets },
       token,
-      onboarded: Boolean(address && pass && (bal.usdc > 0 || bal.eth * ethUsd > 1 || bal.stakedToday > 0)),
+      // Ready = verified and this wallet can pay. (The day's spend is per person, so it says nothing about this wallet.)
+      onboarded: Boolean(address && pass && bal.usdc + Math.max(0, bal.eth - 0.0002) * ethUsd >= 1),
       spendable: bal.usdc + Math.max(0, bal.eth - 0.0002) * ethUsd,
       refresh,
 

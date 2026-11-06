@@ -15,6 +15,7 @@ import {
   MagnifyingGlassIcon,
   MoonIcon,
   PlusIcon,
+  RobotIcon,
   SignOutIcon,
   SunIcon,
   TrophyIcon,
@@ -42,6 +43,7 @@ const NAV = [
   { href: "/browse", label: "Browse", icon: CompassIcon },
   { href: "/portfolio", label: "Portfolio", icon: ChartLineUpIcon },
   { href: "/leaderboard", label: "Leaderboard", icon: TrophyIcon },
+  { href: "/agents", label: "Agents", icon: RobotIcon },
 ];
 
 /** Live markets first, then live video, then live chess, then offline; audience breaks ties. */
@@ -255,7 +257,7 @@ function SideFooter() {
 function MobileNav() {
   const path = usePathname();
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-4 border-t border-border bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-5 border-t border-border bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
       {NAV.map(({ href, label, icon: Icon }) => {
         const active = path.startsWith(href);
         return (
