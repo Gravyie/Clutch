@@ -69,6 +69,13 @@ export const config = {
   defaultLatencyBufferSec: Number(env("LATENCY_BUFFER_SEC", "8")),
   twitchLatencyBufferSec: Number(env("TWITCH_LATENCY_BUFFER_SEC", "10")),
   tradingSec: Number(env("TRADING_SEC", "20")),
+  // Arrival timestamps cannot prove Twitch's source latency; enforce local observation freshness separately.
+  videoCaptureIntervalMs: Number(env("VIDEO_CAPTURE_INTERVAL_MS", "2000")),
+  videoMaxFrameAgeMs: Number(env("VIDEO_MAX_FRAME_AGE_MS", "10000")),
+  videoMaxSampleGapMs: Number(env("VIDEO_MAX_SAMPLE_GAP_MS", "8000")),
+  videoSampleIntervalMs: Number(env("VIDEO_SAMPLE_INTERVAL_MS", "4000")),
+  videoTemplateCooldownMs: Number(env("VIDEO_TEMPLATE_COOLDOWN_MS", "60000")),
+  videoBoundaryToleranceMs: Number(env("VIDEO_BOUNDARY_TOLERANCE_MS", "2500")),
   videoTradingSec: Number(env("VIDEO_TRADING_SEC", "15")),
   cooldownSec: Number(env("COOLDOWN_SEC", "8")),
   liquidityB: Number(env("MARKET_B_USDC", "80")),

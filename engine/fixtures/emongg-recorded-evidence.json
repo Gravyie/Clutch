@@ -1,0 +1,127 @@
+{
+  "provenance": "Recorded emongg market #1 evidence from the existing local backend; not new live inference. Original fields retained; old reader did not extract POV identity.",
+  "rule": {
+    "v": 1,
+    "adapter": "vision",
+    "template": "survives",
+    "params": {
+      "kind": "goes_up",
+      "key": "__pov_alive",
+      "label": "Streamer alive",
+      "seconds": 40
+    },
+    "subject": {
+      "stream": "twitch:emongg",
+      "scene": "Overwatch",
+      "teams": []
+    },
+    "question": "Will the streamer still be alive in 40 seconds?",
+    "resolution": "YES if the streamer's player is still alive at window end (40s). NO if they are eliminated first.",
+    "sources": [
+      "0g:claude-haiku-5.5",
+      "0g:0gm-1.0-35b-a3b"
+    ],
+    "lockTime": 1793981205,
+    "windowStart": 1793981215,
+    "windowEnd": 1793981255,
+    "agreement": "Both readers, each on its own frames, must reach the same verdict. Otherwise VOID."
+  },
+  "readerA": {
+    "name": "0g:claude-haiku-5.5",
+    "readings": [
+      {
+        "at": 1793981211980,
+        "frame": "cec441613b71cba4ed6d092a7ad3c00d642cefb8d110ce6b9ba8a6235db995b6",
+        "mode": "gameplay",
+        "counters": [],
+        "povAlive": true
+      },
+      {
+        "at": 1793981217979,
+        "frame": "ae2e3a62abbab2333db9b69ee8e957248de10b341173139516547283056202e3",
+        "mode": "gameplay",
+        "counters": [],
+        "povAlive": null
+      },
+      {
+        "at": 1793981223905,
+        "frame": "1eca7db8dbdc448885856c34de6db31d6e22e26ecbf132f048c9d33aeba850a6",
+        "mode": "gameplay",
+        "counters": [],
+        "povAlive": null
+      },
+      {
+        "at": 1793981229938,
+        "frame": "3956a91bb0e2d8f519a9928ecac276c2afb9d4ed21b9ce82c8502e8b6dd3c0cf",
+        "mode": "gameplay",
+        "counters": [],
+        "povAlive": null
+      },
+      {
+        "at": 1793981235902,
+        "frame": "7fb0997fcbfb39a7633f1e384ad108b61756b931e43efb1e1df5aec4ea189448",
+        "mode": "gameplay",
+        "counters": [],
+        "povAlive": null
+      },
+      {
+        "at": 1793981241959,
+        "frame": "7ce9417756b8bbf7af0e331f90cbc89528c0a290b8ee455d305f4a65522a0dbe",
+        "mode": "gameplay",
+        "counters": [],
+        "povAlive": null
+      },
+      {
+        "at": 1793981247896,
+        "frame": "00139319a197a0a39e36f615fb7fa4f36e14bddcb9910b1a270b9fccb0e4b50d",
+        "mode": "gameplay",
+        "counters": [],
+        "povAlive": null
+      },
+      {
+        "at": 1793981253951,
+        "frame": "0b04b3f784e1c38b428adc81b3fd50bc0da0b8e1695bfafc8524eff92b46af36",
+        "mode": "gameplay",
+        "counters": [
+          {
+            "key": "match_clock",
+            "label": "Match clock",
+            "value": 0
+          }
+        ],
+        "povAlive": null
+      }
+    ]
+  },
+  "readerB": {
+    "name": "0g:0gm-1.0-35b-a3b",
+    "readings": [
+      {
+        "at": 1793981224165,
+        "values": {
+          "__pov_alive": 0
+        }
+      },
+      {
+        "at": 1793981264434,
+        "values": {
+          "__pov_alive": 1
+        }
+      }
+    ],
+    "frames": [
+      {
+        "at": 1793981224165,
+        "sha": "37b0d30f9cbff09db8948097388d18d21d11a9a01b1c78ddf00945bd1d27f841",
+        "reader": "0g:0gm-1.0-35b-a3b",
+        "note": "start \u00b7 alive: yes \u00b7 gameplay"
+      },
+      {
+        "at": 1793981264434,
+        "sha": "fad96b59df3ff4e285f4b93575e95ca19efe6e1c1e60f608933ab95c747d41eb",
+        "reader": "0g:0gm-1.0-35b-a3b",
+        "note": "end \u00b7 alive: no \u00b7 replay"
+      }
+    ]
+  }
+}
