@@ -1,0 +1,914 @@
+{
+ "type": "excalidraw",
+ "version": 2,
+ "source": "clutch",
+ "elements": [
+  {
+   "type": "text",
+   "id": "t1",
+   "x": 40,
+   "y": 20,
+   "width": 577.5,
+   "height": 39.0,
+   "text": "Life of a market (about 60 seconds)",
+   "originalText": "Life of a market (about 60 seconds)",
+   "fontSize": 30,
+   "fontFamily": 1,
+   "strokeColor": "#1e1e1e",
+   "autoResize": true
+  },
+  {
+   "type": "rectangle",
+   "id": "b2",
+   "x": 40,
+   "y": 110,
+   "width": 230,
+   "height": 60,
+   "backgroundColor": "#d0bfff",
+   "fillStyle": "solid",
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "id": "bt3",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "bt3",
+   "x": 46,
+   "y": 116,
+   "width": 218,
+   "height": 48,
+   "text": "Watch",
+   "originalText": "Watch",
+   "fontSize": 22,
+   "fontFamily": 1,
+   "textAlign": "center",
+   "verticalAlign": "middle",
+   "containerId": "b2",
+   "autoResize": true,
+   "strokeColor": "#1e1e1e"
+  },
+  {
+   "type": "rectangle",
+   "id": "b4",
+   "x": 40,
+   "y": 190,
+   "width": 230,
+   "height": 130,
+   "backgroundColor": "#e9ecef",
+   "fillStyle": "solid",
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "id": "bt5",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "bt5",
+   "x": 46,
+   "y": 196,
+   "width": 218,
+   "height": 118,
+   "text": "Reader A reads a frame\nevery few seconds:\nscore, kill feed, players left",
+   "originalText": "Reader A reads a frame\nevery few seconds:\nscore, kill feed, players left",
+   "fontSize": 16,
+   "fontFamily": 1,
+   "textAlign": "center",
+   "verticalAlign": "middle",
+   "containerId": "b4",
+   "autoResize": true,
+   "strokeColor": "#1e1e1e"
+  },
+  {
+   "type": "arrow",
+   "id": "a6",
+   "x": 155.0,
+   "y": 170,
+   "width": 0.0,
+   "height": 20,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     0.0,
+     20
+    ]
+   ],
+   "endArrowhead": "arrow",
+   "strokeStyle": "solid",
+   "startBinding": {
+    "elementId": "b2",
+    "fixedPoint": [
+     0.5,
+     1
+    ]
+   },
+   "endBinding": {
+    "elementId": "b4",
+    "fixedPoint": [
+     0.5,
+     0
+    ]
+   }
+  },
+  {
+   "type": "rectangle",
+   "id": "b7",
+   "x": 310,
+   "y": 110,
+   "width": 230,
+   "height": 60,
+   "backgroundColor": "#d0bfff",
+   "fillStyle": "solid",
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "id": "bt8",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "bt8",
+   "x": 316,
+   "y": 116,
+   "width": 218,
+   "height": 48,
+   "text": "Open",
+   "originalText": "Open",
+   "fontSize": 22,
+   "fontFamily": 1,
+   "textAlign": "center",
+   "verticalAlign": "middle",
+   "containerId": "b7",
+   "autoResize": true,
+   "strokeColor": "#1e1e1e"
+  },
+  {
+   "type": "rectangle",
+   "id": "b9",
+   "x": 310,
+   "y": 190,
+   "width": 230,
+   "height": 130,
+   "backgroundColor": "#e9ecef",
+   "fillStyle": "solid",
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "id": "bt10",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "bt10",
+   "x": 316,
+   "y": 196,
+   "width": 218,
+   "height": 118,
+   "text": "Agent picks a contested\ncounter, writes the rule,\nprices it; rule hash onchain",
+   "originalText": "Agent picks a contested\ncounter, writes the rule,\nprices it; rule hash onchain",
+   "fontSize": 16,
+   "fontFamily": 1,
+   "textAlign": "center",
+   "verticalAlign": "middle",
+   "containerId": "b9",
+   "autoResize": true,
+   "strokeColor": "#1e1e1e"
+  },
+  {
+   "type": "arrow",
+   "id": "a11",
+   "x": 425.0,
+   "y": 170,
+   "width": 0.0,
+   "height": 20,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     0.0,
+     20
+    ]
+   ],
+   "endArrowhead": "arrow",
+   "strokeStyle": "solid",
+   "startBinding": {
+    "elementId": "b7",
+    "fixedPoint": [
+     0.5,
+     1
+    ]
+   },
+   "endBinding": {
+    "elementId": "b9",
+    "fixedPoint": [
+     0.5,
+     0
+    ]
+   }
+  },
+  {
+   "type": "arrow",
+   "id": "a12",
+   "x": 270,
+   "y": 140.0,
+   "width": 40,
+   "height": 0.0,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     40,
+     0.0
+    ]
+   ],
+   "endArrowhead": "arrow",
+   "strokeStyle": "solid",
+   "startBinding": {
+    "elementId": "b2",
+    "fixedPoint": [
+     1,
+     0.5
+    ]
+   },
+   "endBinding": {
+    "elementId": "b7",
+    "fixedPoint": [
+     0,
+     0.5
+    ]
+   }
+  },
+  {
+   "type": "rectangle",
+   "id": "b13",
+   "x": 580,
+   "y": 110,
+   "width": 230,
+   "height": 60,
+   "backgroundColor": "#a5d8ff",
+   "fillStyle": "solid",
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "id": "bt14",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "bt14",
+   "x": 586,
+   "y": 116,
+   "width": 218,
+   "height": 48,
+   "text": "Trade",
+   "originalText": "Trade",
+   "fontSize": 22,
+   "fontFamily": 1,
+   "textAlign": "center",
+   "verticalAlign": "middle",
+   "containerId": "b13",
+   "autoResize": true,
+   "strokeColor": "#1e1e1e"
+  },
+  {
+   "type": "rectangle",
+   "id": "b15",
+   "x": 580,
+   "y": 190,
+   "width": 230,
+   "height": 130,
+   "backgroundColor": "#e9ecef",
+   "fillStyle": "solid",
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "id": "bt16",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "bt16",
+   "x": 586,
+   "y": 196,
+   "width": 218,
+   "height": 118,
+   "text": "One tap, Yes or No.\nLMSR prices every trade.\nTrading locks at lockTime",
+   "originalText": "One tap, Yes or No.\nLMSR prices every trade.\nTrading locks at lockTime",
+   "fontSize": 16,
+   "fontFamily": 1,
+   "textAlign": "center",
+   "verticalAlign": "middle",
+   "containerId": "b15",
+   "autoResize": true,
+   "strokeColor": "#1e1e1e"
+  },
+  {
+   "type": "arrow",
+   "id": "a17",
+   "x": 695.0,
+   "y": 170,
+   "width": 0.0,
+   "height": 20,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     0.0,
+     20
+    ]
+   ],
+   "endArrowhead": "arrow",
+   "strokeStyle": "solid",
+   "startBinding": {
+    "elementId": "b13",
+    "fixedPoint": [
+     0.5,
+     1
+    ]
+   },
+   "endBinding": {
+    "elementId": "b15",
+    "fixedPoint": [
+     0.5,
+     0
+    ]
+   }
+  },
+  {
+   "type": "arrow",
+   "id": "a18",
+   "x": 540,
+   "y": 140.0,
+   "width": 40,
+   "height": 0.0,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     40,
+     0.0
+    ]
+   ],
+   "endArrowhead": "arrow",
+   "strokeStyle": "solid",
+   "startBinding": {
+    "elementId": "b7",
+    "fixedPoint": [
+     1,
+     0.5
+    ]
+   },
+   "endBinding": {
+    "elementId": "b13",
+    "fixedPoint": [
+     0,
+     0.5
+    ]
+   }
+  },
+  {
+   "type": "rectangle",
+   "id": "b19",
+   "x": 850,
+   "y": 110,
+   "width": 230,
+   "height": 60,
+   "backgroundColor": "#fff3bf",
+   "fillStyle": "solid",
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "id": "bt20",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "bt20",
+   "x": 856,
+   "y": 116,
+   "width": 218,
+   "height": 48,
+   "text": "Buffer",
+   "originalText": "Buffer",
+   "fontSize": 22,
+   "fontFamily": 1,
+   "textAlign": "center",
+   "verticalAlign": "middle",
+   "containerId": "b19",
+   "autoResize": true,
+   "strokeColor": "#1e1e1e"
+  },
+  {
+   "type": "rectangle",
+   "id": "b21",
+   "x": 850,
+   "y": 190,
+   "width": 230,
+   "height": 130,
+   "backgroundColor": "#e9ecef",
+   "fillStyle": "solid",
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "id": "bt22",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "bt22",
+   "x": 856,
+   "y": 196,
+   "width": 218,
+   "height": 118,
+   "text": "Window starts after\nlock + stream-delay buffer\n(enforced in the hook)",
+   "originalText": "Window starts after\nlock + stream-delay buffer\n(enforced in the hook)",
+   "fontSize": 16,
+   "fontFamily": 1,
+   "textAlign": "center",
+   "verticalAlign": "middle",
+   "containerId": "b21",
+   "autoResize": true,
+   "strokeColor": "#1e1e1e"
+  },
+  {
+   "type": "arrow",
+   "id": "a23",
+   "x": 965.0,
+   "y": 170,
+   "width": 0.0,
+   "height": 20,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     0.0,
+     20
+    ]
+   ],
+   "endArrowhead": "arrow",
+   "strokeStyle": "solid",
+   "startBinding": {
+    "elementId": "b19",
+    "fixedPoint": [
+     0.5,
+     1
+    ]
+   },
+   "endBinding": {
+    "elementId": "b21",
+    "fixedPoint": [
+     0.5,
+     0
+    ]
+   }
+  },
+  {
+   "type": "arrow",
+   "id": "a24",
+   "x": 810,
+   "y": 140.0,
+   "width": 40,
+   "height": 0.0,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     40,
+     0.0
+    ]
+   ],
+   "endArrowhead": "arrow",
+   "strokeStyle": "solid",
+   "startBinding": {
+    "elementId": "b13",
+    "fixedPoint": [
+     1,
+     0.5
+    ]
+   },
+   "endBinding": {
+    "elementId": "b19",
+    "fixedPoint": [
+     0,
+     0.5
+    ]
+   }
+  },
+  {
+   "type": "rectangle",
+   "id": "b25",
+   "x": 1120,
+   "y": 110,
+   "width": 230,
+   "height": 60,
+   "backgroundColor": "#b2f2bb",
+   "fillStyle": "solid",
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "id": "bt26",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "bt26",
+   "x": 1126,
+   "y": 116,
+   "width": 218,
+   "height": 48,
+   "text": "Settle",
+   "originalText": "Settle",
+   "fontSize": 22,
+   "fontFamily": 1,
+   "textAlign": "center",
+   "verticalAlign": "middle",
+   "containerId": "b25",
+   "autoResize": true,
+   "strokeColor": "#1e1e1e"
+  },
+  {
+   "type": "rectangle",
+   "id": "b27",
+   "x": 1120,
+   "y": 190,
+   "width": 230,
+   "height": 130,
+   "backgroundColor": "#e9ecef",
+   "fillStyle": "solid",
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "id": "bt28",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "bt28",
+   "x": 1126,
+   "y": 196,
+   "width": 218,
+   "height": 118,
+   "text": "Reader B reads its own\nframes. Agree: pay.\nDisagree or missing: VOID",
+   "originalText": "Reader B reads its own\nframes. Agree: pay.\nDisagree or missing: VOID",
+   "fontSize": 16,
+   "fontFamily": 1,
+   "textAlign": "center",
+   "verticalAlign": "middle",
+   "containerId": "b27",
+   "autoResize": true,
+   "strokeColor": "#1e1e1e"
+  },
+  {
+   "type": "arrow",
+   "id": "a29",
+   "x": 1235.0,
+   "y": 170,
+   "width": 0.0,
+   "height": 20,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     0.0,
+     20
+    ]
+   ],
+   "endArrowhead": "arrow",
+   "strokeStyle": "solid",
+   "startBinding": {
+    "elementId": "b25",
+    "fixedPoint": [
+     0.5,
+     1
+    ]
+   },
+   "endBinding": {
+    "elementId": "b27",
+    "fixedPoint": [
+     0.5,
+     0
+    ]
+   }
+  },
+  {
+   "type": "arrow",
+   "id": "a30",
+   "x": 1080,
+   "y": 140.0,
+   "width": 40,
+   "height": 0.0,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     40,
+     0.0
+    ]
+   ],
+   "endArrowhead": "arrow",
+   "strokeStyle": "solid",
+   "startBinding": {
+    "elementId": "b19",
+    "fixedPoint": [
+     1,
+     0.5
+    ]
+   },
+   "endBinding": {
+    "elementId": "b25",
+    "fixedPoint": [
+     0,
+     0.5
+    ]
+   }
+  },
+  {
+   "type": "rectangle",
+   "id": "b31",
+   "x": 1390,
+   "y": 110,
+   "width": 230,
+   "height": 60,
+   "backgroundColor": "#c3fae8",
+   "fillStyle": "solid",
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "id": "bt32",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "bt32",
+   "x": 1396,
+   "y": 116,
+   "width": 218,
+   "height": 48,
+   "text": "Receipt",
+   "originalText": "Receipt",
+   "fontSize": 22,
+   "fontFamily": 1,
+   "textAlign": "center",
+   "verticalAlign": "middle",
+   "containerId": "b31",
+   "autoResize": true,
+   "strokeColor": "#1e1e1e"
+  },
+  {
+   "type": "rectangle",
+   "id": "b33",
+   "x": 1390,
+   "y": 190,
+   "width": 230,
+   "height": 130,
+   "backgroundColor": "#e9ecef",
+   "fillStyle": "solid",
+   "roundness": {
+    "type": 3
+   },
+   "boundElements": [
+    {
+     "id": "bt34",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "type": "text",
+   "id": "bt34",
+   "x": 1396,
+   "y": 196,
+   "width": 218,
+   "height": 118,
+   "text": "Rule, both verdicts, frames,\n0G request IDs, evidence\nroot, settlement tx",
+   "originalText": "Rule, both verdicts, frames,\n0G request IDs, evidence\nroot, settlement tx",
+   "fontSize": 16,
+   "fontFamily": 1,
+   "textAlign": "center",
+   "verticalAlign": "middle",
+   "containerId": "b33",
+   "autoResize": true,
+   "strokeColor": "#1e1e1e"
+  },
+  {
+   "type": "arrow",
+   "id": "a35",
+   "x": 1505.0,
+   "y": 170,
+   "width": 0.0,
+   "height": 20,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     0.0,
+     20
+    ]
+   ],
+   "endArrowhead": "arrow",
+   "strokeStyle": "solid",
+   "startBinding": {
+    "elementId": "b31",
+    "fixedPoint": [
+     0.5,
+     1
+    ]
+   },
+   "endBinding": {
+    "elementId": "b33",
+    "fixedPoint": [
+     0.5,
+     0
+    ]
+   }
+  },
+  {
+   "type": "arrow",
+   "id": "a36",
+   "x": 1350,
+   "y": 140.0,
+   "width": 40,
+   "height": 0.0,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     40,
+     0.0
+    ]
+   ],
+   "endArrowhead": "arrow",
+   "strokeStyle": "solid",
+   "startBinding": {
+    "elementId": "b25",
+    "fixedPoint": [
+     1,
+     0.5
+    ]
+   },
+   "endBinding": {
+    "elementId": "b31",
+    "fixedPoint": [
+     0,
+     0.5
+    ]
+   }
+  },
+  {
+   "type": "text",
+   "id": "t37",
+   "x": 40,
+   "y": 350,
+   "width": 121.00000000000001,
+   "height": 28.6,
+   "text": "Guarantees",
+   "originalText": "Guarantees",
+   "fontSize": 22,
+   "fontFamily": 1,
+   "strokeColor": "#1e1e1e",
+   "autoResize": true
+  },
+  {
+   "type": "text",
+   "id": "t38",
+   "x": 60,
+   "y": 390,
+   "width": 944.35,
+   "height": 22.1,
+   "text": "- No market about a moment anyone has seen: windowStart >= lockTime + latencyBuffer reverts otherwise",
+   "originalText": "- No market about a moment anyone has seen: windowStart >= lockTime + latencyBuffer reverts otherwise",
+   "fontSize": 17,
+   "fontFamily": 1,
+   "strokeColor": "#343a40",
+   "autoResize": true
+  },
+  {
+   "type": "text",
+   "id": "t39",
+   "x": 60,
+   "y": 422,
+   "width": 729.3000000000001,
+   "height": 22.1,
+   "text": "- No single model decides: two model families, separate frames and connections",
+   "originalText": "- No single model decides: two model families, separate frames and connections",
+   "fontSize": 17,
+   "fontFamily": 1,
+   "strokeColor": "#343a40",
+   "autoResize": true
+  },
+  {
+   "type": "text",
+   "id": "t40",
+   "x": 60,
+   "y": 454,
+   "width": 860.2,
+   "height": 22.1,
+   "text": "- No guessing: a reader with no data has no verdict, and the market voids with a full refund",
+   "originalText": "- No guessing: a reader with no data has no verdict, and the market voids with a full refund",
+   "fontSize": 17,
+   "fontFamily": 1,
+   "strokeColor": "#343a40",
+   "autoResize": true
+  },
+  {
+   "type": "text",
+   "id": "t41",
+   "x": 60,
+   "y": 486,
+   "width": 897.6,
+   "height": 22.1,
+   "text": "- No insider edge: the streamer's human ID can't trade their own markets; caps follow the person",
+   "originalText": "- No insider edge: the streamer's human ID can't trade their own markets; caps follow the person",
+   "fontSize": 17,
+   "fontFamily": 1,
+   "strokeColor": "#343a40",
+   "autoResize": true
+  },
+  {
+   "type": "text",
+   "id": "t42",
+   "x": 60,
+   "y": 518,
+   "width": 897.6,
+   "height": 22.1,
+   "text": "- No chain-outage edge: Blackout Guard voids markets whose trading overlapped a sequencer outage",
+   "originalText": "- No chain-outage edge: Blackout Guard voids markets whose trading overlapped a sequencer outage",
+   "fontSize": 17,
+   "fontFamily": 1,
+   "strokeColor": "#343a40",
+   "autoResize": true
+  }
+ ],
+ "appState": {
+  "viewBackgroundColor": "#ffffff"
+ }
+}
