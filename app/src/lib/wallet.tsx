@@ -36,7 +36,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       appId={PRIVY_APP_ID}
       config={{
         loginMethods: ["email", "google", "wallet"],
-        appearance: { theme: "dark", accentColor: "#22d391", landingHeader: "Sign in to Clutch", showWalletLoginFirst: false },
+        appearance: { theme: "dark", accentColor: "#ff6a2b", landingHeader: "Sign in to Clutch", showWalletLoginFirst: false },
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" }, showWalletUIs: false },
         defaultChain: chain,
         supportedChains: [chain],
