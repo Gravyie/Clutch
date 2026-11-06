@@ -25,6 +25,8 @@ interface ChannelData {
   latency: { samples: number; p50: number | null; p95: number | null };
 }
 
+const SCREEN: Record<string, string> = { menu: "a menu", replay: "a replay", break: "a break screen", camera: "the camera, not the game", other: "something other than gameplay" };
+
 /** Why a channel has no market right now, in plain words. */
 function waitingReason(s?: StreamState) {
   if (!s) return undefined;
@@ -34,7 +36,7 @@ function waitingReason(s?: StreamState) {
   if (!s.reading) return "Queued for an AI reader. The busiest live channels are read first.";
   const v = s.vision?.state;
   if (!v) return "The AI is starting to read this stream.";
-  if (v.mode !== "gameplay") return `The AI sees a ${v.mode} screen. Markets open during live gameplay.`;
+  if (v.mode !== "gameplay") return `The AI sees ${SCREEN[v.mode] ?? "something other than gameplay"}. Markets open during live gameplay.`;
   return "The AI is reading live gameplay and waiting for a moment worth a market.";
 }
 

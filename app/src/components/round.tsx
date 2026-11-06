@@ -75,7 +75,8 @@ function Question({ m, stream }: { m: MarketView; stream?: StreamState }) {
       <p className="mt-1 flex items-start gap-1.5 text-xs text-faint">
         <SparkleIcon size={13} className="mt-px shrink-0" />
         <span className="line-clamp-2">
-          {m.ai.paidBy === "viewer" ? "Called by a viewer on their own 0G credits" : m.ai.provider === "0g" ? "Created and priced by the 0G agent" : "Created from base rates"} from what's on screen{stream?.vision ? ` (${stream.vision.state.summary})` : ""}.
+          {m.ai.paidBy === "viewer" ? "Called by a viewer on their own 0G credits" : m.ai.provider === "0g" ? "Opened and priced by the 0G agent" : "Opened from base rates"}
+          {m.ai.rationale ? `: ${m.ai.rationale.replace(/\.$/, "")}.` : "."}
         </span>
       </p>
     </div>

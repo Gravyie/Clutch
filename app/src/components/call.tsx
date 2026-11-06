@@ -81,7 +81,7 @@ export function CallMarket({ slug, className }: { slug: string; className?: stri
 
   return (
     <div className={cn("rounded-2xl border border-dashed border-border-strong p-4", className)}>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
         <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand">
           <CubeIcon size={18} weight="duotone" />
         </span>
@@ -93,7 +93,7 @@ export function CallMarket({ slug, className }: { slug: string; className?: stri
               : "The AI reads the stream now and opens a market, paid for by your own 0G credits."}
           </div>
         </div>
-        <Button onClick={call} disabled={busy} className="h-10 rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90">
+        <Button onClick={call} disabled={busy} className="col-span-2 h-10 rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90 sm:col-span-1">
           {busy ? <CircleNotchIcon className="animate-spin" /> : <LightningIcon weight="fill" />}
           {busy ? "Reading the stream…" : zg.key ? "Call a market" : "Connect 0G"}
         </Button>

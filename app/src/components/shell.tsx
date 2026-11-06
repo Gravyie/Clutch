@@ -49,6 +49,7 @@ const NAV = [
 /** Live markets first, then live video, then live chess, then offline; audience breaks ties. */
 export function channelRank(a: StreamSummary, b: StreamSummary) {
   const score = (s: StreamSummary) =>
+    (s.slug === "replay" ? -8e9 : 0) + // the offline demo replay never outranks a real live stream
     (s.market?.phase === "trading" ? 4e9 : 0) + (s.reading ? 2e9 : 0) + (s.live && !s.rerun ? 1e9 : 0) + (s.media?.kind === "video" ? 5e8 : 0) + (s.platformViewers ?? 0) + s.watching * 1000;
   return score(b) - score(a);
 }
@@ -235,11 +236,11 @@ function SideFooter() {
   const agent = useLive((s) => s.agent);
   return (
     <div className="border-t border-border p-4 text-xs text-faint">
-      <div className="flex items-center justify-between">
-        <span>Market engine</span>
+      <div className="flex items-center justify-between gap-2 whitespace-nowrap">
+        <span>AI engine</span>
         <span className={cn("flex items-center gap-1.5 font-medium", agent?.mode === "full" ? "text-yes" : "text-warn")}>
           {agent?.mode === "full" && <span className="size-1.5 animate-live rounded-full bg-yes" />}
-          {agent ? (agent.provider === "0g" ? `0G · ${agent.requestsToday} calls today` : "Offline model") : "…"}
+          {agent ? (agent.provider === "0g" ? `0G · ${agent.requestsToday.toLocaleString()} calls today` : "Offline model") : "…"}
         </span>
       </div>
       <div className="mt-2 flex gap-3">

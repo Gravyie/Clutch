@@ -184,7 +184,8 @@ function VideoStage({ stream }: { stream: StreamState }) {
           <Offline s={stream} message="Watch on YouTube" />
         )}
         <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2">
-          {stream.live && <LiveBadge />}
+          {/* Twitch's player draws its own LIVE badge and title; ours would sit on top of them. */}
+          {stream.live && m.platform !== "twitch" && <LiveBadge />}
           {stream.rerun && <span className="rounded-[5px] bg-warn px-1.5 py-px text-[10.5px] font-semibold text-black">RERUN · NO MARKETS</span>}
         </div>
       </div>

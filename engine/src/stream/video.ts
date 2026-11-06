@@ -68,6 +68,8 @@ const MAX_LIVE = 2; // one trading + one playing out, so there's almost always s
  * connection: before opening, at window start, when A sees the outcome early, and at window end. Both must reach
  * the same verdict or the market voids and everyone is refunded. Reruns never get markets.
  */
+const SCREEN: Record<string, string> = { menu: "a menu", replay: "a replay", break: "a break screen", camera: "the camera, not the game", other: "something other than gameplay" };
+
 export class VideoRunner extends EventEmitter {
   state: StreamState;
   readonly ref: ChannelRef;
@@ -279,7 +281,7 @@ export class VideoRunner extends EventEmitter {
     if (this.live.length >= MAX_LIVE) return { ok: false, reason: "Two markets are already playing out. The next one opens in a moment." };
     if (this.proposing) return { ok: false, reason: "The AI is already creating a market." };
     const latest = this.timeline[this.timeline.length - 1];
-    if (!latest || latest.state.mode !== "gameplay") return { ok: false, reason: `The AI sees ${latest ? `a ${latest.state.mode} screen` : "nothing yet"}. Markets open during live gameplay.` };
+    if (!latest || latest.state.mode !== "gameplay") return { ok: false, reason: `The AI sees ${latest ? (SCREEN[latest.state.mode] ?? "something other than gameplay") : "nothing yet"}. Markets open during live gameplay.` };
     this.proposing = true;
     this.lastProposalAt = Date.now();
     try {
