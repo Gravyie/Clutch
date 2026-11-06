@@ -466,7 +466,7 @@ function NoMarket({ hint }: { hint?: string }) {
           <span className="absolute -right-0.5 -top-0.5 size-2.5 animate-live rounded-full bg-yes" />
         </div>
         <div>
-          <div className="text-sm font-semibold">Watching for the next moment</div>
+          <div className="text-sm font-semibold">No market right now</div>
           <div className="text-xs text-muted-foreground">{hint ?? "A market opens when the outcome is genuinely uncertain."}</div>
         </div>
       </div>

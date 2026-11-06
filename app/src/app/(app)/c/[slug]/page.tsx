@@ -24,6 +24,19 @@ interface ChannelData {
   latency: { samples: number; p50: number | null; p95: number | null };
 }
 
+/** Why a channel has no market right now, in plain words. */
+function waitingReason(s?: StreamState) {
+  if (!s) return undefined;
+  if (s.media?.kind !== "video") return s.live ? "A market opens when the game gets genuinely uncertain." : "Waiting for the next game.";
+  if (!s.live) return "This channel is offline. Markets open automatically when it goes live.";
+  if (s.rerun) return "This is a rerun. The result already happened, so it never gets markets.";
+  if (!s.reading) return "Queued for an AI reader. The busiest live channels are read first.";
+  const v = s.vision?.state;
+  if (!v) return "The AI is starting to read this stream.";
+  if (v.mode !== "gameplay") return `The AI sees a ${v.mode} screen. Markets open during live gameplay.`;
+  return "The AI is reading live gameplay and waiting for a moment worth a market.";
+}
+
 export default function ChannelPage() {
   const { slug } = useParams<{ slug: string }>();
   useChannel(`stream:${slug}`);
@@ -55,7 +68,7 @@ export default function ChannelPage() {
         <StreamStage stream={stream} />
         {stream && <ChannelHeader s={stream} />}
         <div className="xl:hidden">
-          <MarketPanel m={market && isOpen(market) ? market : (market ?? undefined)} pool={data?.pool.key} />
+          <MarketPanel m={market && isOpen(market) ? market : (market ?? undefined)} pool={data?.pool.key} emptyHint={waitingReason(stream)} />
         </div>
         <Tabs defaultValue="moments">
           <TabsList className="h-10 rounded-xl bg-raised p-1">
@@ -82,7 +95,7 @@ export default function ChannelPage() {
       </div>
 
       <aside data-testid="market-aside" className="hidden space-y-4 xl:sticky xl:top-[4.5rem] xl:block xl:h-fit">
-        <MarketPanel m={market ?? undefined} pool={data?.pool.key} />
+        <MarketPanel m={market ?? undefined} pool={data?.pool.key} emptyHint={waitingReason(stream)} />
         {market && (
           <section className="surface p-4">
             <h3 className="mb-3 text-sm font-semibold">Recent trades</h3>

@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   categoryFor,
+  MIN_CONFIDENCE,
   readable,
   ruleHash as hashRule,
   validate,
@@ -233,7 +234,7 @@ export class VideoRunner extends EventEmitter {
     if (this.state.rerun) return this.refuseOnce("rerun", "Markets on this stream", "not-resolvable", "This is a rerun: the result already happened, so trading it would be insider trading.");
     const now = Date.now();
     if (now - this.lastSettledAt < config.cooldownSec * 1000 || now - this.lastProposalAt < 15_000) return;
-    if (latest.state.mode !== "gameplay" || latest.state.confidence < 0.6) return;
+    if (latest.state.mode !== "gameplay" || latest.state.confidence < MIN_CONFIDENCE) return;
     if (this.zg.mode === "paused") return;
 
     const s = latest.state;

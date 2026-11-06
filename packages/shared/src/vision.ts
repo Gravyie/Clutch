@@ -280,9 +280,12 @@ const FIELD_OK: Record<VisionField, (s: SceneState) => boolean> = {
   clock: (s) => has(s.clock),
 };
 
+/** Readers report their own confidence; models differ in calibration (0G's Claude is conservative), so 0.4. */
+export const MIN_CONFIDENCE = 0.4;
+
 /** A template is resolvable only if both readers currently see every field it needs, confidently. */
 export function readable(t: VisionTemplate, a: SceneState, b?: SceneState) {
-  const ok = (s: SceneState) => s.confidence >= 0.6 && t.requires.every((f) => FIELD_OK[f](s));
+  const ok = (s: SceneState) => s.confidence >= MIN_CONFIDENCE && t.requires.every((f) => FIELD_OK[f](s));
   return ok(a) && (!b || ok(b));
 }
 

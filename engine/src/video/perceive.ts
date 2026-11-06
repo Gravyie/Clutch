@@ -24,7 +24,7 @@ const HUD: Record<Category, [number, number, number, number] | null> = {
   fps: [0.28, 0, 0.44, 0.15],
   moba: [0.3, 0, 0.4, 0.1],
   sports: [0, 0, 0.42, 0.16],
-  "battle-royale": [0.62, 0, 0.38, 0.22],
+  "battle-royale": [0.7, 0, 0.3, 0.42], // minimap column: Fortnite/Apex/Warzone show players left beside or under it
   irl: null,
   other: [0.25, 0, 0.5, 0.15],
 };
@@ -33,7 +33,7 @@ const HUD_PROMPT: Record<Category, string> = {
   fps: "This is the scoreboard of a shooter broadcast. Read the two team names or tags (left = A, right = B), each team's round score, the round clock in seconds, the round number, and whether a bomb/spike icon shows planted.",
   moba: "This is the top bar of a MOBA. Read each team's kill score (left = A, right = B) and the game clock in seconds.",
   sports: "This is a sports score bug. Read the two team abbreviations (first/left = A), their scores, and the match clock in seconds.",
-  "battle-royale": "This is the top-right of a battle royale HUD. Read the players (or teams) remaining counter.",
+  "battle-royale": "This is the top-right of a battle royale HUD (minimap area). Read the players (or teams) remaining counter, usually a number next to a person icon. Set legible true if that counter is readable.",
   irl: "",
   other: "Read any scoreboard: team names, scores and clock.",
 };
@@ -157,7 +157,9 @@ export class OpenAIVision implements VisionReader {
       bomb: category === "fps" && legible ? (hud.bomb === "planted" ? "planted" : hud.bomb === "none" ? "none" : null) : null,
       povAlive: typeof s.povAlive === "boolean" ? s.povAlive : null,
       summary: typeof s.summary === "string" ? s.summary.slice(0, 160) : "",
-      confidence: Math.max(0, Math.min(1, Number(s.confidence ?? 0.5) || 0)) * (legible ? 1 : 0.5),
+      // Confidence is about the scene read. An unreadable scoreboard nulls the scoreboard fields above instead of
+      // discounting what was read reliably (mode, whether the player is alive).
+      confidence: Math.max(0, Math.min(1, Number(s.confidence ?? 0.5) || 0)),
     };
     return { state, requestId: scene.requestId, ms: Date.now() - t0 };
   }
