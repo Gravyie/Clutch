@@ -136,7 +136,7 @@ sudo docker compose --env-file deploy/ec2/compose.env -f deploy/ec2/compose.yaml
 
 `/health` is process liveness. `/ready` verifies RPC chain ID, a chain head within 180 seconds, and SQLite readability, returning 503 on dependency failure. Docker health checks use `/ready`; no public RPC signing occurs there. An unhealthy Docker status alone does not restart a running container; `unless-stopped` restarts exited containers. Monitor health externally and investigate before restarting.
 
-Set Vercel's existing `NEXT_PUBLIC_ENGINE_URL=https://YOUR_ENGINE_DOMAIN` and redeploy the frontend through its owner. These are frontend environment instructions, not component changes. `APP_ORIGIN` on the engine must include the exact frontend origin. Connect to `wss://YOUR_ENGINE_DOMAIN/ws`, send `{"type":"sub","channels":["global","stream:YOUR_SLUG"]}`, and verify `hello`, stream and current-market recovery after reconnect. Caddy provides automatic HTTPS and WebSocket upgrades.
+Set Vercel's `NEXT_PUBLIC_ENGINE_URL=https://YOUR_ENGINE_DOMAIN` **and `NEXT_PUBLIC_CHAIN_ID=84532`**, then redeploy the frontend through its owner. The frontend defaults to local chain 31337 if the chain variable is omitted. Optionally set `NEXT_PUBLIC_RPC_URL` to a browser-safe Base Sepolia RPC; never expose the backend's private RPC credentials through a `NEXT_PUBLIC_*` variable. These are frontend environment instructions, not component changes. `APP_ORIGIN` on the engine must include the exact frontend origin. Connect to `wss://YOUR_ENGINE_DOMAIN/ws`, send `{"type":"sub","channels":["global","stream:YOUR_SLUG"]}`, and verify `hello`, stream and current-market recovery after reconnect. Caddy provides automatic HTTPS and WebSocket upgrades.
 
 ## Restart, update, backup and rollback
 
