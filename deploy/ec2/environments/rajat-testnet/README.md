@@ -45,3 +45,13 @@ docker compose --env-file /etc/clutch/compose.env \
 No engine host port is published. It listens within the isolated Docker network for Caddy; binding to 127.0.0.1 inside that container would prevent Caddy connecting. Host access is limited to HTTPS/WSS through Caddy. SSH is fully closed; use SSM.
 
 Remaining gates: encrypted owner keystore import/address verification; approved role updates; approved agent gas funding; DNS approval/access; World verification configuration; approval to copy necessary existing 0G/Twitch credentials; existing stream registration/import; frontend router compatibility decision. Public health/config/WS, authentic inference and Base Sepolia create/trade/lock/settle/claim have NOT been verified for this environment. Do not label it live.
+
+## Validation after environment integration
+
+Actual local production Docker builds passed both with the default manifest and the opt-in intended manifest. The intended image's JSON was checked in a network-disabled container. Engine typecheck and 22 regression tests passed; 7 Secrets Manager integration tests passed. Full Docker fixture validation passed native dependencies, SQLite persistence/recreation, read-only filesystem, public-role checks without credentials, shared-owner rejection, readiness, CORS, WebSocket reconnection, shutdown, Compose and Caddy validation. These are local fixture checks, not public production lifecycle proof.
+
+The earlier generation fixes are integrated with upstream AI pause/budget controls and its stricter ban on streamer-controlled survival markets retained. Regression lifecycle fixtures use team scores and prove YES/VOID evidence handling; they do not label survival or replay footage as a valid production market.
+
+One authentic minimal 0G inference request returned HTTP 402 (request ID `41b1649868277945, 54fe76b5-aa30-457a-a3f1-fa0ca3de5502`); inference is NOT working/verified until billing/quota is restored. Existing World app ID/signing key are missing. Vercel CLI inspected all projects in `rajat-srivastavs-projects-9923da49`; no Clutch project was present. Subdomain A/AAAA/CNAME checks returned no records. DNS changes remain unapplied.
+
+EC2 IAM has been tightened to `GetSecretValue` on the two exact secret ARNs above, replacing the planned-name ARN suffix patterns. No create/update/delete/list permission was added to the EC2 role.
