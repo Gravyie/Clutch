@@ -274,7 +274,7 @@ export function ChannelCard({ s }: { s: StreamSummary; size?: "md" | "lg" }) {
             {video ? (
               <div className="relative aspect-video">
                 {thumb && broken !== thumb ? (
-                  <img src={thumb} alt="" loading="lazy" onError={() => setBroken(thumb)} className="absolute inset-0 size-full object-cover transition duration-300 group-hover:scale-[1.03]" />
+                  <img src={thumb} alt="" loading="lazy" onError={() => setBroken(thumb)} className="absolute inset-0 size-full object-cover" />
                 ) : (
                   <div className="absolute inset-0 grid place-items-center text-faint">
                     <PlatformIcon p={s.media?.kind === "video" ? s.media.platform : undefined} size={26} />
@@ -283,7 +283,7 @@ export function ChannelCard({ s }: { s: StreamSummary; size?: "md" | "lg" }) {
               </div>
             ) : (
               <div className="bg-[radial-gradient(120%_90%_at_50%_0%,var(--raised),var(--sunk))] p-3 pt-10">
-                <div className="pointer-events-none overflow-hidden rounded-[10px] transition duration-300 group-hover:scale-[1.015]">
+                <div className="pointer-events-none overflow-hidden rounded-[10px]">
                   <LiveBoard id={`thumb-${s.slug}`} fen={s.fen} lastMove={s.lastMove} orientation={s.orientation} animate={false} />
                 </div>
               </div>

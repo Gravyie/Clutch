@@ -9,17 +9,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAccount } from "@/lib/account";
 import { api } from "@/lib/live";
 import { useUI } from "@/lib/ui";
 import { compactUsd, short, usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { LiveDot, Notice, PageHeader, PageShell, Reveal, Segmented, StatStrip } from "@/components/page";
 
 type Sort = "pnl" | "volume" | "winRate";
 type Stats = { markets: number; volume: number; traders: number; voids: number };
@@ -49,97 +48,86 @@ export default function Leaderboard() {
   const me = rows.find((r) => r.address.toLowerCase() === acct.address?.toLowerCase());
 
   return (
-    <div className="mx-auto max-w-[1100px] space-y-6 px-4 py-6 sm:px-6 sm:py-8">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="display text-3xl font-bold">Leaderboard</h1>
-            <Badge variant="outline" className="rounded-full text-muted-foreground">
-              Testnet
-            </Badge>
-          </div>
-          <p className="mt-1.5 max-w-[64ch] text-sm text-muted-foreground">Real people only, ranked on settled markets. All of a person&apos;s wallets count as one, and open positions don&apos;t count until they resolve.</p>
-        </div>
-        <div className="flex flex-col gap-2 sm:items-end">
-        {!acct.verified && (
-          <Button size="sm" className="h-9 rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => verify()}>
-            <SealCheckIcon weight="fill" /> Verify to get ranked
-          </Button>
-        )}
-        <ToggleGroup type="single" variant="outline" value={sort} onValueChange={(v) => v && setSort(v as Sort)} aria-label="Rank by" className="w-full sm:w-auto">
-          {SORTS.map((s) => (
-            <ToggleGroupItem key={s.k} value={s.k} className="h-9 flex-1 px-4 text-[13px] data-[state=on]:bg-foreground data-[state=on]:text-background sm:flex-none">
-              {s.label}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Ranked wallets" value={data ? String(rows.length) : undefined} />
-        <Stat label="Markets settled" value={stats ? stats.markets.toLocaleString() : undefined} />
-        <Stat label="Test USDC traded" value={stats ? compactUsd(stats.volume) : undefined} />
-        <Stat label="Voided and refunded" value={stats ? stats.voids.toLocaleString() : undefined} />
-      </div>
-
-      {acct.address ? (
-        me ? (
-          <Item variant="outline" className="bg-card shadow-sm">
-            <ItemMedia>
-              <Avatar name={me.name ?? me.address} size={40} />
-            </ItemMedia>
-            <ItemContent>
-              <ItemTitle>
-                Your rank <span className="font-mono tabular">#{me.place}</span>
-                <span className="text-muted-foreground">of {rows.length}</span>
-              </ItemTitle>
-              <ItemDescription>
-                {me.markets} {me.markets === 1 ? "market" : "markets"} · {Math.round(me.winRate * 100)}% won · {compactUsd(me.volume)} traded
-              </ItemDescription>
-            </ItemContent>
-            <ItemActions>
-              <PnL value={me.pnl} className="text-base" />
-            </ItemActions>
-          </Item>
-        ) : (
-          <Item variant="outline" className="border-dashed">
-            <ItemContent>
-              <ItemTitle>You&apos;re not ranked yet</ItemTitle>
-              <ItemDescription className="line-clamp-none">{acct.verified ? "You appear here after your first market settles." : "Verify you're a real person, then your first settled market puts you on the board."}</ItemDescription>
-            </ItemContent>
-          </Item>
-        )
-      ) : (
-        <Item variant="outline" className="border-dashed">
-          <ItemContent>
-            <ItemTitle>See where you stand</ItemTitle>
-            <ItemDescription className="line-clamp-none">Sign in and back a side on any live market. You&apos;re ranked once it settles.</ItemDescription>
-          </ItemContent>
-          <ItemActions>
-            <Button size="sm" className="rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => openSignIn()}>
-              Sign in
+    <PageShell>
+      <PageHeader
+        eyebrow={
+          <>
+            <LiveDot tone="yes" /> Testnet · real people only
+          </>
+        }
+        title="Leaderboard"
+        description="Ranked on settled markets. All of a person's wallets count as one, and open positions don't count until they resolve."
+        actions={
+          !acct.verified ? (
+            <Button className="h-11 rounded-full bg-foreground px-5 text-[14.5px] font-medium text-background hover:bg-foreground/90" onClick={() => verify()}>
+              <SealCheckIcon weight="fill" /> Verify to get ranked
             </Button>
-          </ItemActions>
-        </Item>
-      )}
+          ) : undefined
+        }
+      />
 
-      {rows.length >= 3 && <Podium rows={rows.slice(0, 3)} sort={sort} />}
+      <div className="space-y-4">
+        <StatStrip
+          items={[
+            { label: "Ranked people", value: data ? rows.length : undefined },
+            { label: "Markets settled", value: stats ? stats.markets.toLocaleString() : undefined },
+            { label: "Test USDC traded", value: stats ? compactUsd(stats.volume) : undefined },
+            { label: "Voided and refunded", value: stats ? stats.voids.toLocaleString() : undefined },
+          ]}
+        />
 
-      <Card className="gap-0 overflow-hidden py-0">
-        <CardHeader className="flex flex-row items-center justify-between border-b px-5 py-4 [.border-b]:pb-4">
-          <div>
-            <CardTitle className="text-sm">Rankings</CardTitle>
-            <CardDescription className="text-xs">Sorted by {SORTS.find((s) => s.k === sort)?.label.toLowerCase()}, updates every 20 seconds</CardDescription>
-          </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" className="text-faint" aria-label="How profit is calculated">
-                <InfoIcon size={16} />
+        {acct.address ? (
+          me ? (
+            <Notice
+              icon={<Avatar name={me.name ?? me.address} size={36} />}
+              title={
+                <>
+                  You&apos;re <span className="tabular-nums">#{me.place}</span> <span className="text-muted-foreground">of {rows.length}</span>
+                </>
+              }
+              action={<PnL value={me.pnl} className="text-lg" />}
+            >
+              {me.markets} {me.markets === 1 ? "market" : "markets"} · {Math.round(me.winRate * 100)}% won · {compactUsd(me.volume)} traded
+            </Notice>
+          ) : (
+            <Notice icon={<TrophyIcon size={16} />} title="You're not ranked yet">
+              {acct.verified ? "You appear here after your first market settles." : "Verify you're a real person, then your first settled market puts you on the board."}
+            </Notice>
+          )
+        ) : (
+          <Notice
+            icon={<TrophyIcon size={16} />}
+            title="See where you stand"
+            action={
+              <Button className="h-10 rounded-full bg-foreground px-5 font-medium text-background hover:bg-foreground/90" onClick={() => openSignIn()}>
+                Sign in
               </Button>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-[260px]">Profit is payouts minus stakes on settled markets, in test USDC. Voided markets are refunded and count as zero.</TooltipContent>
-          </Tooltip>
+            }
+          >
+            Back a side on any live market. You&apos;re ranked once it settles.
+          </Notice>
+        )}
+
+        {rows.length >= 3 && <Podium rows={rows.slice(0, 3)} sort={sort} />}
+
+        <Reveal delay={0.1}>
+      <Card className="gap-0 overflow-hidden py-0">
+        <CardHeader className="flex flex-col gap-4 border-b px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 [.border-b]:pb-5">
+          <div>
+            <CardTitle className="flex items-center gap-1.5 text-[15px]">
+              Rankings
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="text-faint transition-colors hover:text-foreground" aria-label="How profit is calculated">
+                    <InfoIcon size={15} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[260px]">Profit is payouts minus stakes on settled markets, in test USDC. Voided markets are refunded and count as zero.</TooltipContent>
+              </Tooltip>
+            </CardTitle>
+            <CardDescription className="mt-0.5 text-[12.5px]">Updates every 20 seconds</CardDescription>
+          </div>
+          <Segmented label="Rank by" value={sort} onChange={setSort} options={SORTS.map((x) => ({ value: x.k, label: x.label }))} />
         </CardHeader>
 
         {isLoading ? (
@@ -162,20 +150,20 @@ export default function Leaderboard() {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-14 pl-5 text-xs">Rank</TableHead>
-                <TableHead className="text-xs">Trader</TableHead>
-                <TableHead className="hidden text-right text-xs sm:table-cell">Markets</TableHead>
-                <TableHead className="hidden w-44 text-xs md:table-cell">Win rate</TableHead>
-                <TableHead className="hidden text-right text-xs sm:table-cell">Volume</TableHead>
-                <TableHead className="pr-5 text-right text-xs">Profit</TableHead>
+                <TableHead className="w-14 pl-6 text-xs font-normal text-faint">Rank</TableHead>
+                <TableHead className="text-xs font-normal text-faint">Trader</TableHead>
+                <TableHead className="hidden text-right text-xs font-normal text-faint sm:table-cell">Markets</TableHead>
+                <TableHead className="hidden w-44 text-xs font-normal text-faint md:table-cell">Win rate</TableHead>
+                <TableHead className="hidden text-right text-xs font-normal text-faint sm:table-cell">Volume</TableHead>
+                <TableHead className="pr-6 text-right text-xs font-normal text-faint">Profit</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((r) => {
                 const mine = r.address === me?.address;
                 return (
-                  <TableRow key={r.address} data-state={mine ? "selected" : undefined} className="h-14 data-[state=selected]:bg-brand-soft">
-                    <TableCell className="pl-5">
+                  <TableRow key={r.address} data-state={mine ? "selected" : undefined} className="h-16 border-border data-[state=selected]:bg-brand-soft">
+                    <TableCell className="pl-6">
                       <RankMark place={r.place} />
                     </TableCell>
                     <TableCell>
@@ -186,19 +174,19 @@ export default function Leaderboard() {
                             <span className="truncate text-sm font-medium">{name(r)}</span>
                             {mine && <Badge className="h-[18px] rounded-full bg-brand px-1.5 text-[10.5px] text-brand-foreground">You</Badge>}
                           </div>
-                          <div className="font-mono text-[11px] text-faint">{short(r.address, 6)}</div>
+                          <div className="text-[11.5px] text-faint tabular-nums">{short(r.address, 6)}</div>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="hidden text-right font-mono text-sm text-muted-foreground tabular sm:table-cell">{r.markets}</TableCell>
+                    <TableCell className="hidden text-right text-sm text-muted-foreground tabular-nums sm:table-cell">{r.markets}</TableCell>
                     <TableCell className="hidden md:table-cell">
                       <div className="flex items-center gap-2.5">
                         <Progress value={r.winRate * 100} className="h-1.5 bg-secondary [&>[data-slot=progress-indicator]]:bg-yes" />
-                        <span className="w-9 text-right font-mono text-xs text-muted-foreground tabular">{Math.round(r.winRate * 100)}%</span>
+                        <span className="w-9 text-right text-xs text-muted-foreground tabular-nums">{Math.round(r.winRate * 100)}%</span>
                       </div>
                     </TableCell>
-                    <TableCell className="hidden text-right font-mono text-sm text-muted-foreground tabular sm:table-cell">{compactUsd(r.volume)}</TableCell>
-                    <TableCell className="pr-5 text-right">
+                    <TableCell className="hidden text-right text-sm text-muted-foreground tabular-nums sm:table-cell">{compactUsd(r.volume)}</TableCell>
+                    <TableCell className="pr-6 text-right">
                       <PnL value={r.pnl} />
                     </TableCell>
                   </TableRow>
@@ -208,29 +196,23 @@ export default function Leaderboard() {
           </Table>
         )}
       </Card>
-    </div>
+        </Reveal>
+      </div>
+    </PageShell>
   );
 }
 
-function Stat({ label, value }: { label: string; value?: string }) {
-  return (
-    <Card className="gap-1.5 px-4 py-4">
-      <CardDescription className="text-xs">{label}</CardDescription>
-      {value === undefined ? <Skeleton className="h-7 w-20" /> : <CardTitle className="text-2xl font-semibold tracking-tight tabular">{value}</CardTitle>}
-    </Card>
-  );
-}
 
 function PnL({ value, className }: { value: number; className?: string }) {
-  return <span className={cn("font-mono text-sm font-semibold tabular", value > 0 ? "text-yes" : value < 0 ? "text-no" : "text-muted-foreground", className)}>{signed(value)}</span>;
+  return <span className={cn("text-sm font-semibold tabular-nums", value > 0 ? "text-yes" : value < 0 ? "text-no" : "text-muted-foreground", className)}>{signed(value)}</span>;
 }
 
 function RankMark({ place }: { place: number }) {
-  if (place > 3) return <span className="pl-1.5 font-mono text-sm text-faint tabular">{place}</span>;
+  if (place > 3) return <span className="pl-2 text-sm text-faint tabular-nums">{place}</span>;
   return (
     <span
       className={cn(
-        "grid size-7 place-items-center rounded-full font-mono text-xs font-bold tabular",
+        "grid size-7 place-items-center rounded-full text-xs font-semibold tabular-nums",
         place === 1 ? "bg-warn-soft text-warn" : place === 2 ? "bg-secondary text-muted-foreground" : "bg-[#c9824a]/15 text-[#c9824a]",
       )}
       aria-label={`Rank ${place}`}

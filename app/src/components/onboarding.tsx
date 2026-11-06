@@ -275,7 +275,7 @@ function FundStep() {
         <div className="space-y-3">
           <p className={cn("text-sm", err.code === "verify" ? "text-muted-foreground" : "text-no")}>{err.message}</p>
           {err.code === "verify" ? (
-            <Button className="h-10 w-full rounded-full bg-brand font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => verify()}>
+            <Button className="h-10 w-full rounded-full bg-foreground font-medium text-background hover:bg-foreground/90" onClick={() => verify()}>
               Verify with World ID
             </Button>
           ) : (

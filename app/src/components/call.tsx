@@ -139,7 +139,7 @@ function ConnectDialog({ open, onOpenChange, onConnect }: { open: boolean; onOpe
         <span className="grid size-11 place-items-center rounded-2xl bg-brand-soft text-brand">
           <CubeIcon size={22} weight="duotone" />
         </span>
-        <DialogTitle className="display text-2xl font-bold">Use your 0G credits</DialogTitle>
+        <DialogTitle className="display text-[2rem]">Use your 0G credits</DialogTitle>
         <DialogDescription className="text-sm leading-relaxed text-muted-foreground">
           Calling a market runs two vision models on 0G Private Computer: one reads the stream and writes the market, the other checks it can be settled. That inference is billed to your 0G account, usually well under a cent.
         </DialogDescription>
@@ -162,7 +162,7 @@ function ConnectDialog({ open, onOpenChange, onConnect }: { open: boolean; onOpe
           className="space-y-3"
         >
           <Input value={v} onChange={(e) => setV(e.target.value)} placeholder="sk-…" autoComplete="off" spellCheck={false} className="h-11 rounded-xl font-mono" aria-label="0G API key" />
-          <Button type="submit" disabled={!valid} className="h-11 w-full rounded-full bg-brand font-semibold text-brand-foreground hover:bg-brand/90">
+          <Button type="submit" disabled={!valid} className="h-11 w-full rounded-full bg-foreground font-medium text-background hover:bg-foreground/90">
             Connect
           </Button>
         </form>

@@ -1,5 +1,6 @@
 "use client";
 
+import { DotType } from "@/components/dot-type";
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -34,7 +35,7 @@ export default function PortfolioPage() {
     return (
       <Center>
         <ChartLineUpIcon size={36} className="text-faint" />
-        <h1 className="mt-3 text-xl font-semibold">Your positions live here</h1>
+        <DotType as="h1" start speed={34} text="Your positions live here" className="display mt-4 text-[2.2rem]" />
         <p className="mt-1 text-sm text-muted-foreground">Sign in to track open trades, winnings and history.</p>
         <Button className="mt-5 rounded-xl" onClick={() => open()}>
           Sign in
@@ -71,7 +72,7 @@ export default function PortfolioPage() {
         <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="text-sm text-muted-foreground">Total value</div>
-            <NumberFlow value={total} format={{ style: "currency", currency: "USD" }} className="display mt-1 text-5xl font-bold tabular sm:text-6xl" />
+            <NumberFlow value={total} format={{ style: "currency", currency: "USD" }} className="display mt-1 text-[3.4rem] tabular sm:text-[4rem]" />
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
               <span className={cn("font-medium tabular", pnl > 0.005 ? "text-yes" : pnl < -0.005 ? "text-no" : "text-muted-foreground")}>
                 {pnl > 0 ? "+" : ""}
@@ -81,7 +82,7 @@ export default function PortfolioPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button className="h-11 rounded-full bg-brand px-6 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => setWallet("deposit")}>
+            <Button className="h-11 rounded-full bg-foreground px-6 font-medium text-background hover:bg-foreground/90" onClick={() => setWallet("deposit")}>
               Deposit
             </Button>
             <Button variant="secondary" className="h-11 rounded-full px-6 font-semibold" onClick={() => setWallet("withdraw")}>

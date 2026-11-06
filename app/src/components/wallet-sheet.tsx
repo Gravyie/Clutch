@@ -67,14 +67,14 @@ function Home({ go }: { go: (v: View) => void }) {
   return (
     <div>
       <div className="text-xs text-muted-foreground">Balance</div>
-      <NumberFlow value={acct.spendable} format={{ style: "currency", currency: "USD" }} className="display mt-1 text-5xl font-bold tabular" />
+      <NumberFlow value={acct.spendable} format={{ style: "currency", currency: "USD" }} className="display mt-1 text-[3.4rem] tabular" />
       <div className="mt-2 flex gap-3 font-mono text-[11px] text-faint">
         <span>{usd(acct.usdc)} USDC</span>
         <span>{acct.eth.toFixed(4)} ETH</span>
         <span>on {chain.name}</span>
       </div>
       <div className="mt-6 grid grid-cols-2 gap-2">
-        <Button onClick={() => go("deposit")} className="h-12 rounded-full bg-brand text-[15px] font-semibold text-brand-foreground hover:bg-brand/90">
+        <Button onClick={() => go("deposit")} className="h-12 rounded-full bg-foreground text-[15px] font-medium text-background hover:bg-foreground/90">
           <ArrowDownIcon weight="bold" /> Deposit
         </Button>
         <Button onClick={() => go("withdraw")} variant="secondary" className="h-12 rounded-full text-[15px] font-semibold">
@@ -262,7 +262,7 @@ function RelayDeposit({ go }: { go: (v: View) => void }) {
               {stage === "quoting" && <CircleNotchIcon className="animate-spin" />} Get quote
             </Button>
           ) : (
-            <Button onClick={go2} disabled={stage !== "idle"} className="h-12 w-full rounded-full bg-brand font-semibold text-brand-foreground hover:bg-brand/90">
+            <Button onClick={go2} disabled={stage !== "idle"} className="h-12 w-full rounded-full bg-foreground font-medium text-background hover:bg-foreground/90">
               {stage !== "idle" && <CircleNotchIcon className="animate-spin" />}
               {stage === "signing" ? "Confirm in your wallet…" : stage === "bridging" ? "Bridging…" : "Deposit"}
             </Button>

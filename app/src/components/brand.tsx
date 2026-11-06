@@ -2,31 +2,33 @@ import { cn } from "@/lib/utils";
 import { hueOf } from "@/lib/format";
 
 /**
- * The Clutch mark: a tilted "C" catching a dot (the moment) inside two viewfinder corners (the frame that catches it).
- * Signal lime and ink in every theme, so the brand reads the same everywhere. Same drawing as app/icon.svg.
+ * The Clutch mark: a "C" folded from three flat planes, catching a diamond (the moment) in its opening.
+ * No tile: it is drawn in currentColor so it sits on any surface, and only the diamond carries the brand accent.
+ * Same drawing as app/icon.svg.
  */
-export function LogoMark({ className, frame = true }: { className?: string; frame?: boolean }) {
+export function LogoMark({ className, accent = "var(--brand)" }: { className?: string; accent?: string }) {
   return (
-    <svg viewBox="0 0 64 64" className={cn("size-7 shrink-0", className)} aria-hidden>
-      <rect width="64" height="64" rx="16" fill="#b8f36b" />
-      {frame && <path d="M47 9H55V17M9 47V55H17" fill="none" stroke="#101808" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />}
-      <g transform="rotate(-14 32 32)">
-        <path d="M40.4 22.63A14 14 0 1 0 40.4 41.37" fill="none" stroke="#101808" strokeWidth="8.5" strokeLinecap="round" />
-        <circle cx="46.5" cy="32" r="5.2" fill="#101808" />
-      </g>
+    <svg viewBox="0 0 32 32" fill="currentColor" className={cn("size-6 shrink-0", className)} aria-hidden>
+      <polygon points="5,5 27,5 22.2,10.2 10.2,10.2" />
+      <polygon points="5,5.9 9.3,10.2 9.3,21.8 5,26.1" opacity=".72" />
+      <polygon points="5,27 10.2,21.8 22.2,21.8 27,27" />
+      <polygon points="22.5,12.4 26.1,16 22.5,19.6 18.9,16" fill={accent} />
     </svg>
   );
 }
 
-export function Logo({ className }: { className?: string }) {
+/** Mark plus the tracked uppercase wordmark. */
+export function Logo({ className, accent }: { className?: string; accent?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <LogoMark className="size-8" />
-      <span className="text-[21px] font-extrabold leading-none tracking-[-0.06em]">
-        clutch<span className="text-brand">.</span>
-      </span>
+      <LogoMark className="size-[22px]" accent={accent} />
+      <Wordmark />
     </span>
   );
+}
+
+export function Wordmark({ className }: { className?: string }) {
+  return <span className={cn("mr-[-0.32em] text-[14.5px] font-semibold leading-none tracking-[0.32em]", className)}>CLUTCH</span>;
 }
 
 export function LiveBadge({ className, label = "LIVE" }: { className?: string; label?: string }) {

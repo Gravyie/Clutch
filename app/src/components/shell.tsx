@@ -168,18 +168,18 @@ function TopBar() {
                 <NumberFlow value={acct.spendable} format={{ style: "currency", currency: "USD" }} className="font-medium tabular" />
               </button>
               {acct.onboarded ? (
-                <Button size="sm" className="hidden h-9 rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90 sm:inline-flex" onClick={() => setWallet("deposit")}>
+                <Button size="sm" className="hidden h-9 rounded-full bg-foreground px-4 font-medium text-background hover:bg-foreground/90 sm:inline-flex" onClick={() => setWallet("deposit")}>
                   Deposit
                 </Button>
               ) : (
-                <Button size="sm" className="h-9 rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => open()}>
+                <Button size="sm" className="h-9 rounded-full bg-foreground px-4 font-medium text-background hover:bg-foreground/90" onClick={() => open()}>
                   Finish setup
                 </Button>
               )}
               <AccountMenu />
             </>
           ) : (
-            <Button size="sm" className="h-9 rounded-full bg-brand px-5 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => open()} disabled={!wallet.ready}>
+            <Button size="sm" className="h-9 rounded-full bg-foreground px-5 font-medium text-background hover:bg-foreground/90" onClick={() => open()} disabled={!wallet.ready}>
               Sign in
             </Button>
           )}
@@ -253,7 +253,7 @@ function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton asChild size="lg" className="h-10 hover:bg-transparent active:bg-transparent">
               <Link href="/" onClick={close} aria-label="Clutch home">
-                <Logo />
+                <Logo className="text-sidebar-accent-foreground" />
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

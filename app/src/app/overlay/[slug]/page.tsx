@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
-import { LogoMark } from "@/components/brand";
+import { LogoMark, Wordmark } from "@/components/brand";
 import { useChannel, useLive, useNow } from "@/lib/live";
 import { cents } from "@/lib/format";
 
@@ -29,8 +29,8 @@ export default function Overlay() {
   return (
     <div className="pointer-events-none fixed inset-0 font-sans text-white">
       <div className="absolute left-10 top-8 flex items-center gap-2 rounded-xl bg-black/60 px-3 py-2 backdrop-blur">
-        <LogoMark className="size-6" />
-        <span className="text-base font-semibold tracking-tight">Clutch</span>
+        <LogoMark className="size-5" />
+        <Wordmark className="text-[13px]" />
       </div>
       {show && market && (
         <div key={market.id} className="overlay-in absolute bottom-10 left-10 flex w-[640px] gap-5 rounded-2xl border border-white/10 bg-black/80 p-5 backdrop-blur-md">
