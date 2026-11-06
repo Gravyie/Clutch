@@ -21,3 +21,4 @@ export const chain =
 
 export const explorerTx = (hash?: string) => (hash && chain.blockExplorers ? `${chain.blockExplorers.default.url}/tx/${hash}` : undefined);
 export const explorerAddress = (a?: string) => (a && chain.blockExplorers ? `${chain.blockExplorers.default.url}/address/${a}` : undefined);
+export const REPO = "https://github.com/Gravyie/Clutch";

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import type { MarketView, StreamState } from "@clutch/shared";
 import { CountdownRing, PriceChart, isOpen } from "@/components/market";
 import { useEnsureReady } from "@/components/onboarding";
+import { CallMarket } from "@/components/call";
 import { useAccount, type PoolKey, type Refusal } from "@/lib/account";
 import { useLive, useNow } from "@/lib/live";
 import { ENGINE_URL } from "@/lib/env";
@@ -62,7 +63,7 @@ function Question({ m, stream }: { m: MarketView; stream?: StreamState }) {
         </span>
       </div>
       <div className="mt-2 flex items-start gap-4">
-        <h2 className="flex-1 text-2xl font-semibold leading-tight tracking-tight text-balance sm:text-[28px]">{m.question}</h2>
+        <h2 className="display flex-1 text-[26px] font-bold leading-[1.05] sm:text-[32px]">{m.question}</h2>
         {m.phase === "trading" && <CountdownRing from={m.openedAt} to={m.lockTime} size={52} />}
       </div>
       <div className="mt-3 flex items-baseline gap-2">
@@ -74,7 +75,7 @@ function Question({ m, stream }: { m: MarketView; stream?: StreamState }) {
       <p className="mt-1 flex items-start gap-1.5 text-xs text-faint">
         <SparkleIcon size={13} className="mt-px shrink-0" />
         <span className="line-clamp-2">
-          {m.ai.provider === "0g" ? "Created and priced by the 0G agent" : "Created from base rates"} from what's on screen{stream?.vision ? ` (${stream.vision.state.summary})` : ""}.
+          {m.ai.paidBy === "viewer" ? "Called by a viewer on their own 0G credits" : m.ai.provider === "0g" ? "Created and priced by the 0G agent" : "Created from base rates"} from what's on screen{stream?.vision ? ` (${stream.vision.state.summary})` : ""}.
         </span>
       </p>
     </div>
@@ -202,16 +203,20 @@ function AfterLock({ m, stream }: { m: MarketView; stream?: StreamState }) {
 }
 
 function Waiting({ stream, hint }: { stream?: StreamState; hint?: string }) {
+  const callable = stream?.media?.kind === "video" && stream.live && !stream.rerun;
   return (
-    <section className="surface flex items-center gap-4 p-5">
-      <div className="relative grid size-11 shrink-0 place-items-center rounded-xl bg-raised">
-        <ScanIcon size={22} className="text-muted-foreground" />
-        {stream?.reading && <span className="absolute -right-0.5 -top-0.5 size-2.5 animate-live rounded-full bg-yes" />}
+    <section className="surface p-5">
+      <div className="flex items-center gap-4">
+        <div className="relative grid size-11 shrink-0 place-items-center rounded-xl bg-raised">
+          <ScanIcon size={22} className="text-muted-foreground" />
+          {stream?.reading && <span className="absolute -right-0.5 -top-0.5 size-2.5 animate-live rounded-full bg-yes" />}
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold">Next market is coming</div>
+          <div className="text-sm text-muted-foreground">{hint ?? "Markets open when the action gets uncertain."}</div>
+        </div>
       </div>
-      <div className="min-w-0">
-        <div className="text-sm font-semibold">Next market is coming</div>
-        <div className="text-sm text-muted-foreground">{hint ?? "Markets open when the action gets uncertain."}</div>
-      </div>
+      {callable && stream && <CallMarket slug={stream.slug} className="mt-4" />}
     </section>
   );
 }

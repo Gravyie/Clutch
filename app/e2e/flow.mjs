@@ -17,7 +17,7 @@ const check = (name, ok = true, detail = "") => {
 };
 
 async function onboard(page, persona) {
-  await page.goto(APP + "/");
+  await page.goto(APP + "/live");
   await page.getByRole("button", { name: "Sign in" }).first().click();
   await page.getByRole("button", { name: "Create guest wallet" }).click();
   await page.getByRole("button", { name: new RegExp(persona) }).click();

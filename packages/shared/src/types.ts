@@ -29,6 +29,8 @@ export interface AiDecision {
   costUsd?: number;
   rationale: string;
   headline?: string;
+  /** who paid for the inference that created this market */
+  paidBy?: "platform" | "viewer";
 }
 
 export interface MarketView {

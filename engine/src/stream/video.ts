@@ -27,7 +27,7 @@ import { config } from "../config";
 import { log } from "../log";
 import * as chain from "../chain";
 import { all, run } from "../db";
-import type { ZeroG } from "../ai/zeroG";
+import { ZeroG } from "../ai/zeroG";
 import { storeEvidence } from "../evidence";
 import { FrameSampler, grabFrame, probe, type ChannelRef, type Frame } from "../video/capture";
 import type { VisionReader } from "../video/perceive";
@@ -77,6 +77,8 @@ export class VideoRunner extends EventEmitter {
   private proposing = false;
   private refused = new Set<string>();
   private recentQuestions: string[] = [];
+  /** spec keys of the most recent markets, newest first: the hard no-repeat rule reads this */
+  private recentKeys: string[] = [];
   private ticker?: NodeJS.Timeout;
   private prober?: NodeJS.Timeout;
   private category: Category = "other";
@@ -263,12 +265,54 @@ export class VideoRunner extends EventEmitter {
   }
 
   /** The 0G agent picks a counter, a kind, a threshold and a window, prices it, and phrases the question. */
-  private async choose(counters: { key: string; label: string; value: number }[], s: SceneState, pov: boolean) {
+  /**
+   * A viewer asks for a market now, paying the agent's inference with their own 0G account. Skips the wait for a
+   * "tense" moment, but every integrity rule still applies (live gameplay, both readers, no repeats, no reruns).
+   */
+  async callMarket(viewer: ZeroG): Promise<{ ok: true; marketId: number; question: string; costUsd: number; requestId?: string } | { ok: false; reason: string }> {
+    if (!this.state.live) return { ok: false, reason: "This channel is offline." };
+    if (this.state.rerun) return { ok: false, reason: "Reruns never get markets: the result already happened." };
+    if (!this.slotGranted) return { ok: false, reason: "The AI isn't reading this channel right now. Try one marked AI watching." };
+    if (this.live.some((m) => m.view.phase === "trading")) return { ok: false, reason: "A market is already open. Trade that one first." };
+    if (this.live.length >= MAX_LIVE) return { ok: false, reason: "Two markets are already playing out. The next one opens in a moment." };
+    if (this.proposing) return { ok: false, reason: "The AI is already creating a market." };
+    const latest = this.timeline[this.timeline.length - 1];
+    if (!latest || latest.state.mode !== "gameplay") return { ok: false, reason: `The AI sees ${latest ? `a ${latest.state.mode} screen` : "nothing yet"}. Markets open during live gameplay.` };
+    this.proposing = true;
+    this.lastProposalAt = Date.now();
+    try {
+      const counters = this.steadyCounters();
+      const pov = latest.state.povAlive === true;
+      const pick = await this.choose(counters, latest.state, pov, viewer, 1);
+      if (!pick) return { ok: false, reason: "Nothing on screen makes a fair market right now. Try again in a few seconds." };
+      const keys = this.keysOf(pick.spec);
+      if (keys.length) {
+        const fb = await grabFrame(this.ref, 1024);
+        const rb = await this.readers.b.readKeys(fb.jpeg, keys);
+        if (rb.mode !== "gameplay" || keys.some((k) => rb.values[k.key] === null)) return { ok: false, reason: `The second reader can't see "${pick.spec.label}" right now, so it can't be settled fairly.` };
+      }
+      const id = await this.open(pick.spec, pick.question, pick.p, { ...pick.ai, paidBy: "viewer" }, latest.state);
+      return { ok: true, marketId: id, question: pick.question, costUsd: pick.ai.costUsd ?? 0, requestId: pick.ai.requestId };
+    } catch (e: any) {
+      return { ok: false, reason: /401|403|auth/i.test(e.message) ? "0G rejected that key. Check it at pc.0g.ai." : /402|insufficient|balance/i.test(e.message) ? "Your 0G balance is too low for this call." : "The AI couldn't create a market just now." };
+    } finally {
+      this.proposing = false;
+    }
+  }
+
+  private async choose(allCounters: { key: string; label: string; value: number }[], s: SceneState, povAvailable: boolean, zg: ZeroG = this.zg, memory = 3) {
+    // Hard no-repeat rule, enforced here rather than requested in the prompt: a counter can't carry two of the last
+    // `memory` markets, and "survives" can't run twice in a row. A viewer calling a market explicitly gets memory 1
+    // (never the same market back to back), since a HUD with one counter would otherwise refuse them for minutes.
+    const banned = new Set(this.recentKeys.slice(0, memory));
+    const counters = allCounters.filter((c) => !banned.has(c.key));
+    const pov = povAvailable && !this.recentKeys.slice(0, Math.min(2, memory)).includes("__pov_alive");
+    if (!counters.length && !pov) return null;
     const recent = this.live.map((m) => m.spec.key);
-    if (this.zg.provider === "0g") {
+    if (zg.provider === "0g") {
       const history = this.timeline.slice(-8).map((r) => ({ t: Math.round((r.at - Date.now()) / 1000), mode: r.state.mode, counters: Object.fromEntries((r.state.counters ?? []).map((c) => [c.key, c.value])) }));
       try {
-        const res = await this.zg.json<{ kind: CounterKind | "survives"; key: string; key2?: string; threshold?: number; seconds: number; pYes: number; question: string; contested: boolean; rationale: string }>(
+        const res = await zg.json<{ kind: CounterKind | "survives"; key: string; key2?: string; threshold?: number; seconds: number; pYes: number; question: string; contested: boolean; rationale: string }>(
           `You create live prediction markets for Clutch from what's on a stream's screen. Pick ONE market that is genuinely uncertain and exciting in the next 20-60 seconds.
 Allowed kinds:
 - goes_up: a counter increases (kills, eliminations, team score)
@@ -288,12 +332,12 @@ Respond with JSON only: {"kind","key","key2","threshold","seconds","pYes","quest
         if (!(p >= 0.15 && p <= 0.85)) return this.refuse(d.question ?? "AI proposal", "not-uncertain", `Opening probability ${Math.round(p * 100)}% is outside 15-85%.`);
         let spec: CounterSpec;
         if (d.kind === "survives") {
-          if (!pov) return null;
+          if (!pov) return null; // banned by the no-repeat rule or not visible
           spec = { kind: "goes_up", key: "__pov_alive", label: "Streamer alive", seconds };
         } else {
           const c = counters.find((x) => x.key === d.key);
           const c2 = d.key2 ? counters.find((x) => x.key === d.key2) : undefined;
-          if (!c || (d.kind === "race" && !c2)) return null;
+          if (!c || (d.kind === "race" && !c2) || banned.has(c.key)) return null;
           if (!["goes_up", "reaches", "drops_below", "race"].includes(d.kind)) return null;
           spec = { kind: d.kind, key: c.key, label: c.label, key2: c2?.key, label2: c2?.label, threshold: d.threshold !== undefined && d.threshold !== null ? Number(d.threshold) : undefined, seconds };
           // A threshold that's already met isn't a question.
@@ -328,7 +372,7 @@ Respond with JSON only: {"kind","key","key2","threshold","seconds","pYes","quest
     return null;
   }
 
-  private async open(spec: CounterSpec, question: string, p: number, ai: AiDecision, s: SceneState) {
+  private async open(spec: CounterSpec, question: string, p: number, ai: AiDecision, s: SceneState): Promise<number> {
     const t0 = await chain.chainNow();
     const lockTime = t0 + config.videoTradingSec;
     const windowStart = lockTime + this.state.latencyBufferSec;
@@ -379,10 +423,12 @@ Respond with JSON only: {"kind","key","key2","threshold","seconds","pYes","quest
     );
     this.live.push({ view, rule, spec, b: [], bStarted: false, checking: false, resolving: false, frames: [] });
     this.recentQuestions = [question, ...this.recentQuestions].slice(0, 5);
+    this.recentKeys = [spec.key, ...this.recentKeys].slice(0, 6);
     log.market(`${this.row.slug} #${view.id}`, `"${question}"`, `p=${p}`, ai.provider, ai.requestId ?? "");
-    this.moment(`New market: ${question}`, "market");
+    this.moment(ai.paidBy === "viewer" ? `A viewer called a market: ${question}` : `New market: ${question}`, "market");
     this.emit("market", view);
     this.changed();
+    return view.id;
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────────────────────────────────

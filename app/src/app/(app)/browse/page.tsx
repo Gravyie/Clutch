@@ -25,7 +25,7 @@ export default function Browse() {
   const shown = streams.filter((s) => f === "all" || s.category === f);
   return (
     <div className="mx-auto max-w-[1480px] px-4 py-6 sm:px-6">
-      <h1 className="text-3xl font-semibold tracking-tight">Browse</h1>
+      <h1 className="display text-3xl font-bold">Browse</h1>
       <div className="scrollbar-none mt-5 flex gap-2 overflow-x-auto">
         {FILTERS.map((x) => (
           <button key={x.id} onClick={() => setF(x.id)} className={cn("h-9 shrink-0 rounded-full px-4 text-sm font-medium transition", f === x.id ? "bg-foreground text-background" : "bg-raised text-muted-foreground hover:text-foreground")}>

@@ -63,7 +63,7 @@ export default function PortfolioPage() {
 
   return (
     <div className="mx-auto max-w-[1100px] space-y-6 px-4 py-6 sm:px-6">
-      <h1 className="text-3xl font-semibold tracking-tight">Portfolio</h1>
+      <h1 className="display text-3xl font-bold">Portfolio</h1>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Cash" value={acct.usdc} money />
         <Stat label="In open markets" value={data?.stats.openValue ?? 0} money />

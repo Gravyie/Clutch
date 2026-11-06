@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Responsible play" };
 export default function ResponsiblePlay() {
   return (
     <div className="mx-auto max-w-[720px] px-4 py-10 sm:px-6">
-      <h1 className="text-4xl font-semibold tracking-tighter">Responsible play</h1>
+      <h1 className="display text-4xl font-bold">Responsible play</h1>
       <p className="mt-4 text-lg leading-relaxed text-muted-foreground">Clutch is for adults, for fun, with money you can afford to lose. These controls are built into the contracts, not just the app.</p>
       <div className="mt-10 space-y-8 text-[15px] leading-relaxed">
         <section>

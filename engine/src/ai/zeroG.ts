@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { config } from "../config";
 import { log } from "../log";
+import { kvGet, kvSet } from "../db";
 import type { AgentState } from "@clutch/shared";
 
 /**
@@ -18,9 +19,25 @@ export class ZeroG {
   spentTodayUsd = 0;
   lastRequestId?: string;
 
-  constructor() {
-    if (config.zgApiKey) this.client = new OpenAI({ baseURL: config.zgRouterUrl, apiKey: config.zgApiKey });
+  /** @param apiKey defaults to the platform key; a viewer's own key makes their account pay for the call. */
+  constructor(readonly apiKey: string | undefined = config.zgApiKey, readonly payer: "platform" | "viewer" = "platform") {
+    if (apiKey) this.client = new OpenAI({ baseURL: config.zgRouterUrl, apiKey, timeout: 45_000, maxRetries: 0 });
     void this.loadPricing();
+    if (payer === "platform") void this.restore();
+  }
+
+  /** The platform budget survives restarts, so a crash loop can't reset the daily cap. */
+  private async restore() {
+    const saved = JSON.parse((await kvGet("zg:budget").catch(() => undefined)) ?? "null") as { day: string; requests: number; spent: number; last?: string } | null;
+    if (saved?.day !== this.day) return;
+    this.requestsToday += saved.requests;
+    this.spentTodayUsd += saved.spent;
+    this.lastRequestId ??= saved.last;
+  }
+
+  private persist() {
+    if (this.payer !== "platform") return;
+    void kvSet("zg:budget", JSON.stringify({ day: this.day, requests: this.requestsToday, spent: this.spentTodayUsd, last: this.lastRequestId })).catch(() => {});
   }
 
   get provider(): AgentState["provider"] {
@@ -44,16 +61,16 @@ export class ZeroG {
     }
   }
 
+  private static pricing?: Promise<Record<string, { prompt: number; completion: number }>>;
+
   private async loadPricing() {
-    try {
-      const res = await fetch(`${config.zgRouterUrl}/models`);
-      const { data } = (await res.json()) as { data: { id: string; pricing_usd?: { prompt: string; completion: string } }[] };
-      const m = data.find((x) => x.id === config.zgModel);
-      if (m?.pricing_usd) this.price = { prompt: Number(m.pricing_usd.prompt), completion: Number(m.pricing_usd.completion) };
-      else log.warn(`0G model ${config.zgModel} not in router catalog`);
-    } catch (e: any) {
-      log.warn("0G pricing unavailable", e.message);
-    }
+    ZeroG.pricing ??= fetch(`${config.zgRouterUrl}/models`)
+      .then((r) => r.json())
+      .then(({ data }: any) => Object.fromEntries(data.filter((m: any) => m.pricing_usd).map((m: any) => [m.id, { prompt: Number(m.pricing_usd.prompt), completion: Number(m.pricing_usd.completion) }])))
+      .catch(() => ({}));
+    const p = (await ZeroG.pricing)[config.zgModel];
+    if (p) this.price = p;
+    else log.warn(`0G model ${config.zgModel} not in router catalog`);
   }
 
   /** Book an inference made elsewhere (e.g. a vision read) against the daily budget, priced from token usage. */
@@ -62,6 +79,7 @@ export class ZeroG {
     this.requestsToday++;
     this.spentTodayUsd += (usage?.prompt_tokens ?? 0) * this.price.prompt + (usage?.completion_tokens ?? 0) * this.price.completion;
     if (requestId) this.lastRequestId = requestId;
+    this.persist();
   }
 
   /** One JSON-mode completion. Returns the parsed object plus the 0G request id for receipts. */
@@ -87,6 +105,7 @@ export class ZeroG {
     this.requestsToday++;
     this.spentTodayUsd += costUsd;
     this.lastRequestId = requestId;
+    this.persist();
     const text = completion.choices[0]?.message?.content ?? "{}";
     const data = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)) as T;
     return { data, requestId, latencyMs: Date.now() - t0, costUsd };

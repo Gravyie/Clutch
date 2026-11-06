@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { IDKitRequestWidget, passport } from "@worldcoin/idkit";
+import { IDKitRequestWidget, proofOfHuman } from "@worldcoin/idkit";
 import { ArrowRightIcon, CheckIcon, CircleNotchIcon, FingerprintIcon, SignInIcon, WalletIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -132,8 +132,8 @@ function HumanStep() {
     <div>
       <StepHead
         icon={<FingerprintIcon size={20} />}
-        title="Prove you're a unique adult"
-        body="One World ID check. We never see your name or documents, only an anonymous ID that your limits follow, whichever wallet you use."
+        title="Prove you're one real person"
+        body="One World ID check, Proof of Human only. We never see your name or documents, just an anonymous ID your daily limit follows across every wallet you use."
       />
       {cfg?.world.configured ? (
         <Button size="lg" className="h-11 w-full rounded-[10px] text-sm font-semibold" onClick={world}>
@@ -179,12 +179,12 @@ function HumanStep() {
           rp_context={rp.rp_context}
           allow_legacy_proofs={true}
           environment={rp.environment}
-          preset={passport({ signal: wallet.address })}
+          preset={proofOfHuman({ signal: wallet.address })}
           handleVerify={async (result: unknown) => {
             acct.setPass(await api<Pass>("/pass/verify", { body: { result, wallet: wallet.address } }));
           }}
           onSuccess={() => setOpen(false)}
-          onError={(e: unknown) => setErr(String((e as any)?.message ?? e))}
+          onError={(e: unknown) => setErr(/cancel|reject|closed/i.test(String((e as any)?.message ?? e)) ? "Verification cancelled. Nothing was shared and no pass was issued, so trading stays locked." : String((e as any)?.message ?? e))}
         />
       )}
     </div>

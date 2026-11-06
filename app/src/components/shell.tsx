@@ -12,7 +12,6 @@ import {
   CompassIcon,
   CopyIcon,
   GearSixIcon,
-  HouseIcon,
   MagnifyingGlassIcon,
   MoonIcon,
   PlusIcon,
@@ -39,7 +38,7 @@ import { cents, compact, short } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/", label: "Home", icon: HouseIcon },
+  { href: "/live", label: "Live", icon: BroadcastIcon },
   { href: "/browse", label: "Browse", icon: CompassIcon },
   { href: "/portfolio", label: "Portfolio", icon: ChartLineUpIcon },
   { href: "/leaderboard", label: "Leaderboard", icon: TrophyIcon },
@@ -107,14 +106,14 @@ function TopBar() {
                 <NumberFlow value={acct.usdc} format={{ style: "currency", currency: "USD" }} className="font-medium tabular" />
               </button>
               {!acct.onboarded && (
-                <Button size="sm" className="h-9 rounded-[10px] px-3.5 font-semibold" onClick={open}>
+                <Button size="sm" className="h-9 rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90" onClick={open}>
                   Finish setup
                 </Button>
               )}
               <AccountMenu />
             </>
           ) : (
-            <Button size="sm" className="h-9 rounded-[10px] px-4 font-semibold" onClick={open} disabled={!wallet.ready}>
+            <Button size="sm" className="h-9 rounded-full bg-brand px-5 font-semibold text-brand-foreground hover:bg-brand/90" onClick={open} disabled={!wallet.ready}>
               Sign in
             </Button>
           )}
@@ -181,14 +180,15 @@ function SideRail() {
     <aside className="sticky top-14 hidden h-[calc(100dvh-3.5rem)] w-[240px] shrink-0 flex-col border-r border-border lg:flex">
       <nav className="space-y-0.5 p-3">
         {NAV.map(({ href, label, icon: Icon }) => {
-          const active = href === "/" ? path === "/" : path.startsWith(href);
+          const active = path.startsWith(href);
           return (
             <Link
               key={href}
               href={href}
-              className={cn("flex h-9 items-center gap-3 rounded-[10px] px-3 text-sm transition-colors", active ? "bg-raised font-medium text-foreground" : "text-muted-foreground hover:bg-raised/60 hover:text-foreground")}
+              className={cn("relative flex h-9 items-center gap-3 rounded-[10px] px-3 text-sm transition-colors", active ? "bg-raised font-medium text-foreground" : "text-muted-foreground hover:bg-raised/60 hover:text-foreground")}
             >
-              <Icon size={18} weight={active ? "fill" : "regular"} />
+              {active && <span className="absolute -left-3 top-2 h-5 w-[3px] rounded-r-full bg-brand" />}
+              <Icon size={18} weight={active ? "fill" : "regular"} className={active ? "text-brand" : undefined} />
               {label}
             </Link>
           );
@@ -235,7 +235,10 @@ function SideFooter() {
     <div className="border-t border-border p-4 text-xs text-faint">
       <div className="flex items-center justify-between">
         <span>Market engine</span>
-        <span className={cn("font-medium", agent?.mode === "full" ? "text-yes" : "text-warn")}>{agent ? (agent.provider === "0g" ? "0G" : "Offline model") : "…"}</span>
+        <span className={cn("flex items-center gap-1.5 font-medium", agent?.mode === "full" ? "text-yes" : "text-warn")}>
+          {agent?.mode === "full" && <span className="size-1.5 animate-live rounded-full bg-yes" />}
+          {agent ? (agent.provider === "0g" ? `0G · ${agent.requestsToday} calls today` : "Offline model") : "…"}
+        </span>
       </div>
       <div className="mt-2 flex gap-3">
         <Link href="/how-it-works" className="hover:text-foreground">
@@ -254,10 +257,10 @@ function MobileNav() {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-4 border-t border-border bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
       {NAV.map(({ href, label, icon: Icon }) => {
-        const active = href === "/" ? path === "/" : path.startsWith(href);
+        const active = path.startsWith(href);
         return (
           <Link key={href} href={href} className={cn("flex flex-col items-center justify-center gap-1 text-[11px]", active ? "text-foreground" : "text-faint")}>
-            <Icon size={22} weight={active ? "fill" : "regular"} />
+            <Icon size={22} weight={active ? "fill" : "regular"} className={active ? "text-brand" : undefined} />
             {label}
           </Link>
         );

@@ -23,7 +23,7 @@ const RULES = [
 export default function HowItWorks() {
   return (
     <div className="mx-auto max-w-[1000px] px-4 py-10 sm:px-6">
-      <h1 className="max-w-[18ch] text-4xl font-semibold tracking-tighter sm:text-5xl">Fair markets on live moments</h1>
+      <h1 className="display max-w-[18ch] text-4xl font-bold sm:text-5xl">Fair markets on live moments</h1>
       <p className="mt-4 max-w-[60ch] text-lg leading-relaxed text-muted-foreground">Clutch turns tense moments into short markets that settle in seconds. Here's what happens to every single one.</p>
 
       <ol className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-2">

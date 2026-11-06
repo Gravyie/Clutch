@@ -32,7 +32,7 @@ export default function AccountPage() {
   const excluded = acct.excludedUntil > Date.now() / 1000;
   return (
     <div className="mx-auto max-w-[760px] space-y-6 px-4 py-6 sm:px-6">
-      <h1 className="text-3xl font-semibold tracking-tight">Account</h1>
+      <h1 className="display text-3xl font-bold">Account</h1>
       <Profile />
 
       <section className="surface p-5">

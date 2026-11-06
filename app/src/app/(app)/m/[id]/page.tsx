@@ -34,7 +34,7 @@ export default function MarketPage() {
       <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-6">
           <header>
-            <h1 className="text-3xl font-semibold tracking-tight text-balance">{m.question}</h1>
+            <h1 className="display text-3xl font-bold">{m.question}</h1>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <span>Opened at {pct(m.pYes0)}</span>
               <span>{compactUsd(m.volume)} traded</span>

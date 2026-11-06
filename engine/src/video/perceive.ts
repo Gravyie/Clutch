@@ -28,6 +28,7 @@ const DISCOVER_PROMPT = `Read this live-stream frame. Return one JSON object onl
  "counters":[{"key":"snake_case_id","label":"Short label","value":number}],
  "teams":[string,string]|null,"summary":"one short factual sentence","confidence":0..1}
 counters: every number shown on the HUD or scoreboard that can change during play (team scores, round, kills/eliminations, players or teams left, health, shield, gold, goals…), max 10. Use the team or player name in the label when shown (e.g. "TYLOO score", "Clix eliminations"). Keep keys stable: lowercase words joined by underscores, team/player name first. Convert clocks to seconds with key ending in _clock. Only include values you can clearly read.
+Battle royale HUDs (Fortnite, Apex, Warzone, PUBG): the players-left/alive counter and the player's eliminations are usually near the top-right minimap; always include them when visible (keys players_left, eliminations).
 mode "replay" for instant replays/killcams, "menu" for lobbies/loading/end screens, "camera" for a person talking with no game.`;
 
 const DISCOVER_SCHEMA = {

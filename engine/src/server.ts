@@ -8,6 +8,10 @@ import type { ClientMessage, ServerMessage } from "@clutch/shared";
 import { config, isLocalChain } from "./config";
 import { log } from "./log";
 import type { Hub } from "./stream/hub";
+import { VideoRunner } from "./stream/video";
+import { ZeroG } from "./ai/zeroG";
+
+const callLimit = new Map<string, number>();
 import * as chain from "./chain";
 import { kvGet, kvSet, one, run } from "./db";
 import { readEvidence } from "./evidence";
@@ -68,6 +72,25 @@ export function serve(hub: Hub) {
           pool: { poolId: row.pool_id, key: { currency0: row.currency0, currency1: row.currency1, fee: 0, tickSpacing: 60, hooks: d.clutchHook } },
           latency: r.latencyStats(),
         };
+      },
+    },
+    {
+      // A viewer calls a market now, paying the AI's inference with their own 0G account.
+      method: "POST",
+      re: /^\/streams\/([\w-]+)\/call$/,
+      h: async ({ body, params: [slug], ip }) => {
+        const key = String(body.zgKey ?? "").trim();
+        if (!/^sk-[A-Za-z0-9-]{20,}$/.test(key)) throw httpError(400, "Connect a 0G API key (it starts with sk-).");
+        const r = hub.runners.get(slug);
+        if (!(r instanceof VideoRunner)) throw httpError(400, "Calling a market works on live video channels.");
+        const tag = createHmac("sha256", config.authSecret).update(key).digest("hex").slice(0, 16);
+        const last = Math.max(callLimit.get(tag) ?? 0, callLimit.get(ip) ?? 0);
+        if (Date.now() - last < 20_000) throw httpError(429, `Give it ${Math.ceil((20_000 - (Date.now() - last)) / 1000)}s before calling another market.`);
+        callLimit.set(tag, Date.now());
+        callLimit.set(ip, Date.now());
+        const res = await r.callMarket(new ZeroG(key, "viewer"));
+        if (!res.ok) throw httpError(409, res.reason);
+        return res;
       },
     },
     { method: "GET", re: /^\/markets$/, h: ({ query }) => listMarkets({ slug: query.get("slug") ?? undefined, open: query.has("open") ? query.get("open") === "1" : undefined, limit: Number(query.get("limit") ?? 50) }) },

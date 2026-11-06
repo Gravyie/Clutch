@@ -69,23 +69,26 @@ export default function Home() {
 function Intro() {
   const acct = useAccount();
   const open = useUI((s) => s.openOnboarding);
-  if (acct.onboarded) return null;
+  const streams = useLive((s) => s.streams);
+  const all = Object.values(streams);
+  const reading = all.filter((s) => s.reading).length;
+  const live = all.filter((s) => s.live).length;
   return (
-    <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-5 pt-2 md:flex-row md:items-end md:justify-between">
+    <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-4 pt-2 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h1 className="text-4xl font-semibold tracking-tighter sm:text-5xl">Every moment is a market.</h1>
-        <p className="mt-3 max-w-[56ch] text-base leading-relaxed text-muted-foreground">
-          Trade on what happens next in the stream. Markets open when the game gets tense and settle in seconds, with a public receipt.
-        </p>
+        <div className="eyebrow flex items-center gap-2">
+          <span className="size-1.5 animate-live rounded-full bg-live" /> {live} live · AI reading {reading}
+        </div>
+        <h1 className="display mt-2 text-4xl font-bold sm:text-5xl">Live now</h1>
       </div>
-      <div className="flex gap-2">
-        <Button size="lg" className="h-11 rounded-xl px-5 font-semibold" onClick={open}>
-          Start trading
-        </Button>
-        <Button size="lg" variant="secondary" className="h-11 rounded-xl px-5 font-semibold" asChild>
-          <Link href="/how-it-works">How it works</Link>
-        </Button>
-      </div>
+      {!acct.onboarded && (
+        <div className="flex items-center gap-3">
+          <span className="hidden text-sm text-muted-foreground md:inline">Free test funds. One tap per trade.</span>
+          <Button size="lg" className="h-11 rounded-full bg-brand px-6 font-semibold text-brand-foreground hover:bg-brand/90" onClick={open}>
+            Start trading
+          </Button>
+        </div>
+      )}
     </motion.section>
   );
 }
@@ -117,7 +120,7 @@ function Featured({ slug }: { slug: string }) {
 function SectionHead({ title, href }: { title: string; href?: string }) {
   return (
     <div className="mb-4 flex items-center justify-between">
-      <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+      <h2 className="display text-2xl font-bold">{title}</h2>
       {href && (
         <Link href={href} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           See all <ArrowRightIcon size={14} />

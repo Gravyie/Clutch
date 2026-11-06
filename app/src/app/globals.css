@@ -4,28 +4,33 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
-  Clutch design tokens.
-  Neutral zinc surfaces; colour carries meaning only: live (red), YES (green), NO (rose), warning (amber).
-  Radius system: surfaces 16px, controls 10px, chips and badges fully round.
+  Clutch design tokens ("broadcast").
+  Near-black stage, one brand accent (tally orange, the colour of an on-air light), and colour that otherwise carries
+  meaning only: YES green, NO rose, LIVE red, warning amber. Display type is Bricolage Grotesque; UI is Geist;
+  every number is Geist Mono.
+  Radius rule: surfaces 18px, controls 12px, chips/badges/primary CTAs fully round.
 */
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  --background: #fafafa;
+  --background: #f6f6f7;
   --surface: #ffffff;
-  --raised: #f4f4f5;
-  --sunk: #f1f1f3;
-  --foreground: #0a0a0c;
-  --muted-foreground: #5c5c66;
-  --faint: #8a8a94;
-  --border: rgb(10 10 12 / 0.09);
-  --border-strong: rgb(10 10 12 / 0.16);
+  --raised: #efeff1;
+  --sunk: #e9e9ec;
+  --foreground: #0b0b0d;
+  --muted-foreground: #55555f;
+  --faint: #85858f;
+  --border: rgb(11 11 13 / 0.09);
+  --border-strong: rgb(11 11 13 / 0.17);
 
-  --yes: #009b64;
-  --yes-soft: rgb(0 155 100 / 0.1);
-  --no: #e0244c;
-  --no-soft: rgb(224 36 76 / 0.09);
+  --brand: #f0480c;
+  --brand-soft: rgb(240 72 12 / 0.1);
+  --brand-foreground: #0b0b0d;
+  --yes: #00965f;
+  --yes-soft: rgb(0 150 95 / 0.1);
+  --no: #db1f4b;
+  --no-soft: rgb(219 31 75 / 0.09);
   --live: #e5172f;
   --warn: #b7791f;
   --warn-soft: rgb(183 121 31 / 0.1);
@@ -37,8 +42,8 @@
   --card-foreground: var(--foreground);
   --popover: var(--surface);
   --popover-foreground: var(--foreground);
-  --primary: #0a0a0c;
-  --primary-foreground: #fafafa;
+  --primary: #0b0b0d;
+  --primary-foreground: #f6f6f7;
   --secondary: var(--raised);
   --secondary-foreground: var(--foreground);
   --muted: var(--raised);
@@ -46,41 +51,47 @@
   --accent-foreground: var(--foreground);
   --destructive: var(--no);
   --input: var(--border-strong);
-  --ring: rgb(10 10 12 / 0.35);
+  --ring: rgb(240 72 12 / 0.55);
 
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.6) inset, 0 1px 2px rgb(10 10 12 / 0.04), 0 8px 24px -12px rgb(10 10 12 / 0.12);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.7) inset, 0 1px 2px rgb(11 11 13 / 0.04), 0 10px 30px -14px rgb(11 11 13 / 0.14);
+  --shadow-float: 0 30px 80px -30px rgb(11 11 13 / 0.35), 0 0 0 1px rgb(11 11 13 / 0.06);
 }
 
 .dark {
-  --background: #09090b;
-  --surface: #111114;
-  --raised: #18181c;
-  --sunk: #0c0c0e;
-  --foreground: #f4f4f5;
-  --muted-foreground: #a1a1aa;
-  --faint: #6e6e78;
-  --border: rgb(255 255 255 / 0.07);
-  --border-strong: rgb(255 255 255 / 0.13);
+  --background: #070709;
+  --surface: #0e0e11;
+  --raised: #17171b;
+  --sunk: #040405;
+  --foreground: #f4f4f2;
+  --muted-foreground: #a0a0aa;
+  --faint: #67676f;
+  --border: rgb(255 255 255 / 0.075);
+  --border-strong: rgb(255 255 255 / 0.14);
 
-  --yes: #22d391;
-  --yes-soft: rgb(34 211 145 / 0.12);
-  --no: #ff5a76;
-  --no-soft: rgb(255 90 118 / 0.12);
-  --live: #ff3347;
+  --brand: #ff6a2b;
+  --brand-soft: rgb(255 106 43 / 0.13);
+  --brand-foreground: #0b0705;
+  --yes: #2ee59d;
+  --yes-soft: rgb(46 229 157 / 0.12);
+  --no: #ff4f72;
+  --no-soft: rgb(255 79 114 / 0.12);
+  --live: #ff3045;
   --warn: #f5b546;
   --warn-soft: rgb(245 181 70 / 0.12);
   --void: #a99bff;
   --void-soft: rgb(169 155 255 / 0.12);
 
-  --primary: #f4f4f5;
-  --primary-foreground: #09090b;
-  --ring: rgb(255 255 255 / 0.35);
+  --primary: #f4f4f2;
+  --primary-foreground: #070709;
+  --ring: rgb(255 106 43 / 0.6);
 
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px -16px rgb(0 0 0 / 0.6);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.045) inset, 0 14px 36px -18px rgb(0 0 0 / 0.7);
+  --shadow-float: 0 40px 120px -40px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 0 rgb(255 255 255 / 0.08) inset;
 }
 
 @theme inline {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-geist-sans), ui-sans-serif, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --color-background: var(--background);
@@ -90,6 +101,9 @@
   --color-sunk: var(--sunk);
   --color-faint: var(--faint);
   --color-border-strong: var(--border-strong);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-foreground: var(--brand-foreground);
   --color-yes: var(--yes);
   --color-yes-soft: var(--yes-soft);
   --color-no: var(--no);
@@ -123,6 +137,19 @@
   --radius-xl: calc(var(--radius) + 6px);
 
   --shadow-card: var(--shadow-card);
+  --shadow-float: var(--shadow-float);
+
+  --animate-marquee: marquee 60s linear infinite;
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  --animate-scan: scan 3.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  @keyframes scan {
+    0% { transform: translateY(-10%); opacity: 0; }
+    15%, 85% { opacity: 1; }
+    100% { transform: translateY(1000%); opacity: 0; }
+  }
 
   --animate-live: live 1.6s ease-in-out infinite;
   @keyframes live {
@@ -152,8 +179,11 @@
     font-feature-settings: "ss01", "cv11";
   }
   ::selection {
-    background: var(--yes);
-    color: var(--background);
+    background: var(--brand);
+    color: var(--brand-foreground);
+  }
+  h1, h2, h3 {
+    text-wrap: balance;
   }
 }
 
@@ -161,10 +191,22 @@
   .tabular {
     font-variant-numeric: tabular-nums;
   }
+  .display {
+    font-family: var(--font-bricolage), var(--font-geist-sans), sans-serif;
+    font-optical-sizing: auto;
+    letter-spacing: -0.035em;
+  }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
   .surface {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 16px;
+    border-radius: 18px;
     box-shadow: var(--shadow-card);
   }
   .scrollbar-none {
@@ -176,6 +218,26 @@
   .shimmer {
     background: linear-gradient(90deg, transparent, rgb(127 127 127 / 0.08), transparent) 0 0 / 200% 100%;
     animation: var(--animate-shimmer);
+  }
+  /* film grain over the stage; pure CSS, no image request */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.06;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .bg-dots {
+    background-image: radial-gradient(rgb(127 127 127 / 0.18) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  .mask-fade-b {
+    mask-image: linear-gradient(180deg, #000 55%, transparent);
+  }
+  .mask-fade-x {
+    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
   }
   .mask-fade-r {
     mask-image: linear-gradient(90deg, #000 85%, transparent);

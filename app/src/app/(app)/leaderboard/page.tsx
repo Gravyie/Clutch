@@ -16,7 +16,7 @@ export default function Leaderboard() {
   return (
     <div className="mx-auto max-w-[900px] space-y-6 px-4 py-6 sm:px-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Leaderboard</h1>
+        <h1 className="display text-3xl font-bold">Leaderboard</h1>
         <p className="mt-1 text-sm text-muted-foreground">Ranked by realized profit on settled markets. One row per wallet.</p>
       </div>
       {rows.length > 0 && (

@@ -9,10 +9,11 @@ import { one, run } from "./db";
 /**
  * The human-pass signer.
  *
- * The trust moment: putting money on a live outcome. The minimum sufficient credential proves a unique human (so
- * limits and self-exclusion follow the person, not the wallet) and, where available, 18+. We request the Passport
- * credential (NFC chip, unique document holder) and Identity Check's `minimum_age: 18` where World has enabled it.
- * Nothing else about the person is collected.
+ * The trust moment: putting money on a live outcome. What has to hold is "one person, one daily limit": a daily cap,
+ * self-exclusion and the streamer ban only mean anything if a second wallet can't reset them. That is exactly what
+ * Proof of Human gives (a per-action nullifier, unique per human), so it is the minimum sufficient credential. A
+ * passport or selfie check would collect more than this decision needs. If World returns an age attestation and it
+ * is negative we still refuse. Nothing else about the person is collected.
  *
  * After server-side verification we sign a short-lived EIP-712 HumanPass {wallet, nullifier, expiry, dailyCap}, which
  * the HumanPassGate contract checks on every trade.
@@ -65,7 +66,7 @@ export async function verifyAndIssue(result: any, wallet: `0x${string}`) {
   if (!nullifierHex) throw new PassRefused("verification_failed", "No nullifier in the proof.");
   const ageAttested = result.identity_attested ?? body.identity_attested;
   if (ageAttested === false) throw new PassRefused("under_age", "World ID could not confirm you're 18 or older, so trading isn't available.");
-  return issue(BigInt(nullifierHex).toString(), wallet, result.identifier ?? "passport", ageAttested === true);
+  return issue(BigInt(nullifierHex).toString(), wallet, result.identifier ?? "proof_of_human", ageAttested === true);
 }
 
 /** Dev verifier: clearly labelled in the UI and in the pass (`credential: "dev"`). Exercises every path. */
