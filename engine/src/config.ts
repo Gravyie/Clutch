@@ -82,9 +82,8 @@ export const config = {
   zgVisionModel: env("ZG_VISION_MODEL", "claude-haiku-5.5")!,
   /** Reader B: a different model family (0G's own model), checking only the counters a market depends on. */
   zgVerifyModel: env("ZG_VERIFY_MODEL", "0gm-1.0-35b-a3b")!,
-  // Local open-weights vision model (llama.cpp's llama-server, OpenAI-compatible): the independent second reader.
-  localVisionUrl: env("LOCAL_VISION_URL", "http://127.0.0.1:8090/v1")!,
-  localVisionModel: env("LOCAL_VISION_MODEL", "qwen2.5-vl-3b")!,
+  /** reader B and its fallbacks when a 0G provider is down; none of them is reader A's model family */
+  zgVerifyModels: (env("ZG_VERIFY_MODELS", "0gm-1.0-35b-a3b,gemini-2.5-flash-lite") ?? "").split(",").filter(Boolean),
   maxVideoStreams: Number(env("MAX_VIDEO_STREAMS", "3")),
   zgStorageRpc: env("ZG_STORAGE_RPC", "https://evmrpc-testnet.0g.ai")!,
   zgIndexer: env("ZG_INDEXER", "https://indexer-storage-testnet-turbo.0g.ai")!,

@@ -208,8 +208,16 @@ export class Hub extends EventEmitter {
     return row;
   }
 
+  private warnedNoReaders = false;
+
   private addRunner(row: Row) {
-    const r: Runner = row.kind === "video" ? new VideoRunner(row as Row & { platform: string; channel: string }, this.zg, this.readers) : new StreamRunner(row, this.zg);
+    if (row.kind === "video" && !this.readers) {
+      // Video markets need both 0G readers; there is no fallback that guesses.
+      if (!this.warnedNoReaders) log.warn("ZG_API_KEY is not set: video channels are skipped (chess still runs)");
+      this.warnedNoReaders = true;
+      return;
+    }
+    const r: Runner = row.kind === "video" ? new VideoRunner(row as Row & { platform: string; channel: string }, this.zg, this.readers!) : new StreamRunner(row, this.zg);
     if (r instanceof VideoRunner) r.on("slots", () => this.allocateSlots());
     this.runners.set(row.slug, r);
     r.on("state", () => {

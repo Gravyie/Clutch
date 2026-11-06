@@ -1,3 +1,4 @@
+import { log } from "../log";
 import OpenAI from "openai";
 import sharp from "sharp";
 import type { Category, SceneState } from "@clutch/shared";
@@ -10,9 +11,11 @@ import type { ZeroG } from "../ai/zeroG";
  *  2. Scene pass: the whole frame, downscaled, read for mode (gameplay/replay/menu…), survival, players left, summary.
  * Values are sanity-bounded afterwards, so e.g. a health bar can never be read as "players alive".
  *
- * Two readers settle every market:
- *  - Reader A, continuous: a 0G vision model when ZG_API_KEY is set, otherwise the local open-weights model.
- *  - Reader B, checkpoints: the local open-weights model (llama.cpp) on frames grabbed over its own connection.
+ * Two readers settle every market, both on 0G and from different model families:
+ *  - Reader A, continuous: discovers the scene and every HUD counter (ZG_VISION_MODEL).
+ *  - Reader B, checkpoints: reads only the market's counters on frames grabbed over its own connection
+ *    (ZG_VERIFY_MODELS, with fallbacks when a provider is down).
+ * Without a 0G key no video market opens: there is no fallback that guesses.
  */
 export interface VisionReader {
   name: string;
@@ -108,19 +111,30 @@ function parseJson(text: string) {
 const num = (v: any, max: number) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= max ? Math.round(v) : null);
 const text = (v: any) => (typeof v === "string" && v.trim().length > 1 && !/^(null|none|n\/a|unknown|team ?[ab12])$/i.test(v.trim()) ? v.trim().slice(0, 24) : null);
 
-/** Any OpenAI-compatible vision endpoint (0G Router, llama.cpp's llama-server). */
+/** A vision model behind the 0G Router (OpenAI-compatible). */
 export class OpenAIVision implements VisionReader {
   private client: OpenAI;
+  /** fallbacks, in order; the reader moves to the next one when a provider is down and retries the primary later */
+  private readonly models: string[];
+  private current = 0;
+  private retryPrimaryAt = 0;
+  get name() {
+    return `${this.prefix}:${this.models[this.current]}`;
+  }
+  private get model() {
+    return this.models[this.current];
+  }
   constructor(
-    readonly name: string,
+    private readonly prefix: string,
     baseURL: string,
     apiKey: string,
-    private readonly model: string,
+    model: string | string[],
     private readonly onCost?: (usage: { prompt_tokens?: number; completion_tokens?: number } | undefined, requestId?: string) => void,
     private readonly constrained = true,
     private readonly reasoning: "none" | "low" = "low",
   ) {
     this.client = new OpenAI({ baseURL, apiKey, timeout: 60_000, maxRetries: 1 });
+    this.models = Array.isArray(model) ? model : [model];
   }
 
   async discover(jpeg: Buffer, hint?: string) {
@@ -175,6 +189,22 @@ export class OpenAIVision implements VisionReader {
   }
 
   private async ask(img: Buffer, prompt: string, schema: object) {
+    if (this.current > 0 && Date.now() > this.retryPrimaryAt) this.current = 0;
+    for (;;) {
+      try {
+        return await this.askOnce(img, prompt, schema);
+      } catch (e: any) {
+        // A provider outage (5xx, connection reset) moves to the next model; anything else is a real error.
+        const outage = (e.status ?? 0) >= 500 || /EOF|ECONNRESET|Connection error|timed out/i.test(e.message ?? "");
+        if (!outage || this.current >= this.models.length - 1) throw e;
+        log.warn(`${this.name} unavailable (${String(e.message).slice(0, 60)}); falling back to ${this.models[this.current + 1]}`);
+        this.current++;
+        this.retryPrimaryAt = Date.now() + 5 * 60_000;
+      }
+    }
+  }
+
+  private async askOnce(img: Buffer, prompt: string, schema: object) {
     const { data, response } = await this.client.chat.completions
       .create({
         model: this.model,
@@ -250,17 +280,14 @@ export class OpenAIVision implements VisionReader {
   }
 }
 
-export function makeReaders(zg: ZeroG): { a: VisionReader; b: VisionReader; independent: string } {
-  const local = (suffix = "") => new OpenAIVision(`local:${config.localVisionModel}${suffix}`, config.localVisionUrl, "local", config.localVisionModel);
-  if (config.zgApiKey) {
-    const gate = () => {
-      if (zg.mode === "paused") throw new Error("daily 0G budget spent; markets pause until 00:00 UTC");
-    };
-    const a = new OpenAIVision(`0g:${config.zgVisionModel}`, config.zgRouterUrl, config.zgApiKey, config.zgVisionModel, (usage, id) => zg.record(usage, id), false, "none");
-    const b = new OpenAIVision(`0g:${config.zgVerifyModel}`, config.zgRouterUrl, config.zgApiKey, config.zgVerifyModel, (usage, id) => zg.record(usage, id), false, "none");
-    a.gate = gate;
-    b.gate = gate;
-    return { a, b, independent: `two model families on 0G (${config.zgVisionModel} and ${config.zgVerifyModel}), different frames, different connections` };
-  }
-  return { a: local(), b: local("#b"), independent: "same open-weights model on different frames over a separate connection (add a 0G key for a second model family)" };
+export function makeReaders(zg: ZeroG): { a: VisionReader; b: VisionReader; independent: string } | undefined {
+  if (!config.zgApiKey) return undefined;
+  const gate = () => {
+    if (zg.mode === "paused") throw new Error("daily 0G budget spent; markets pause until 00:00 UTC");
+  };
+  const a = new OpenAIVision("0g", config.zgRouterUrl, config.zgApiKey, config.zgVisionModel, (usage, id) => zg.record(usage, id), false, "none");
+  const b = new OpenAIVision("0g", config.zgRouterUrl, config.zgApiKey, config.zgVerifyModels, (usage, id) => zg.record(usage, id), false, "none");
+  a.gate = gate;
+  b.gate = gate;
+  return { a, b, independent: `two model families on 0G (${config.zgVisionModel} and ${config.zgVerifyModels.join(" / ")}), different frames, different connections` };
 }

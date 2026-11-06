@@ -68,6 +68,9 @@ const MAX_LIVE = 2; // one trading + one playing out, so there's almost always s
  * connection: before opening, at window start, when A sees the outcome early, and at window end. Both must reach
  * the same verdict or the market voids and everyone is refunded. Reruns never get markets.
  */
+/** how long a counter rests after carrying a market (a market is open ~60-90s, so this is roughly "not back to back") */
+const REPEAT_COOLDOWN_SEC = Number(process.env.REPEAT_COOLDOWN_SEC ?? 75);
+
 const SCREEN: Record<string, string> = { menu: "a menu", replay: "a replay", break: "a break screen", camera: "the camera, not the game", other: "something other than gameplay" };
 
 export class VideoRunner extends EventEmitter {
@@ -82,7 +85,8 @@ export class VideoRunner extends EventEmitter {
   private refused = new Set<string>();
   private recentQuestions: string[] = [];
   /** spec keys of the most recent markets, newest first: the hard no-repeat rule reads this */
-  private recentKeys: string[] = [];
+  /** the counters behind recent markets, newest first, for the no-repeat rule */
+  private recentKeys: { key: string; at: number }[] = [];
   private ticker?: NodeJS.Timeout;
   private prober?: NodeJS.Timeout;
   private category: Category = "other";
@@ -314,13 +318,19 @@ export class VideoRunner extends EventEmitter {
   }
 
   private async choose(allCounters: { key: string; label: string; value: number }[], s: SceneState, povAvailable: boolean, zg: ZeroG = this.zg, memory = 3) {
-    // Hard no-repeat rule, enforced here rather than requested in the prompt: a counter can't carry two of the last
-    // `memory` markets, and "survives" can't run twice in a row. A viewer calling a market explicitly gets memory 1
-    // (never the same market back to back), since a HUD with one counter would otherwise refuse them for minutes.
-    const banned = new Set(this.recentKeys.slice(0, memory));
+    // No-repeat rule, enforced here rather than requested in the prompt: a counter that carried one of the last
+    // `memory` markets rests for REPEAT_COOLDOWN_SEC. It's time-based on purpose: most HUDs show one to three
+    // numbers, and a ban that only clears when a market opens would stall the channel forever. A viewer calling a
+    // market gets memory 1 (never the same counter back to back).
+    const now = Date.now();
+    const resting = this.recentKeys.slice(0, memory).filter((r) => now - r.at < REPEAT_COOLDOWN_SEC * 1000);
+    const banned = new Set(resting.map((r) => r.key));
     const counters = allCounters.filter((c) => !banned.has(c.key));
-    const pov = povAvailable && !this.recentKeys.slice(0, Math.min(2, memory)).includes("__pov_alive");
-    if (!counters.length && !pov) return this.decline("every number on screen carried one of the last few markets");
+    const pov = povAvailable && !banned.has("__pov_alive");
+    if (!counters.length && !pov) {
+      const free = Math.ceil(Math.max(0, ...resting.map((r) => REPEAT_COOLDOWN_SEC - (now - r.at) / 1000)));
+      return this.decline(`every number on screen just carried a market; the next one frees up in ${free}s`);
+    }
     const recent = this.live.map((m) => m.spec.key);
     if (zg.provider === "0g") {
       // History only shows counters the agent may use, so it can't anchor on a banned one.
@@ -444,7 +454,7 @@ Respond with JSON only: {"kind","key","key2","threshold","seconds","pYes","quest
     );
     this.live.push({ view, rule, spec, b: [], bStarted: false, checking: false, resolving: false, frames: [] });
     this.recentQuestions = [question, ...this.recentQuestions].slice(0, 5);
-    this.recentKeys = [spec.key, ...this.recentKeys].slice(0, 6);
+    this.recentKeys = [{ key: spec.key, at: Date.now() }, ...this.recentKeys].slice(0, 6);
     log.market(`${this.row.slug} #${view.id}`, `"${question}"`, `p=${p}`, ai.provider, ai.requestId ?? "");
     this.moment(ai.paidBy === "viewer" ? `A viewer called a market: ${question}` : `New market: ${question}`, "market");
     this.emit("market", view);
