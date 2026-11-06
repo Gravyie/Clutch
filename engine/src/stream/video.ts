@@ -321,7 +321,9 @@ export class VideoRunner extends EventEmitter {
     if (!counters.length && !pov) return this.decline("every number on screen carried one of the last few markets");
     const recent = this.live.map((m) => m.spec.key);
     if (zg.provider === "0g") {
-      const history = this.timeline.slice(-8).map((r) => ({ t: Math.round((r.at - Date.now()) / 1000), mode: r.state.mode, counters: Object.fromEntries((r.state.counters ?? []).map((c) => [c.key, c.value])) }));
+      // History only shows counters the agent may use, so it can't anchor on a banned one.
+      const allowed = new Set(counters.map((c) => c.key));
+      const history = this.timeline.slice(-8).map((r) => ({ t: Math.round((r.at - Date.now()) / 1000), mode: r.state.mode, counters: Object.fromEntries((r.state.counters ?? []).filter((c) => allowed.has(c.key)).map((c) => [c.key, c.value])) }));
       try {
         const res = await zg.json<{ kind: CounterKind | "survives"; key: string; key2?: string; threshold?: number; seconds: number; pYes: number; question: string; contested: boolean; rationale: string }>(
           `You create live prediction markets for Clutch from what's on a stream's screen. Pick ONE market that is genuinely uncertain and exciting in the next 20-60 seconds.
@@ -331,7 +333,7 @@ Allowed kinds:
 - drops_below: a counter falls below a threshold (players left, health, shield)
 - race: counter key increases before counter key2 (e.g. which team scores first)
 - survives: the streamer's player is still alive at the end (only if povAlive, and only when no counter makes a good market)
-Rules: use only the counter keys provided; never use counters the streamer alone controls (ammo, money spent) or clocks; it must be contested by opponents or chance. seconds between 20 and 60. pYes is your calibrated probability (viewers trade against it), between 0.15 and 0.85. question: natural, punchy, at most 60 characters, ends with "?", must mean exactly the structured rule (name the team/player when known). Prefer counter markets (scores, kills, players left) over "survives". Vary the market: avoid repeating recent ones: ${JSON.stringify([...recent, ...this.recentQuestions])}.
+Rules: use only the exact counter keys in "counters" (copy them character for character); never use counters the streamer alone controls (ammo, money spent) or clocks; it must be contested by opponents or chance. seconds between 20 and 60. pYes is your calibrated probability (viewers trade against it), between 0.15 and 0.85. question: natural, punchy, at most 60 characters, ends with "?", must mean exactly the structured rule (name the team/player when known). Prefer counter markets (scores, kills, players left) over "survives". Vary the market: avoid repeating recent ones: ${JSON.stringify([...recent, ...this.recentQuestions])}.
 Respond with JSON only: {"kind","key","key2","threshold","seconds","pYes","question","contested","rationale"}`,
           JSON.stringify({ game: s.game ?? this.state.game, streamTitle: this.state.streamTitle, summary: s.summary, povAlive: s.povAlive, counters, history }),
         );
@@ -346,8 +348,11 @@ Respond with JSON only: {"kind","key","key2","threshold","seconds","pYes","quest
           if (!pov) return this.decline("the AI wanted a survival market, which just ran"); // banned by the no-repeat rule or not visible
           spec = { kind: "goes_up", key: "__pov_alive", label: "Streamer alive", seconds };
         } else {
-          const c = counters.find((x) => x.key === d.key);
-          const c2 = d.key2 ? counters.find((x) => x.key === d.key2) : undefined;
+          // Models often respell keys ("darkzero_score" for "dark_zero_score"); match on letters and digits only.
+          const norm = (k?: string) => (k ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+          const find = (k?: string) => counters.find((x) => x.key === k) ?? counters.find((x) => norm(x.key) === norm(k) || norm(x.label) === norm(k));
+          const c = find(d.key);
+          const c2 = d.key2 ? find(d.key2) : undefined;
           if (!c || (d.kind === "race" && !c2) || banned.has(c.key)) return this.decline(`the AI picked "${d.key}", which isn't on screen or just ran`);
           if (!["goes_up", "reaches", "drops_below", "race"].includes(d.kind)) return this.decline(`unknown market kind "${d.kind}"`);
           spec = { kind: d.kind, key: c.key, label: c.label, key2: c2?.key, label2: c2?.label, threshold: d.threshold !== undefined && d.threshold !== null ? Number(d.threshold) : undefined, seconds };
