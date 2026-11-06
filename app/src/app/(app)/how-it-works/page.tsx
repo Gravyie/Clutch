@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = { title: "How it works" };
 
 const LIFECYCLE = [
-  { t: "A moment", d: "An AI agent watches the live stream itself, reading the scoreboard, the clock and the game state from the video. When the outcome turns genuinely uncertain, it picks a market from a fixed list and sets the opening odds. It never writes its own questions." },
+  { t: "A moment", d: "A vision model on 0G reads the live stream every few seconds: the score, the kill feed, players left, any number on the HUD. When something is about to happen, it opens a market of a fixed kind (goes up, reaches, drops below, comes first, survives) on one of those numbers and sets the opening odds. The wording can be natural; the rule it settles on is structured." },
   { t: "Rules locked in", d: "Before anyone can trade, the market's exact rule and timing are fingerprinted onchain. Nobody can change what counts as a win afterwards." },
   { t: "One tap", d: "Back Yes or No. Prices move with demand on a market-maker curve inside a Uniswap v4 hook, so there's always someone to trade with." },
   { t: "A safety gap", d: "Trading closes, then a gap at least as long as the stream's delay passes before anything counts. Nobody can bet on something they've already seen." },
   { t: "Two witnesses", d: "Two independent readers, using different frames over separate connections, must see the same result on screen. Chess uses two separate Lichess feeds. If they disagree, or one can't see it, the market is voided and everyone is refunded." },
-  { t: "A receipt", d: "Every result comes with the committed rule, both sources' readings and the evidence, stored on 0G and fingerprinted onchain. Anyone can check it." },
+  { t: "A receipt", d: "Every result comes with the committed rule, both readers' verdicts and frames, and the 0G request IDs. The evidence bundle is Merkle-hashed with the 0G Storage SDK (and uploaded to 0G Storage when that's enabled), and its root is written onchain with the verdict. Anyone can check it." },
 ];
 
 const RULES = [

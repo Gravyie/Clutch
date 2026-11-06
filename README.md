@@ -100,8 +100,10 @@ Feedback: [`FEEDBACK.md`](FEEDBACK.md).
   hard no-repeat rule keeps them from looping on the same question.
 - **Budget:** the platform agent runs under a hard daily cap (`ZG_DAILY_CAP_USD`) that persists across restarts, and
   earns 0.25% of volume as the resolver fee. Typical cost is about $0.0002 per read.
-- **Evidence on 0G Storage:** each verdict's bundle (rule, both readings, verdict, agent decision) is uploaded with the
-  0G SDK, and its Merkle root goes onchain with the verdict ([`evidence.ts`](engine/src/evidence.ts)).
+- **Evidence on 0G Storage:** each verdict's bundle (rule, both readings, verdict, agent decision) is Merkle-hashed
+  with the 0G Storage SDK (`MemData`), and that root goes onchain with the verdict ([`evidence.ts`](engine/src/evidence.ts)).
+  The bundle is uploaded to 0G Storage when `ZG_STORAGE_PRIVATE_KEY` is funded; otherwise the engine serves it and
+  the receipt says so.
 - Runs on `localhost:3000` (app) with the engine on `:8787`.
 
 ## Product decisions
