@@ -10,6 +10,7 @@ import { ArrowRightIcon, CaretDownIcon, CaretUpIcon, CheckCircleIcon, CircleNotc
 import { toast } from "sonner";
 import { templateById, type MarketView, type PricePoint, type Receipt, type TradeEvent } from "@clutch/shared";
 import { Button } from "@/components/ui/button";
+import { Item, ItemActions, ItemContent, ItemTitle } from "@/components/ui/item";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useEnsureReady } from "@/components/onboarding";
 import { useAccount, type PoolKey, type Refusal } from "@/lib/account";
@@ -301,9 +302,9 @@ function MarketHeader({ m }: { m: MarketView }) {
                 <span className="size-1.5 animate-live rounded-full bg-live" /> Live market
               </span>
             ) : (
-              <span className="font-medium text-muted-foreground">{m.phase === "settled" || m.phase === "void" ? "Settled" : "Trading closed"}</span>
+              <span className={cn("font-medium", m.phase === "void" ? "text-void" : m.phase === "settled" ? (m.outcome === "YES" ? "text-yes" : "text-no") : "text-warn")}>{m.phase === "void" ? "Voided" : m.phase === "settled" ? `Resolved ${m.outcome}` : "Trading closed"}</span>
             )}
-            {t && <span className="text-faint">· {t.title}</span>}
+            {t && <span className="text-faint">· {t.title} template</span>}
           </div>
           <h2 className="text-xl font-semibold leading-snug tracking-tight text-balance">{m.question}</h2>
         </div>
@@ -325,7 +326,7 @@ function MarketHeader({ m }: { m: MarketView }) {
           <div className="tabular">{m.traders} traders</div>
         </div>
       </div>
-      <PriceChart m={m} />
+      {m.trades > 0 && <PriceChart m={m} />}
     </div>
   );
 }
@@ -354,7 +355,7 @@ function AfterLock({ m }: { m: MarketView }) {
           <SealCheckIcon size={28} weight="fill" className={tone === "yes" ? "text-yes" : tone === "no" ? "text-no" : "text-void"} />
           <div>
             <div className={cn("text-lg font-semibold", tone === "yes" ? "text-yes" : tone === "no" ? "text-no" : "text-void")}>{m.outcome === "VOID" ? "Voided, everyone refunded" : `Resolved ${m.outcome === "YES" ? "Yes" : "No"}`}</div>
-            <div className="text-xs text-muted-foreground">{m.voidReason ?? "Both independent sources agreed."}</div>
+            <div className="text-xs text-muted-foreground">{m.voidReason ?? "Both read paths agreed."}</div>
           </div>
         </div>
         {pos && pos.due > 0 && !pos.claimed && (
@@ -402,7 +403,7 @@ function AfterLock({ m }: { m: MarketView }) {
   );
 }
 
-function YourPosition({ m }: { m: MarketView }) {
+export function YourPosition({ m }: { m: MarketView }) {
   const acct = useAccount();
   const trades = useLive((s) => s.trades);
   const { data } = useQuery({
@@ -413,15 +414,17 @@ function YourPosition({ m }: { m: MarketView }) {
   const p = data?.positions.find((x) => x.marketId === m.id);
   if (!p) return null;
   return (
-    <div className="flex items-center justify-between rounded-xl border border-border px-3.5 py-2.5 text-sm">
-      <span className="text-muted-foreground">Your position</span>
-      <span className="font-medium tabular">
+    <Item variant="outline" size="sm" className="bg-card shadow-sm">
+      <ItemContent>
+        <ItemTitle className="font-normal text-muted-foreground">Your position</ItemTitle>
+      </ItemContent>
+      <ItemActions className="font-medium tabular">
         {p.yes > 0 && <span className="text-yes">{p.yes.toFixed(1)} Yes</span>}
         {p.yes > 0 && p.no > 0 && <span className="text-faint"> · </span>}
         {p.no > 0 && <span className="text-no">{p.no.toFixed(1)} No</span>}
         <span className="text-faint"> · {usd(p.cost)}</span>
-      </span>
-    </div>
+      </ItemActions>
+    </Item>
   );
 }
 
@@ -439,7 +442,7 @@ function RuleDisclosure({ m }: { m: MarketView }) {
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
             <div className="space-y-2.5 border-t border-border px-3.5 py-3 text-[13px] leading-relaxed">
               <p>{m.rule.resolution}</p>
-              <p className="text-muted-foreground">Two independent sources must report the same moves and result. If they disagree or go missing, the market voids and every stake is refunded, fees included.</p>
+              <p className="text-muted-foreground">Two separate read paths must report the same moves and result. If they disagree or go missing, the market voids and every stake is refunded, fees included.</p>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-faint">
                 <span>Opened at {pct(m.pYes0)}</span>
                 <span>Window starts {m.windowStart - m.lockTime}s after lock</span>

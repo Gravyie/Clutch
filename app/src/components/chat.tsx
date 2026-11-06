@@ -51,6 +51,8 @@ export function connectTwitch(clientId: string) {
 function useIrc(channel: string) {
   const [lines, setLines] = useState<Line[]>([]);
   const [status, setStatus] = useState<"connecting" | "live" | "closed">("connecting");
+  // The channel's chat rules (Twitch ROOMSTATE): who is allowed to talk.
+  const [room, setRoom] = useState<{ followersOnly: number; subsOnly: boolean; emoteOnly: boolean }>({ followersOnly: -1, subsOnly: false, emoteOnly: false });
   useEffect(() => {
     let ws: WebSocket | undefined;
     let stop = false;
@@ -59,7 +61,7 @@ function useIrc(channel: string) {
       ws = new WebSocket("wss://irc-ws.chat.twitch.tv:443");
       ws.onopen = () => {
         retry = 1000;
-        ws!.send("CAP REQ :twitch.tv/tags");
+        ws!.send("CAP REQ :twitch.tv/tags twitch.tv/commands"); // commands: ROOMSTATE (who may chat)
         ws!.send("PASS SCHMOOPIIE");
         ws!.send(`NICK justinfan${Math.floor(10000 + Math.random() * 80000)}`);
         ws!.send(`JOIN #${channel.toLowerCase()}`);
@@ -68,6 +70,16 @@ function useIrc(channel: string) {
       ws.onmessage = (e) => {
         for (const raw of String(e.data).split("\r\n")) {
           if (raw.startsWith("PING")) ws!.send("PONG :tmi.twitch.tv");
+          const rs = raw.match(/^@(\S+) :tmi\.twitch\.tv ROOMSTATE /);
+          if (rs) {
+            const t = Object.fromEntries(rs[1].split(";").map((x) => x.split("=")));
+            setRoom((r) => ({
+              followersOnly: t["followers-only"] !== undefined ? Number(t["followers-only"]) : r.followersOnly,
+              subsOnly: t["subs-only"] !== undefined ? t["subs-only"] === "1" : r.subsOnly,
+              emoteOnly: t["emote-only"] !== undefined ? t["emote-only"] === "1" : r.emoteOnly,
+            }));
+            continue;
+          }
           const m = raw.match(/^(?:@(\S+) )?:(\w+)!\S+ PRIVMSG #\S+ :(.*)$/);
           if (!m) continue;
           const tags = Object.fromEntries((m[1] ?? "").split(";").map((t) => t.split("=")));
@@ -85,7 +97,16 @@ function useIrc(channel: string) {
       ws?.close();
     };
   }, [channel]);
-  return { lines, setLines, status };
+  return { lines, setLines, status, room };
+}
+
+/** The channel's chat rule in plain words, or nothing when anyone signed in can talk. */
+function roomRule(room: { followersOnly: number; subsOnly: boolean; emoteOnly: boolean }, channel: string) {
+  if (room.subsOnly) return `Subscribers-only chat: only ${channel}'s subscribers can talk here.`;
+  if (room.followersOnly >= 0)
+    return `Followers-only chat: follow ${channel} on Twitch${room.followersOnly > 0 ? ` for at least ${room.followersOnly >= 60 ? `${Math.round(room.followersOnly / 60)}h` : `${room.followersOnly} min`}` : ""} to talk here.`;
+  if (room.emoteOnly) return "Emote-only chat right now: messages must be emotes only.";
+  return undefined;
 }
 
 async function helix<T>(path: string, token: string, clientId: string, init?: RequestInit): Promise<T> {
@@ -98,7 +119,8 @@ async function helix<T>(path: string, token: string, clientId: string, init?: Re
 export function TwitchChat({ channel, slug, className }: { channel: string; slug: string; className?: string }) {
   const { data: cfg } = useConfig();
   const clientId = cfg?.twitchClientId;
-  const { lines, setLines, status } = useIrc(channel);
+  const { lines, setLines, status, room } = useIrc(channel);
+  const rule = roomRule(room, channel);
   const { token, clear } = useTwitchToken();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -139,7 +161,12 @@ export function TwitchChat({ channel, slug, className }: { channel: string; slug
         method: "POST",
         body: JSON.stringify({ broadcaster_id: broadcasterId.current, sender_id: token.id, message: message.slice(0, 480) }),
       });
-      if (!r.data[0]?.is_sent) throw new Error(r.data[0]?.drop_reason?.message ?? "Twitch didn't send it");
+      if (!r.data[0]?.is_sent) {
+        const why = r.data[0]?.drop_reason?.message ?? "";
+        if (/follower/i.test(why)) throw new Error(`This channel is followers-only. Follow ${channel} on Twitch first.`);
+        if (/subscriber/i.test(why)) throw new Error(`Only ${channel}'s subscribers can chat right now.`);
+        throw new Error(why || "Twitch didn't send it");
+      }
       setText("");
     } catch (e: any) {
       if (/401|invalid|token/i.test(e.message)) clear();
@@ -193,6 +220,14 @@ export function TwitchChat({ channel, slug, className }: { channel: string; slug
       <footer className="border-t border-border p-3">
         {token ? (
           <>
+            {rule && (
+              <p className="mb-2 rounded-lg bg-raised px-3 py-2 text-xs text-muted-foreground">
+                {rule}{" "}
+                <a href={`https://www.twitch.tv/${channel}`} target="_blank" rel="noreferrer" className="font-semibold text-[#a970ff] underline underline-offset-2">
+                  Open on Twitch
+                </a>
+              </p>
+            )}
             <form
               onSubmit={(e) => {
                 e.preventDefault();

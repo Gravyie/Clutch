@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { ChannelCard } from "@/components/stream";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { Masonry } from "@/components/masonry";
+import { ChannelCard, channelCardHeight } from "@/components/stream";
 import { MarketCard, isOpen } from "@/components/market";
 import { useLive } from "@/lib/live";
-import { cn } from "@/lib/utils";
+import { LiveDot, PageHeader, PageShell, Segmented } from "@/components/page";
 import { channelRank } from "@/components/shell";
 
 const FILTERS = [
@@ -22,33 +24,46 @@ export default function Browse() {
   const [f, setF] = useState<(typeof FILTERS)[number]["id"]>("all");
   const streams = Object.values(useLive((s) => s.streams)).sort(channelRank);
   const markets = Object.values(useLive((s) => s.markets)).filter(isOpen);
-  const shown = streams.filter((s) => f === "all" || s.category === f);
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const shown = streams.filter((s) => (f === "all" || s.category === f) && (!needle || `${s.title} ${s.game ?? ""} ${s.streamTitle ?? ""} ${s.subtitle}`.toLowerCase().includes(needle)));
   return (
-    <div className="mx-auto max-w-[1480px] px-4 py-6 sm:px-6">
-      <h1 className="display text-3xl font-bold">Browse</h1>
-      <div className="scrollbar-none mt-5 flex gap-2 overflow-x-auto">
-        {FILTERS.map((x) => (
-          <button key={x.id} onClick={() => setF(x.id)} className={cn("h-9 shrink-0 rounded-full px-4 text-sm font-medium transition", f === x.id ? "bg-foreground text-background" : "bg-raised text-muted-foreground hover:text-foreground")}>
-            {x.label}
-            {x.id === "markets" && markets.length > 0 && <span className="ml-1.5 tabular opacity-60">{markets.length}</span>}
-          </button>
-        ))}
-      </div>
+    <PageShell wide>
+      <PageHeader
+        eyebrow={
+          <>
+            <LiveDot /> <span className="tabular-nums">{streams.filter((x) => x.live).length}</span> channels live right now
+          </>
+        }
+        title="Explore"
+        description="Every channel the AI can read. Live markets come first, and a channel with no market is still worth a watch."
+        actions={
+          <label className="flex h-11 w-full items-center gap-2.5 rounded-full bg-card px-4 text-[14px] shadow-[var(--shadow-card)] ring-1 ring-border transition focus-within:ring-border-strong sm:w-[300px]">
+            <MagnifyingGlassIcon size={16} className="shrink-0 text-faint" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search channel or game" className="w-full bg-transparent outline-none placeholder:text-faint" aria-label="Search channels" />
+          </label>
+        }
+      />
+      <Segmented
+        label="Filter channels"
+        value={f}
+        onChange={setF}
+        options={FILTERS.map((x) => ({ value: x.id, label: x.label, count: x.id === "markets" ? markets.length : undefined }))}
+        className="mb-8"
+      />
       {f === "markets" ? (
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {markets.map((m) => (
             <MarketCard key={m.id} m={m} />
           ))}
           {!markets.length && <p className="text-sm text-faint">No markets open this second. They appear as games get tense.</p>}
         </div>
       ) : (
-        <div className="mt-6 grid gap-x-5 gap-y-8 sm:grid-cols-2 xl:grid-cols-4">
-          {shown.map((s) => (
-            <ChannelCard key={s.slug} s={s} />
-          ))}
-          {!shown.length && <p className="text-sm text-faint">No channels here yet.</p>}
-        </div>
+        <>
+          <Masonry items={shown} getKey={(s) => s.slug} estimate={channelCardHeight} render={(s) => <ChannelCard s={s} />} />
+          {!shown.length && <p className="text-sm text-faint">No channels match. Try another game or clear the search.</p>}
+        </>
       )}
-    </div>
+    </PageShell>
   );
 }

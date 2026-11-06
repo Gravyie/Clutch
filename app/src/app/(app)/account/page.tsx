@@ -1,5 +1,6 @@
 "use client";
 
+import { DotType } from "@/components/dot-type";
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -23,18 +24,23 @@ export default function AccountPage() {
   const { data: cfg } = useConfig();
   if (!wallet.address) {
     return (
-      <div className="flex min-h-[60dvh] flex-col items-center justify-center text-center">
-        <h1 className="text-xl font-semibold">Sign in to manage your account</h1>
-        <Button className="mt-4 rounded-xl" onClick={() => open()}>
+      <div className="mx-auto flex min-h-[60dvh] max-w-[420px] flex-col items-center justify-center px-6 text-center">
+        <span className="grid size-14 place-items-center rounded-2xl bg-raised text-muted-foreground">
+          <UserIcon size={26} />
+        </span>
+        <DotType as="h1" start speed={34} text="Your account" className="display mt-4 text-[2.2rem]" />
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">Sign in to see your wallet and network, your daily limit, optional World ID verification, and self-exclusion controls.</p>
+        <Button className="mt-5 h-11 rounded-full bg-foreground px-6 font-medium text-background hover:bg-foreground/90" onClick={() => open()}>
           Sign in
         </Button>
+        <p className="mt-3 text-xs text-faint">Testnet only. We never ask for a seed phrase or private key.</p>
       </div>
     );
   }
   const excluded = acct.excludedUntil > Date.now() / 1000;
   return (
     <div className="mx-auto max-w-[760px] space-y-6 px-4 py-6 sm:px-6">
-      <h1 className="display text-3xl font-bold">Account</h1>
+      <DotType as="h1" start speed={34} text="Account" className="display text-[2.6rem]" />
       <Profile />
 
       <section className="surface p-5">

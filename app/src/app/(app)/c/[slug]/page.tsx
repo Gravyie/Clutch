@@ -1,19 +1,25 @@
 "use client";
 
+import { DotType } from "@/components/dot-type";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircleIcon, EyeIcon, ProhibitIcon, ShareNetworkIcon, ShieldCheckIcon, TimerIcon, TwitchLogoIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon, ClockCounterClockwiseIcon, ListBulletsIcon, EyeIcon, ProhibitIcon, ShareNetworkIcon, ShieldCheckIcon, TimerIcon, TwitchLogoIcon } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import type { MarketView, Refusal, StreamState } from "@clutch/shared";
 import { Avatar, LiveBadge } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlatformIcon, StreamStage, platformUrl } from "@/components/stream";
-import { TradeTape } from "@/components/market";
+import { TradeTape, YourPosition } from "@/components/market";
 import { PlayingOut, RecentRounds, RoundPanel, VisionPanel } from "@/components/round";
 import { TwitchChat } from "@/components/chat";
-import { api, useChannel, useLive } from "@/lib/live";
+import { api, useChannel, useLive, useNow } from "@/lib/live";
+import { Fragment, useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "@/components/ui/item";
 import { ago, cents, compactUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -56,7 +62,7 @@ export default function ChannelPage() {
     return (
       <div className="grid min-h-[60dvh] place-items-center px-4 text-center">
         <div>
-          <h1 className="text-xl font-semibold">Channel not found</h1>
+          <DotType as="h1" start speed={34} text="Channel not found" className="display text-[2.2rem]" />
           <p className="mt-1 text-sm text-muted-foreground">It may have been removed or the link is wrong.</p>
           <Button asChild className="mt-4 rounded-xl">
             <Link href="/browse">Browse channels</Link>
@@ -66,106 +72,169 @@ export default function ChannelPage() {
     );
   }
 
-  return (
-    <div className="mx-auto grid max-w-[1600px] gap-5 px-4 py-5 sm:px-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="min-w-0 space-y-5">
-        <StreamStage stream={stream} />
-        <div data-testid="round">
-          <RoundPanel m={market ?? undefined} stream={stream} pool={data?.pool.key} next={waitingReason(stream)} />
-        </div>
-        {stream && <ChannelHeader s={stream} />}
-        <div className="space-y-4 xl:hidden">
-          {stream?.media?.kind === "video" && stream.media.platform === "twitch" && <TwitchChat channel={stream.media.channel} slug={slug} className="h-[380px]" />}
-          <VisionPanel s={stream} />
-          <PlayingOut slug={slug} exclude={market?.id} />
-          <RecentRounds slug={slug} />
-        </div>
-        <Tabs defaultValue="moments">
-          <TabsList className="h-10 rounded-xl bg-raised p-1">
-            <TabsTrigger value="moments" className="rounded-lg px-3.5">
-              Moments
-            </TabsTrigger>
-            <TabsTrigger value="history" className="rounded-lg px-3.5">
-              Past markets
-            </TabsTrigger>
-            <TabsTrigger value="integrity" className="rounded-lg px-3.5">
-              Integrity
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="moments" className="mt-4">
-            <Moments s={stream} />
-          </TabsContent>
-          <TabsContent value="history" className="mt-4">
-            <History items={data?.history ?? []} />
-          </TabsContent>
-          <TabsContent value="integrity" className="mt-4">
-            <Integrity s={stream} refusals={liveRefusals ?? data?.refusals ?? []} latency={data?.latency} />
-          </TabsContent>
-        </Tabs>
-      </div>
+  const isTwitch = stream?.media?.kind === "video" && stream.media.platform === "twitch";
+  const isVideo = stream?.media?.kind === "video";
 
-      <aside data-testid="market-aside" className="hidden space-y-4 xl:sticky xl:top-[4.5rem] xl:block xl:h-fit">
-        {stream?.media?.kind === "video" && stream.media.platform === "twitch" && <TwitchChat channel={stream.media.channel} slug={slug} className="h-[460px]" />}
-        <VisionPanel s={stream} />
-        <PlayingOut slug={slug} exclude={market?.id} />
-        <RecentRounds slug={slug} />
-        {market && (
-          <section className="surface p-4">
-            <h3 className="mb-3 text-sm font-semibold">Recent trades</h3>
-            <TradeTape marketId={market.id} />
-          </section>
-        )}
-      </aside>
+  return (
+    <div className="mx-auto max-w-[1560px] px-3 pb-8 pt-3 sm:px-6 sm:pt-5">
+      {stream ? <ChannelHeader s={stream} /> : <div className="shimmer mb-4 h-12 w-72 rounded-xl bg-raised/60" />}
+      <div className="grid items-start gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1fr)_392px] xl:[grid-template-areas:'stage_rail'_'below_rail']">
+        <div className="min-w-0 xl:[grid-area:stage]">
+          <StreamStage stream={stream} />
+        </div>
+
+        <aside data-testid="market-aside" aria-label="Prediction" className="min-w-0 space-y-3 xl:sticky xl:top-[76px] xl:[grid-area:rail]">
+          <div data-testid="round" id="moment" className="scroll-mt-20">
+            <RoundPanel m={market ?? undefined} stream={stream} pool={data?.pool.key} next={waitingReason(stream)} />
+          </div>
+          {market && <YourPosition m={market} />}
+          <PlayingOut slug={slug} exclude={market?.id} />
+          <div className="hidden xl:block">
+            <RecentRounds slug={slug} />
+          </div>
+        </aside>
+
+        <div className="min-w-0 xl:[grid-area:below]">
+          <Tabs defaultValue={isTwitch ? "chat" : "activity"} key={isTwitch ? "t" : "o"}>
+            <TabsList className="scrollbar-none h-10 w-full justify-start overflow-x-auto sm:w-auto">
+              {isTwitch && <Tab v="chat">Chat</Tab>}
+              <Tab v="activity">Activity</Tab>
+              {isVideo && <Tab v="vision">AI view</Tab>}
+              <Tab v="history">Past markets</Tab>
+              <Tab v="integrity">Integrity</Tab>
+            </TabsList>
+            {isTwitch && stream?.media?.kind === "video" && (
+              <TabsContent value="chat" className="mt-4">
+                <TwitchChat channel={stream.media.channel} slug={slug} className="h-[420px]" />
+              </TabsContent>
+            )}
+            <TabsContent value="activity" className="mt-4 space-y-4">
+              <Moments s={stream} />
+              <div className="xl:hidden">
+                <RecentRounds slug={slug} />
+              </div>
+              {market && (
+                <Card className="gap-3">
+                  <CardHeader className="px-4">
+                    <CardTitle className="text-sm">Recent trades</CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4">
+                    <TradeTape marketId={market.id} />
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+            {isVideo && (
+              <TabsContent value="vision" className="mt-4">
+                <div className="max-w-[560px]">
+                  <VisionPanel s={stream} />
+                </div>
+              </TabsContent>
+            )}
+            <TabsContent value="history" className="mt-4">
+              <History items={data?.history ?? []} />
+            </TabsContent>
+            <TabsContent value="integrity" className="mt-4">
+              <Integrity s={stream} refusals={liveRefusals ?? data?.refusals ?? []} latency={data?.latency} />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+      {market?.phase === "trading" && <MobileDock m={market} />}
     </div>
   );
 }
 
-function ChannelHeader({ s }: { s: StreamState }) {
+/** Phones: while a market trades and its card is off-screen, a slim dock keeps the question and odds in reach. */
+function MobileDock({ m }: { m: MarketView }) {
+  const now = useNow(500);
+  const [hidden, setHidden] = useState(true);
+  useEffect(() => {
+    const el = document.getElementById("moment");
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setHidden(e.isIntersecting), { threshold: 0.25 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  const left = Math.max(0, Math.ceil(m.lockTime - now));
+  if (left <= 0) return null;
+  const jump = () => document.getElementById("moment")?.scrollIntoView({ behavior: "smooth", block: "start" });
   return (
-    <div className="flex flex-wrap items-center gap-4">
-      <Avatar name={s.title} size={52} />
+    <div
+      className={cn(
+        "fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 transition duration-200 xl:hidden",
+        hidden ? "pointer-events-none translate-y-3 opacity-0" : "translate-y-0 opacity-100",
+      )}
+      aria-hidden={hidden}
+    >
+      <div className="flex items-center gap-2 rounded-2xl border bg-popover/95 p-2 pl-3.5 shadow-float backdrop-blur-xl">
+        <button onClick={jump} className="min-w-0 flex-1 text-left" tabIndex={hidden ? -1 : 0}>
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-live">
+            <span className="size-1.5 animate-live rounded-full bg-live" /> Closes in <span className="font-mono tabular">{left}s</span>
+          </span>
+          <span className="block truncate text-[13px] font-medium">{m.question}</span>
+        </button>
+        <Button onClick={jump} tabIndex={hidden ? -1 : 0} variant="outline" className="h-11 shrink-0 rounded-xl border-yes/35 bg-yes-soft px-3 font-bold text-yes dark:bg-yes-soft">
+          Yes <span className="font-mono tabular">{cents(m.priceYes)}</span>
+        </Button>
+        <Button onClick={jump} tabIndex={hidden ? -1 : 0} variant="outline" className="h-11 shrink-0 rounded-xl border-no/35 bg-no-soft px-3 font-bold text-no dark:bg-no-soft">
+          No <span className="font-mono tabular">{cents(1 - m.priceYes)}</span>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function Tab({ v, children }: { v: string; children: React.ReactNode }) {
+  return (
+    <TabsTrigger value={v} className="flex-none shrink-0 px-3.5 text-[13px]">
+      {children}
+    </TabsTrigger>
+  );
+}
+
+function ChannelHeader({ s }: { s: StreamState }) {
+  const video = s.media?.kind === "video";
+  return (
+    <div className="mb-3 flex items-center gap-3 sm:mb-4">
+      <Avatar name={s.title} size={40} className={cn(!s.live && "grayscale")} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <h1 className="truncate text-xl font-semibold tracking-tight">{s.title}</h1>
-          {s.owner?.verified && (
-            <CheckCircleIcon size={18} weight="fill" className="text-yes" aria-label="Verified human streamer" />
-          )}
-          {s.live && <LiveBadge />}
+          <h1 className="truncate text-[17px] font-semibold tracking-tight sm:text-xl">{s.title}</h1>
+          {s.owner?.verified && <CheckCircleIcon size={17} weight="fill" className="shrink-0 text-info" aria-label="Verified human streamer" />}
+          {s.kind === "replay" ? <span className="shrink-0 rounded-[5px] bg-info-soft px-1.5 py-px text-[10.5px] font-bold text-info">REPLAY</span> : s.live ? <LiveBadge className="shrink-0" /> : <span className="shrink-0 rounded-[5px] bg-raised px-1.5 py-px text-[10.5px] font-semibold text-muted-foreground">OFFLINE</span>}
         </div>
-        {s.streamTitle && s.media?.kind === "video" && <p className="mt-0.5 line-clamp-1 text-sm">{s.streamTitle}</p>}
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-          {s.media?.kind === "video" ? (
-            <a href={platformUrl(s)} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-foreground">
-              <PlatformIcon p={s.media.platform} /> {s.media.channel}
+        <div className="flex min-w-0 items-center gap-x-3 text-[12.5px] text-muted-foreground">
+          {video ? (
+            <a href={platformUrl(s)} target="_blank" rel="noreferrer" className="flex shrink-0 items-center gap-1 hover:text-foreground">
+              <PlatformIcon p={s.media?.kind === "video" ? s.media.platform : undefined} /> {s.media?.kind === "video" ? s.media.channel : ""}
             </a>
           ) : (
-            <span>{s.subtitle}</span>
+            <span className="shrink-0">Lichess · {s.subtitle}</span>
           )}
-          {s.game && s.media?.kind === "video" && <span>{s.game}</span>}
-          <span className="flex items-center gap-1">
-            <EyeIcon size={14} /> {s.watching} watching
+          {video && s.game && <span className="hidden shrink-0 sm:inline">{s.game}</span>}
+          {video && s.streamTitle && <span className="hidden min-w-0 truncate text-faint md:inline">{s.streamTitle}</span>}
+          <span className="flex shrink-0 items-center gap-1 text-faint">
+            <EyeIcon size={13} /> {s.watching} on Clutch
           </span>
-          {s.owner?.lichess && (
-            <a href={`https://lichess.org/@/${s.owner.lichess}`} target="_blank" rel="noreferrer" className="hover:text-foreground">
-              lichess.org/@/{s.owner.lichess}
-            </a>
-          )}
-          {s.owner?.twitch && (
-            <a href={`https://twitch.tv/${s.owner.twitch}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-foreground">
-              <TwitchLogoIcon size={14} /> {s.owner.twitch}
+          {s.owner?.twitch && !video && (
+            <a href={`https://twitch.tv/${s.owner.twitch}`} target="_blank" rel="noreferrer" className="hidden shrink-0 items-center gap-1 hover:text-foreground sm:flex">
+              <TwitchLogoIcon size={13} /> {s.owner.twitch}
             </a>
           )}
         </div>
       </div>
       <Button
-        variant="secondary"
-        className="rounded-xl"
+        variant="outline"
+        size="sm"
+        className="h-9 shrink-0 rounded-full px-3"
+        aria-label="Copy link to this channel"
         onClick={() => {
           void navigator.clipboard.writeText(location.href);
           toast.success("Link copied");
         }}
       >
-        <ShareNetworkIcon /> Share
+        <ShareNetworkIcon /> <span className="hidden sm:inline">Share</span>
       </Button>
     </div>
   );
@@ -173,35 +242,58 @@ function ChannelHeader({ s }: { s: StreamState }) {
 
 function Moments({ s }: { s?: StreamState }) {
   const items = s?.moments ?? [];
-  if (!items.length) return <Empty text="Moments from the game and its markets will show up here." />;
+  if (!items.length) return <EmptyNote icon={<ListBulletsIcon />} title="No activity yet" text="Moments from the game and its markets will show up here." />;
   return (
-    <ol className="relative space-y-0 border-l border-border pl-5">
-      {items.slice(0, 20).map((m, i) => (
-        <li key={`${m.at}-${i}`} className="relative pb-4">
-          <span className={cn("absolute -left-[25px] top-1.5 size-2.5 rounded-full border-2 border-background", m.kind === "market" ? "bg-yes" : m.kind === "integrity" ? "bg-warn" : "bg-faint")} />
-          <div className="text-sm">{m.text}</div>
-          <div className="text-xs text-faint">{ago(m.at)}</div>
-        </li>
-      ))}
-    </ol>
+    <Card className="gap-0 py-0">
+      <CardHeader className="border-b px-4 py-3 [.border-b]:pb-3">
+        <CardTitle className="text-sm">Game and market activity</CardTitle>
+      </CardHeader>
+      <ItemGroup>
+        {items.slice(0, 14).map((m, i) => (
+          <Fragment key={`${m.at}-${i}`}>
+            {i > 0 && <ItemSeparator />}
+            <Item size="sm" className="rounded-none py-2.5">
+              <ItemMedia>
+                <span className={cn("size-2 rounded-full", m.kind === "market" ? "bg-brand" : m.kind === "integrity" ? "bg-warn" : "bg-faint/60")} aria-hidden />
+              </ItemMedia>
+              <ItemContent className="min-w-0">
+                <ItemTitle className={cn("block w-full truncate", m.kind === "game" ? "font-normal text-muted-foreground" : "")}>{m.text}</ItemTitle>
+              </ItemContent>
+              <ItemActions className="text-[11.5px] text-faint tabular">{ago(m.at)}</ItemActions>
+            </Item>
+          </Fragment>
+        ))}
+      </ItemGroup>
+    </Card>
   );
 }
 
 function History({ items }: { items: MarketView[] }) {
-  if (!items.length) return <Empty text="Settled markets on this channel will appear here." />;
+  if (!items.length) return <EmptyNote icon={<ClockCounterClockwiseIcon />} title="No past markets yet" text="Settled markets on this channel will appear here." />;
   return (
-    <div className="surface divide-y divide-border">
-      {items.map((m) => (
-        <Link key={m.id} href={`/m/${m.id}`} className="flex items-center gap-3 px-4 py-3 transition hover:bg-raised/50">
-          <span className={cn("w-12 shrink-0 rounded-md py-0.5 text-center text-[11px] font-semibold", m.outcome === "YES" ? "bg-yes-soft text-yes" : m.outcome === "NO" ? "bg-no-soft text-no" : "bg-void-soft text-void")}>
-            {m.outcome ?? "…"}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-sm">{m.question}</span>
-          <span className="hidden text-xs text-faint sm:inline">opened {cents(m.pYes0)}</span>
-          <span className="w-16 text-right text-xs text-faint tabular">{compactUsd(m.volume)}</span>
-        </Link>
-      ))}
-    </div>
+    <Card className="gap-0 py-0">
+      <ItemGroup>
+        {items.map((m, i) => (
+          <Fragment key={m.id}>
+            {i > 0 && <ItemSeparator />}
+            <Item asChild size="sm" className="rounded-none hover:bg-secondary/50">
+              <Link href={`/m/${m.id}`}>
+                <ItemMedia>
+                  <Badge className={cn("w-12 justify-center rounded-md font-semibold", m.outcome === "YES" ? "bg-yes-soft text-yes" : m.outcome === "NO" ? "bg-no-soft text-no" : "bg-void-soft text-void")}>{m.outcome ?? "…"}</Badge>
+                </ItemMedia>
+                <ItemContent className="min-w-0">
+                  <ItemTitle className="block w-full truncate font-normal">{m.question}</ItemTitle>
+                </ItemContent>
+                <ItemActions className="gap-4 text-xs text-faint tabular">
+                  <span className="hidden sm:inline">opened {cents(m.pYes0)}</span>
+                  <span className="w-14 text-right">{compactUsd(m.volume)}</span>
+                </ItemActions>
+              </Link>
+            </Item>
+          </Fragment>
+        ))}
+      </ItemGroup>
+    </Card>
   );
 }
 
@@ -217,40 +309,56 @@ function Integrity({ s, refusals, latency }: { s?: StreamState; refusals: Refusa
   const unique = refusals.filter((r, i, a) => a.findIndex((x) => x.question === r.question) === i);
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <div className="surface space-y-4 p-4">
-        <Fact icon={<TimerIcon size={18} />} title={`${s?.latencyBufferSec ?? "…"}s latency buffer`} body={`Every market's window starts at least this long after trading closes, so nobody can trade on something they've already seen.${latency?.p95 ? ` Viewers' p95 delay: ${(latency.p95 / 1000).toFixed(1)}s.` : ""}`} />
-        <Fact icon={<ShieldCheckIcon size={18} />} title="Two independent sources" body="Lichess's live stream and its game export are read separately. Both must report the same moves and result, or the market voids." />
-        <Fact icon={<ProhibitIcon size={18} />} title="No insider trading" body="The streamer's verified human ID is blocked from their own markets onchain. They earn from volume, never from outcomes." />
-      </div>
-      <div className="surface p-4">
-        <h3 className="text-sm font-semibold">Questions the engine refused</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">Proposed, checked against the rules, and never listed.</p>
-        <ul className="mt-3 space-y-2.5">
-          {unique.slice(0, 6).map((r, i) => (
-            <li key={i}>
-              <div className="text-sm text-muted-foreground line-through decoration-faint">{r.question}</div>
-              <div className="text-xs text-warn">{REASON[r.reason] ?? r.reason}</div>
-            </li>
-          ))}
-          {!unique.length && <li className="text-sm text-faint">None yet for this game.</li>}
-        </ul>
-      </div>
+      <Card className="gap-0 py-2">
+        <ItemGroup>
+          <Fact icon={<TimerIcon />} title={`${s?.latencyBufferSec ?? "…"}s latency buffer`} body={`Every market's window starts at least this long after trading closes, so nobody can trade on something they've already seen.${latency?.p95 ? ` Viewers' p95 delay: ${(latency.p95 / 1000).toFixed(1)}s.` : ""}`} />
+          <Fact icon={<ShieldCheckIcon />} title="Two read paths must agree" body="Lichess's live stream and its game export are read separately. Both must report the same moves and result, or the market voids and stakes are refunded." />
+          <Fact icon={<ProhibitIcon />} title="Streamer barred from own markets" body="The streamer's verified human ID is blocked from trading their own markets onchain. This limits, but cannot fully rule out, collusion." />
+        </ItemGroup>
+      </Card>
+      <Card className="gap-3">
+        <CardHeader className="px-5">
+          <CardTitle className="text-sm">Questions the engine refused</CardTitle>
+          <CardDescription className="text-xs">Proposed, checked against the rules, and never listed.</CardDescription>
+        </CardHeader>
+        <CardContent className="px-5">
+          <ul className="space-y-2.5">
+            {unique.slice(0, 6).map((r, i) => (
+              <li key={i}>
+                <div className="text-sm text-muted-foreground line-through decoration-faint">{r.question}</div>
+                <div className="text-xs text-warn">{REASON[r.reason] ?? r.reason}</div>
+              </li>
+            ))}
+            {!unique.length && <li className="text-sm text-faint">None yet for this game.</li>}
+          </ul>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
 function Fact({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
   return (
-    <div className="flex gap-3">
-      <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-raised text-muted-foreground">{icon}</div>
-      <div>
-        <div className="text-sm font-semibold">{title}</div>
-        <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{body}</p>
-      </div>
-    </div>
+    <Item className="items-start">
+      <ItemMedia variant="icon" className="size-9 rounded-lg">
+        {icon}
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle>{title}</ItemTitle>
+        <ItemDescription className="line-clamp-none">{body}</ItemDescription>
+      </ItemContent>
+    </Item>
   );
 }
 
-function Empty({ text }: { text: string }) {
-  return <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-faint">{text}</div>;
+function EmptyNote({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
+  return (
+    <Empty className="border border-dashed py-10">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">{icon}</EmptyMedia>
+        <EmptyTitle className="text-sm">{title}</EmptyTitle>
+        <EmptyDescription>{text}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
 }

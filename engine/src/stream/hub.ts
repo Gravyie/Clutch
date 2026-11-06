@@ -86,6 +86,10 @@ export class Hub extends EventEmitter {
     const wanted = HOUSE_CHANNELS.filter((h) => config.houseChannels.includes(h.slug));
     for (const h of wanted) {
       if (await one(`SELECT slug FROM streams WHERE slug = ?`, [h.slug])) continue;
+      if (!config.ownerKey) {
+        log.warn(`house channel ${h.slug} has no pool and this engine has no owner key: import an existing pool to run it`);
+        continue;
+      }
       log.info(`creating pool for house channel ${h.slug}`);
       const pool = await chain.createStreamPool({ name: `Clutch: ${h.title}`, symbol: `c${h.slug.toUpperCase().slice(0, 6)}`, streamer: chain.owner.address, streamerNullifier: 0n, latencyBuffer: config.defaultLatencyBufferSec });
       await this.insertStream({ slug: h.slug, kind: "lichess-tv", title: h.title, subtitle: h.subtitle, lichessChannel: h.channel, owner: chain.owner.address, ownerNullifier: "0", pool });
@@ -290,7 +294,7 @@ export class Hub extends EventEmitter {
 
   /** Lazily give a channel its market pool the first time it needs one. */
   private async ensurePool(r: VideoRunner) {
-    if (r.row.pool_id || this.creatingPool.has(r.row.slug)) return;
+    if (r.row.pool_id || this.creatingPool.has(r.row.slug) || !config.ownerKey) return;
     this.creatingPool.add(r.row.slug);
     try {
       const pool = await chain.createStreamPool({ name: `Clutch: ${r.ref.channel}`, symbol: `c${r.ref.channel.toUpperCase().slice(0, 8)}`, streamer: chain.owner.address, streamerNullifier: 0n, latencyBuffer: config.twitchLatencyBufferSec });
@@ -318,7 +322,10 @@ export class Hub extends EventEmitter {
     for (const r of video) if (r.unproductive && !r.state.watching) r.benchedUntil = now + BENCH_MS;
     const likely = (c?: string) => (c === "fps" || c === "battle-royale" || c === "sports" || c === "moba" ? 2e8 : c === "irl" || c === "other" ? 0 : 1e8);
     const rank = (r: VideoRunner) => (r.active ? 1e9 : 0) + likely(r.state.category) + r.state.watching * 1e6 + (r.state.platformViewers ?? 0);
-    const want = video.filter((r) => r.active || ((r.row.pool_id || config.ownerKey) && r.wantsVision && (r.benchedUntil < now || r.state.watching > 0))).sort((a, b) => rank(b) - rank(a));
+    // Without the owner key (a hardened production engine) new pools can't be registered, so only channels that already
+    // have one are read. Active markets retain their reader so settlement is never starved.
+    const canTrade = (r: VideoRunner) => Boolean(r.row.pool_id) || Boolean(config.ownerKey);
+    const want = video.filter((r) => r.active || (canTrade(r) && r.wantsVision && (r.benchedUntil < now || r.state.watching > 0))).sort((a, b) => rank(b) - rank(a));
     // With the AI switched off nothing is read (and no frames are pulled), so it costs nothing.
     const granted = new Set(ZeroG.enabled ? want.slice(0, config.maxVideoStreams) : []);
     for (const r of video) {
@@ -424,6 +431,7 @@ export class Hub extends EventEmitter {
       earnedUsd: this.earnedUsd,
       lastRequestId: this.zg.lastRequestId,
       enabled: ZeroG.enabled,
+      outOfCredits: ZeroG.outOfCredits,
     };
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { PrivyProvider, useCreateWallet, usePrivy, useWallets } from "@privy-io/react-auth";
+import { PrivyProvider, useCreateWallet, useModalStatus, usePrivy, useWallets } from "@privy-io/react-auth";
 import { createWalletClient, custom, http, type WalletClient } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { CHAIN_ID, PRIVY_APP_ID, chain } from "./env";
@@ -18,6 +18,8 @@ export interface Wallet {
   address?: `0x${string}`;
   label?: string;
   login(): void;
+  /** Privy's own window is open: other modals must step aside so its inputs get focus and its lists scroll */
+  authOpen?: boolean;
   /** with Privy on: skip the account and use a browser wallet (also the fallback if Privy can't load) */
   continueAsGuest?(): void;
   logout(): Promise<void>;
@@ -38,7 +40,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       appId={PRIVY_APP_ID}
       config={{
         loginMethods: ["email", "google", "wallet"],
-        appearance: { theme: "dark", accentColor: "#ff6a2b", landingHeader: "Sign in to Clutch", showWalletLoginFirst: false },
+        appearance: {
+          theme: "dark",
+          accentColor: "#b8f36b",
+          landingHeader: "Sign in to Clutch",
+          showWalletLoginFirst: false,
+          // The wallets people actually use first (an installed extension like Brave Wallet tops the list), not 600 A-Z.
+          walletList: ["detected_wallets", "metamask", "coinbase_wallet", "rabby_wallet", "rainbow", "wallet_connect"],
+        },
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" }, showWalletUIs: false },
         defaultChain: chain,
         supportedChains: [chain],
@@ -56,6 +65,7 @@ function PrivyBridge({ children }: { children: React.ReactNode }) {
   // Signed in with email or Google but no wallet yet (e.g. the app's auto-create is off): make the embedded one now,
   // so a new viewer never lands signed in with nothing to trade from.
   const { createWallet } = useCreateWallet();
+  const { isOpen: privyModalOpen } = useModalStatus();
   const creating = useRef(false);
   useEffect(() => {
     if (!ready || !walletsReady || !authenticated || wallets.length || creating.current) return;
@@ -77,8 +87,9 @@ function PrivyBridge({ children }: { children: React.ReactNode }) {
       login,
       logout,
       client,
+      authOpen: privyModalOpen,
     }),
-    [ready, walletsReady, authenticated, w, user, login, logout, client],
+    [ready, walletsReady, authenticated, w, user, login, logout, client, privyModalOpen],
   );
   // A guest wallet chosen on this browser takes over until the viewer signs out of it.
   const guest = useGuestWallet();

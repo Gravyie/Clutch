@@ -80,24 +80,24 @@ export function CallMarket({ slug, className }: { slug: string; className?: stri
   }
 
   return (
-    <div className={cn("rounded-2xl border border-dashed border-border-strong p-4", className)}>
-      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
-        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand">
-          <CubeIcon size={18} weight="duotone" />
+    <div className={cn("space-y-3", className)}>
+      <div className="flex items-start gap-3">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand">
+          <LightningIcon size={16} weight="fill" />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold">Don't want to wait? Call one.</div>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-[13px] font-semibold">Don&apos;t want to wait?</div>
+          <div className="text-xs leading-relaxed text-muted-foreground">
             {zg.key
-              ? `Billed to your 0G credits${zg.spent.calls ? ` · you've spent $${zg.spent.usd.toFixed(4)} on ${zg.spent.calls} call${zg.spent.calls === 1 ? "" : "s"}` : ""}`
-              : "The AI reads the stream now and opens a market, paid for by your own 0G credits."}
+              ? `Ask the AI to open one now, billed to your 0G credits${zg.spent.calls ? ` (you've spent $${zg.spent.usd.toFixed(4)} on ${zg.spent.calls} call${zg.spent.calls === 1 ? "" : "s"})` : ""}.`
+              : "Ask the AI to read the stream and open a market now, paid with your own 0G credits."}
           </div>
         </div>
-        <Button onClick={call} disabled={busy} className="col-span-2 h-10 rounded-full bg-brand px-4 font-semibold text-brand-foreground hover:bg-brand/90 sm:col-span-1">
-          {busy ? <CircleNotchIcon className="animate-spin" /> : <LightningIcon weight="fill" />}
-          {busy ? "Reading the stream…" : zg.key ? "Call a market" : "Connect 0G"}
-        </Button>
       </div>
+      <Button onClick={call} disabled={busy} variant="outline" className="h-10 w-full rounded-lg font-semibold">
+        {busy ? <CircleNotchIcon className="animate-spin" /> : <CubeIcon weight="duotone" className="text-brand" />}
+        {busy ? "Reading the stream…" : zg.key ? "Call a market" : "Connect 0G to call one"}
+      </Button>
 
       <AnimatePresence>
         {last && (
@@ -139,7 +139,7 @@ function ConnectDialog({ open, onOpenChange, onConnect }: { open: boolean; onOpe
         <span className="grid size-11 place-items-center rounded-2xl bg-brand-soft text-brand">
           <CubeIcon size={22} weight="duotone" />
         </span>
-        <DialogTitle className="display text-2xl font-bold">Use your 0G credits</DialogTitle>
+        <DialogTitle className="display text-[2rem]">Use your 0G credits</DialogTitle>
         <DialogDescription className="text-sm leading-relaxed text-muted-foreground">
           Calling a market runs two vision models on 0G Private Computer: one reads the stream and writes the market, the other checks it can be settled. That inference is billed to your 0G account, usually well under a cent.
         </DialogDescription>
@@ -162,7 +162,7 @@ function ConnectDialog({ open, onOpenChange, onConnect }: { open: boolean; onOpe
           className="space-y-3"
         >
           <Input value={v} onChange={(e) => setV(e.target.value)} placeholder="sk-…" autoComplete="off" spellCheck={false} className="h-11 rounded-xl font-mono" aria-label="0G API key" />
-          <Button type="submit" disabled={!valid} className="h-11 w-full rounded-full bg-brand font-semibold text-brand-foreground hover:bg-brand/90">
+          <Button type="submit" disabled={!valid} className="h-11 w-full rounded-full bg-foreground font-medium text-background hover:bg-foreground/90">
             Connect
           </Button>
         </form>

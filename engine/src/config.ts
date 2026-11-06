@@ -82,6 +82,9 @@ export const config = {
   /** free test funds: a one-time top-up per new wallet, and a daily refill per verified human (World ID) */
   faucetStarterUsdc: Number(env("FAUCET_STARTER_USDC", "25")),
   faucetHumanDailyUsdc: Number(env("FAUCET_HUMAN_DAILY_USDC", "100")),
+  /** per network address per day (a venue shares one IP, so these are high) */
+  starterPerIpDaily: Number(env("STARTER_PER_IP_DAILY", "200")),
+  faucetPerIpDaily: Number(env("FAUCET_PER_IP_DAILY", "300")),
   faucetEth: env("FAUCET_ETH", local ? "0.003" : "0.0005")!, // gas only: the free money is the USDC
 
   // 0G: inference via the Router (OpenAI-compatible), evidence on 0G Storage.

@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "motion/react";
 import NumberFlow from "@number-flow/react";
 import { ArrowRightIcon, BroadcastIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { ChannelCard, StreamStage } from "@/components/stream";
-import { MarketCard, MarketPanel, ReceiptRow, isOpen } from "@/components/market";
+import { Masonry } from "@/components/masonry";
+import { ChannelCard, channelCardHeight, StreamStage } from "@/components/stream";
+import { MarketCard, ReceiptRow, isOpen } from "@/components/market";
+import { RoundPanel } from "@/components/round";
 import { useAccount } from "@/lib/account";
 import { api, useChannel, useLive } from "@/lib/live";
 import { useUI } from "@/lib/ui";
 import { compactUsd } from "@/lib/format";
 import { channelRank } from "@/components/shell";
+import { LiveDot, Notice, PageHeader, PageShell, Reveal, SectionHeader } from "@/components/page";
 
 export default function Home() {
   const streams = useLive((s) => s.streams);
@@ -25,13 +27,16 @@ export default function Home() {
   const featured = list.find((s) => s.market?.phase === "trading" && s.media?.kind === "video") ?? list[0];
 
   return (
-    <div className="mx-auto max-w-[1480px] space-y-12 px-4 py-6 sm:px-6">
-      <Intro />
-      {featured ? <Featured slug={featured.slug} /> : <div className="shimmer h-[520px] rounded-2xl bg-surface" />}
+    <PageShell wide className="space-y-20 sm:space-y-24">
+      <div>
+        <Intro />
+        {featured ? <Reveal delay={0.15}><Featured slug={featured.slug} /></Reveal> : <div className="h-[520px] animate-pulse rounded-[20px] bg-secondary" />}
+      </div>
 
       <section>
-        <SectionHead title="Live markets" href="/browse" />
+        <SectionHeader title="Live markets" href="/browse" />
         {liveMarkets.length ? (
+          <Reveal>
           <div className="scrollbar-none -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
             {liveMarkets.map((m) => (
               <div key={m.id} className="w-[300px] shrink-0 snap-start">
@@ -39,30 +44,33 @@ export default function Home() {
               </div>
             ))}
           </div>
+          </Reveal>
         ) : (
-          <p className="text-sm text-faint">Markets open as moments happen. Pick a channel and watch.</p>
+          <Notice icon={<BroadcastIcon size={16} />} title="No markets open this second">
+            They open the moment a stream gets tense, usually within a minute or two. Pick a channel below and watch.
+          </Notice>
         )}
       </section>
 
       <section>
-        <SectionHead title="Live now" href="/browse" />
-        <div className="grid gap-x-5 gap-y-8 sm:grid-cols-2 xl:grid-cols-4">
-          {list.filter((s) => s.live).slice(0, 12).map((s) => (
-            <ChannelCard key={s.slug} s={s} />
-          ))}
-        </div>
+        <SectionHeader title="Live now" href="/browse" />
+        <Reveal>
+        <Masonry items={list.filter((s) => s.live).slice(0, 12)} getKey={(s) => s.slug} estimate={channelCardHeight} render={(s) => <ChannelCard s={s} />} />
+        </Reveal>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div>
-          <SectionHead title="Just settled" />
+          <SectionHeader title="Just settled" />
           <div className="surface p-1.5">
             {receipts.length ? receipts.slice(0, 7).map((r) => <ReceiptRow key={r.marketId} r={r} />) : <p className="px-3 py-6 text-center text-sm text-faint">Results appear here as markets settle.</p>}
           </div>
         </div>
-        <ProofPanel />
+        <div className="lg:pt-[68px]">
+          <ProofPanel />
+        </div>
       </section>
-    </div>
+    </PageShell>
   );
 }
 
@@ -74,22 +82,25 @@ function Intro() {
   const reading = all.filter((s) => s.reading).length;
   const live = all.filter((s) => s.live).length;
   return (
-    <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-4 pt-2 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <div className="eyebrow flex items-center gap-2">
-          <span className="size-1.5 animate-live rounded-full bg-live" /> {live} live · AI reading {reading}
-        </div>
-        <h1 className="display mt-2 text-4xl font-bold sm:text-5xl">Live now</h1>
-      </div>
-      {!acct.onboarded && (
-        <div className="flex items-center gap-3">
-          <span className="hidden text-sm text-muted-foreground md:inline">Free test funds. One tap per trade.</span>
-          <Button size="lg" className="h-11 rounded-full bg-brand px-6 font-semibold text-brand-foreground hover:bg-brand/90" onClick={() => open()}>
-            Start trading
-          </Button>
-        </div>
-      )}
-    </motion.section>
+    <PageHeader
+      eyebrow={
+        <>
+          <LiveDot /> <span className="tabular-nums">{live}</span> streams live · AI reading <span className="tabular-nums">{reading}</span>
+        </>
+      }
+      title="Live now"
+      description="Pick a stream, wait for the moment, and call it before it locks."
+      actions={
+        !acct.onboarded ? (
+          <>
+            <span className="hidden text-[13.5px] text-muted-foreground lg:inline">Free test funds, one tap per trade</span>
+            <Button className="h-11 rounded-full bg-foreground px-5 text-[14.5px] font-medium text-background hover:bg-foreground/90" onClick={() => open()}>
+              Start trading <ArrowRightIcon />
+            </Button>
+          </>
+        ) : undefined
+      }
+    />
   );
 }
 
@@ -100,33 +111,20 @@ function Featured({ slug }: { slug: string }) {
   const market = useLive((s) => (summary?.market ? s.markets[summary.market.id] : undefined));
   const { data } = useQuery({ queryKey: ["stream", slug], queryFn: () => api<{ pool: { key: any } }>(`/streams/${slug}`), staleTime: 60_000 });
   return (
-    <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
+    <section className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
       <Link href={`/c/${slug}`} className="block min-w-0">
         <StreamStage stream={stream} compact />
       </Link>
       <div className="space-y-3">
-        <Link href={`/c/${slug}`} className="flex items-center justify-between rounded-xl px-1 text-sm">
-          <span className="font-semibold">{summary?.title}</span>
+        <Link href={`/c/${slug}`} className="flex h-6 items-center justify-between px-1 text-[13.5px]">
+          <span className="font-medium">{summary?.title}</span>
           <span className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
             Open channel <ArrowRightIcon size={14} />
           </span>
         </Link>
-        <MarketPanel m={market && isOpen(market) ? market : undefined} pool={data?.pool.key} />
+        <RoundPanel m={market && isOpen(market) ? market : undefined} stream={stream} pool={data?.pool.key} />
       </div>
     </section>
-  );
-}
-
-function SectionHead({ title, href }: { title: string; href?: string }) {
-  return (
-    <div className="mb-4 flex items-center justify-between">
-      <h2 className="display text-2xl font-bold">{title}</h2>
-      {href && (
-        <Link href={href} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          See all <ArrowRightIcon size={14} />
-        </Link>
-      )}
-    </div>
   );
 }
 
@@ -134,11 +132,11 @@ function ProofPanel() {
   const { data } = useQuery({ queryKey: ["stats"], queryFn: () => api<{ markets: number; volume: number; traders: number; voids: number }>("/stats"), refetchInterval: 15_000 });
   return (
     <div className="surface flex flex-col justify-between overflow-hidden">
-      <div className="p-5">
-        <ShieldCheckIcon size={28} weight="fill" className="text-yes" />
-        <h3 className="mt-3 text-lg font-semibold tracking-tight">Nobody decides who wins</h3>
+      <div className="p-6">
+        <ShieldCheckIcon size={26} weight="fill" className="text-info" />
+        <h3 className="display mt-4 text-[1.75rem]">Rules first, results second</h3>
         <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-          Two independent sources must agree on every result. If they don't, the market voids and everyone gets their money back. The streamer can't trade their own markets.
+          Every result is decided by a rule committed onchain before trading opens, and two separate read paths must agree. If they don't, the market voids and stakes are refunded. The streamer can't trade their own markets.
         </p>
       </div>
       <dl className="grid grid-cols-3 border-t border-border">
@@ -149,7 +147,7 @@ function ProofPanel() {
         ].map(([k, v, money]) => (
           <div key={String(k)} className="border-r border-border p-4 last:border-r-0">
             <dt className="text-xs text-faint">{k}</dt>
-            <dd className="mt-1 text-xl font-semibold tabular">{money ? compactUsd(Number(v)) : <NumberFlow value={Number(v)} />}</dd>
+            <dd className="display mt-1.5 text-[1.9rem] leading-none tabular-nums">{money ? compactUsd(Number(v)) : <NumberFlow value={Number(v)} />}</dd>
           </div>
         ))}
       </dl>

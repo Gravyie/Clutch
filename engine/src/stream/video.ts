@@ -259,10 +259,10 @@ export class VideoRunner extends EventEmitter {
       void this.maybeOpen();
     } catch (e: any) {
       this.decline("ORACLE_UNAVAILABLE", "Reader A inference failed");
-      if (/budget spent|switched off/.test(e.message)) {
+      if (/budget spent|switched off|out of credits|402/.test(e.message)) {
         // The daily cap is a hard stop: rest a minute instead of retrying every frame.
         if (!this.pausedUntil || now - this.pausedUntil > 5 * 60_000) log.warn(`${this.row.slug}: ${e.message}`);
-        this.pausedUntil = Date.now() + 60_000;
+        this.pausedUntil = this.io.now() + 60_000;
       } else log.warn(`${this.row.slug} reader A`, e.message);
     } finally {
       this.perceiving = false;

@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeftIcon, ArrowSquareOutIcon, CheckCircleIcon, DatabaseIcon, SparkleIcon, XCircleIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, ArrowSquareOutIcon, CheckCircleIcon, CopyIcon, DatabaseIcon, SparkleIcon, XCircleIcon } from "@phosphor-icons/react";
+import { toast } from "sonner";
 import { ruleHash, type MarketView, type PricePoint, type Receipt, type SourceReading, type TradeEvent } from "@clutch/shared";
 import { MarketPanel, PriceChart, TradeTape, isOpen } from "@/components/market";
 import { api, useLive } from "@/lib/live";
-import { ENGINE_URL, explorerTx } from "@/lib/env";
+import { ENGINE_URL, chain, explorerTx } from "@/lib/env";
 import { compactUsd, pct, short } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -33,25 +34,59 @@ export default function MarketPage() {
       </Link>
       <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-6">
-          <header>
-            <h1 className="display text-3xl font-bold">{m.question}</h1>
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-              <span>Opened at {pct(m.pYes0)}</span>
-              <span>{compactUsd(m.volume)} traded</span>
-              <span>{m.traders} traders</span>
-              <span>{new Date(m.openedAt * 1000).toLocaleString()}</span>
+          <header className="surface overflow-hidden">
+            <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3 text-xs">
+              <Verdict m={m} />
+              <span className="font-mono text-faint">Market #{m.id}</span>
+              <span className="text-faint">·</span>
+              <span className="text-muted-foreground">{chain.name}{chain.testnet ? " · testnet" : ""}</span>
+              <span className="ml-auto text-faint">{new Date(m.openedAt * 1000).toLocaleString()}</span>
+            </div>
+            <div className="px-5 py-5">
+              <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] sm:text-3xl">{m.question}</h1>
+              <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[
+                  ["Opened at", `${pct(m.pYes0)} Yes`],
+                  ["Last price", `${pct(m.priceYes)} Yes`],
+                  ["Volume", compactUsd(m.volume)],
+                  ["Traders", String(m.traders)],
+                ].map(([k, v]) => (
+                  <div key={k}>
+                    <dt className="text-[11.5px] text-faint">{k}</dt>
+                    <dd className="mt-0.5 font-mono text-[15px] font-semibold tabular">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+                <TxLink label="Opened" hash={m.tx.open} />
+                <TxLink label="Settled" hash={m.tx.resolve} pending={m.phase !== "settled" && m.phase !== "void" ? "not yet settled" : "awaiting confirmation"} />
+                <button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(location.href);
+                    toast.success("Receipt link copied");
+                  }}
+                  className="ml-auto inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                >
+                  <CopyIcon size={13} /> Copy permalink
+                </button>
+              </div>
             </div>
           </header>
-          <section className="surface p-5">
-            <PriceChart m={m} height={220} />
-          </section>
+          {m.trades > 0 ? (
+            <section className="surface p-5">
+              <h2 className="mb-2 text-sm font-semibold">Yes price over time</h2>
+              <PriceChart m={m} height={200} />
+            </section>
+          ) : (
+            <p className="rounded-2xl border border-dashed border-border px-5 py-4 text-sm text-faint">No trades on this market, so it stayed at its opening price of {pct(m.pYes0)} Yes.</p>
+          )}
           {r ? <ReceiptView r={r} /> : <Pending m={m} />}
           <section className="surface p-5">
             <h2 className="mb-3 text-sm font-semibold">Trades</h2>
             <TradeTape marketId={m.id} limit={30} />
           </section>
         </div>
-        <aside className="lg:sticky lg:top-[4.5rem] lg:h-fit">
+        <aside className="lg:sticky lg:top-[76px] lg:h-fit">
           <MarketPanel m={m} pool={ch?.pool.key} />
         </aside>
       </div>
@@ -211,5 +246,32 @@ function Line({ k, v }: { k: string; v: React.ReactNode }) {
       <span className="text-muted-foreground">{k}</span>
       <span>{v}</span>
     </div>
+  );
+}
+
+function Verdict({ m }: { m: MarketView }) {
+  const map: Record<string, [string, string]> = {
+    trading: ["Trading", "bg-live/15 text-live"],
+    locked: ["Trading closed", "bg-warn-soft text-warn"],
+    window: ["Event playing out", "bg-warn-soft text-warn"],
+    resolving: ["Checking result", "bg-info-soft text-info"],
+    void: ["Void · refunded", "bg-void-soft text-void"],
+  };
+  const [label, cls] =
+    m.phase === "settled" ? (m.outcome === "YES" ? ["Resolved YES", "bg-yes-soft text-yes"] : ["Resolved NO", "bg-no-soft text-no"]) : (map[m.phase] ?? [m.phase, "bg-raised text-muted-foreground"]);
+  return <span className={cn("rounded-full px-2.5 py-0.5 text-[11.5px] font-bold", cls)}>{label}</span>;
+}
+
+function TxLink({ label, hash, pending }: { label: string; hash?: string; pending?: string }) {
+  if (!hash) return <span className="text-faint">{label}: {pending ?? "—"}</span>;
+  const url = explorerTx(hash);
+  return url ? (
+    <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+      {label} <span className="font-mono">{short(hash, 8)}</span> <ArrowSquareOutIcon size={12} />
+    </a>
+  ) : (
+    <span className="text-muted-foreground">
+      {label} <span className="font-mono">{short(hash, 8)}</span> <span className="text-faint">(local chain)</span>
+    </span>
   );
 }

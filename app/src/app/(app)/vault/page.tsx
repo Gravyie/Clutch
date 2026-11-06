@@ -1,5 +1,6 @@
 "use client";
 
+import { DotType } from "@/components/dot-type";
 import { useState } from "react";
 import { chain as appChain } from "@/lib/env";
 import NumberFlow from "@number-flow/react";
@@ -27,7 +28,7 @@ export default function VaultPage() {
   return (
     <div className="mx-auto max-w-[1100px] space-y-6 px-4 py-6 sm:px-6">
       <div>
-        <h1 className="display text-3xl font-bold">Liquidity vault</h1>
+        <DotType as="h1" start speed={34} text="Liquidity vault" className="display text-[2.6rem]" />
         <p className="mt-1 max-w-[65ch] text-muted-foreground">One USDC vault backs every market. You earn 1% of all volume plus whatever the market curve doesn't pay out. Your worst case is capped and shown live.</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

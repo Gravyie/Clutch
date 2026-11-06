@@ -152,3 +152,16 @@ test("late independent verification and stopped runners cannot submit", async ()
  assert.equal(h.submissions(),0);
  h.r.stop();
  });
+
+ test("402 backoff keeps oracle diagnostics and resumes after the injected-clock pause", async () => {
+  const h = harness(); let calls = 0;
+  h.r["readers"].a.discover = async () => { calls++; throw new Error("402 out of credits"); };
+  const frame = () => ({ at: h.now(), sha: `fixture-${h.now()}`, jpeg: Buffer.alloc(0) });
+  await h.r["perceive"](frame());
+  assert.equal(h.r.diagnostics.last?.code, "ORACLE_UNAVAILABLE");
+  assert.equal(h.r["pausedUntil"], h.now() + 60_000);
+  h.time(h.now() + 10_000); await h.r["perceive"](frame());
+  assert.equal(calls, 1);
+  h.time(h.now() + 51_000); await h.r["perceive"](frame());
+  assert.equal(calls, 2); assert.equal(h.submissions(), 0); h.r.stop();
+ });

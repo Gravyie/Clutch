@@ -6,6 +6,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { isAddress } from "viem";
 import type { ClientMessage, ServerMessage } from "@clutch/shared";
 import { config, isLocalChain } from "./config";
+import { sendFreeFunds } from "./faucet";
 import { log } from "./log";
 import type { Hub } from "./stream/hub";
 import { VideoRunner } from "./stream/video";
@@ -197,7 +198,9 @@ export function serve(hub: Hub) {
         const w = wallet(body.wallet);
         const day = new Date().toISOString().slice(0, 10);
         const n = Number((await kvGet(`starter:ip:${ip}:${day}`)) ?? 0);
-        if (n >= 10 && !isLocalChain) throw httpError(429, "Too many new wallets from this network today. Verify with World ID to keep going.");
+        // Per network address, generous on purpose: a venue or office shares one IP. Spoofable via X-Forwarded-For,
+        // so it's a brake on scripts, not the real limit (that's one starter top-up per wallet, small caps per wallet).
+        if (n >= config.starterPerIpDaily && !isLocalChain) throw httpError(429, "Too many new wallets from this network today. Verify with World ID to keep going.");
         await kvSet(`starter:ip:${ip}:${day}`, String(n + 1));
         const streamer = [...hub.runners.values()].some((r) => r.row.owner_address?.toLowerCase() === w.toLowerCase() && r.row.owner_nullifier !== "0");
         return starterIssue(w, streamer);
@@ -216,20 +219,30 @@ export function serve(hub: Hub) {
         const to = wallet(body.address);
         const day = new Date().toISOString().slice(0, 10);
         const ipCount = Number((await kvGet(`faucet:ip:${ip}:${day}`)) ?? 0);
-        if (ipCount >= 20 && !isLocalChain) throw httpError(429, "Daily faucet limit reached for this network.");
+        if (ipCount >= config.faucetPerIpDaily && !isLocalChain) throw httpError(429, "Daily faucet limit reached for this network.");
         const human = await nullifierOf(to);
         let usdc: number;
+        let mark: string;
         if (human) {
-          if (await kvGet(`faucet:h:${human}:${day}`)) throw httpError(429, "You've had today's free funds. They refill at 00:00 UTC.");
-          await kvSet(`faucet:h:${human}:${day}`, String(Date.now()));
+          mark = `faucet:h:${human}:${day}`;
+          if (await kvGet(mark)) throw httpError(429, "You've had today's free funds. They refill at 00:00 UTC.");
           usdc = config.faucetHumanDailyUsdc;
         } else {
-          if (await kvGet(`faucet:w:${to.toLowerCase()}`)) throw Object.assign(httpError(403, `This wallet already had its starter funds. Verify with World ID for ${config.faucetHumanDailyUsdc} free test USDC every day.`), { code: "verify" });
-          await kvSet(`faucet:w:${to.toLowerCase()}`, String(Date.now()));
+          mark = `faucet:w:${to.toLowerCase()}`;
+          if (await kvGet(mark)) throw Object.assign(httpError(403, `This wallet already had its starter funds. Verify with World ID for ${config.faucetHumanDailyUsdc} free test USDC every day.`), { code: "verify" });
           usdc = config.faucetStarterUsdc;
         }
+        // Claim first (so two tabs can't both pass the check), release it if sending fails.
+        await kvSet(mark, String(Date.now()));
         await kvSet(`faucet:ip:${ip}:${day}`, String(ipCount + 1));
-        return { ...(await chain.faucet(to, usdc)), human: Boolean(human) };
+        let sent;
+        try {
+          sent = await sendFreeFunds(to, usdc);
+        } catch (e) {
+          await kvSet(mark, "");
+          throw e;
+        }
+        return { ...sent, human: Boolean(human) };
       },
     },
 

@@ -1,3 +1,4 @@
+import { DotType } from "@/components/dot-type";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ const LIFECYCLE = [
   { t: "Rules locked in", d: "Before anyone can trade, the market's exact rule and timing are fingerprinted onchain. Nobody can change what counts as a win afterwards." },
   { t: "One tap", d: "Back Yes or No. Prices move with demand on a market-maker curve inside a Uniswap v4 hook, so there's always someone to trade with." },
   { t: "A safety gap", d: "Trading closes, then a gap at least as long as the stream's delay passes before anything counts. Nobody can bet on something they've already seen." },
-  { t: "Two witnesses", d: "Two independent readers, using different frames over separate connections, must see the same result on screen. Chess uses two separate Lichess feeds. If they disagree, or one can't see it, the market is voided and everyone is refunded." },
+  { t: "Two witnesses", d: "Two separate readers, using different frames over separate connections, must see the same result on screen. That is corroboration, not proof: they can still share blind spots. Chess uses two separate Lichess feeds. If they disagree, or one can't see it, the market is voided and everyone is refunded." },
   { t: "A receipt", d: "Every result comes with the committed rule, both readers' verdicts and frames, and the 0G request IDs. The evidence bundle is Merkle-hashed with the 0G Storage SDK (and uploaded to 0G Storage when that's enabled), and its root is written onchain with the verdict. Anyone can check it." },
 ];
 
@@ -23,8 +24,8 @@ const RULES = [
 export default function HowItWorks() {
   return (
     <div className="mx-auto max-w-[1000px] px-4 py-10 sm:px-6">
-      <h1 className="display max-w-[18ch] text-4xl font-bold sm:text-5xl">Fair markets on live moments</h1>
-      <p className="mt-4 max-w-[60ch] text-lg leading-relaxed text-muted-foreground">Clutch turns tense moments into short markets that settle in seconds. Here's what happens to every single one.</p>
+      <DotType as="h1" start speed={34} text="Fair markets on live moments" className="display max-w-[18ch] text-[2.9rem] sm:text-[3.6rem]" />
+      <p className="mt-4 max-w-[60ch] text-lg leading-relaxed text-muted-foreground">Clutch turns tense moments into short markets with a fixed trading window, a separate event window, and an onchain settlement. Here's what happens to every single one.</p>
 
       <ol className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-2">
         {LIFECYCLE.map((s, i) => (
