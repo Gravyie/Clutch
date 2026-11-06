@@ -52,6 +52,8 @@ export function serve(hub: Hub) {
         world: { configured: worldConfigured, appId: config.worldAppId, action: config.worldAction, environment: config.worldEnvironment, agentPass: agentPassConfigured, agentPassDev },
         zeroG: { provider: hub.zg.provider, model: config.zgModel, storage: config.zgStorageKey ? "0g" : "local" },
         lichessClientId: config.lichessClientId,
+        // public by design (it identifies the app, it doesn't authenticate it); lets viewers connect Twitch chat
+        twitchClientId: process.env.TWITCH_CLIENT_ID,
         passDailyCap: config.passDailyCapUsdc,
       }),
     },

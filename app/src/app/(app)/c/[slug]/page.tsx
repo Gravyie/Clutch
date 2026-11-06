@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlatformIcon, StreamStage, platformUrl } from "@/components/stream";
 import { TradeTape } from "@/components/market";
 import { PlayingOut, RecentRounds, RoundPanel, VisionPanel } from "@/components/round";
+import { TwitchChat } from "@/components/chat";
 import { api, useChannel, useLive } from "@/lib/live";
 import { ago, cents, compactUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -74,6 +75,7 @@ export default function ChannelPage() {
         </div>
         {stream && <ChannelHeader s={stream} />}
         <div className="space-y-4 xl:hidden">
+          {stream?.media?.kind === "video" && stream.media.platform === "twitch" && <TwitchChat channel={stream.media.channel} slug={slug} className="h-[380px]" />}
           <VisionPanel s={stream} />
           <PlayingOut slug={slug} exclude={market?.id} />
           <RecentRounds slug={slug} />
@@ -103,6 +105,7 @@ export default function ChannelPage() {
       </div>
 
       <aside data-testid="market-aside" className="hidden space-y-4 xl:sticky xl:top-[4.5rem] xl:block xl:h-fit">
+        {stream?.media?.kind === "video" && stream.media.platform === "twitch" && <TwitchChat channel={stream.media.channel} slug={slug} className="h-[460px]" />}
         <VisionPanel s={stream} />
         <PlayingOut slug={slug} exclude={market?.id} />
         <RecentRounds slug={slug} />
