@@ -10,7 +10,8 @@ import { Avatar, LiveBadge } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlatformIcon, StreamStage, platformUrl } from "@/components/stream";
-import { MarketPanel, TradeTape, isOpen } from "@/components/market";
+import { TradeTape } from "@/components/market";
+import { PlayingOut, RecentRounds, RoundPanel, VisionPanel } from "@/components/round";
 import { api, useChannel, useLive } from "@/lib/live";
 import { ago, cents, compactUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -63,12 +64,17 @@ export default function ChannelPage() {
   }
 
   return (
-    <div className="mx-auto grid max-w-[1600px] gap-5 px-4 py-5 sm:px-6 xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="mx-auto grid max-w-[1600px] gap-5 px-4 py-5 sm:px-6 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="min-w-0 space-y-5">
         <StreamStage stream={stream} />
+        <div data-testid="round">
+          <RoundPanel m={market ?? undefined} stream={stream} pool={data?.pool.key} next={waitingReason(stream)} />
+        </div>
         {stream && <ChannelHeader s={stream} />}
-        <div className="xl:hidden">
-          <MarketPanel m={market && isOpen(market) ? market : (market ?? undefined)} pool={data?.pool.key} emptyHint={waitingReason(stream)} />
+        <div className="space-y-4 xl:hidden">
+          <VisionPanel s={stream} />
+          <PlayingOut slug={slug} exclude={market?.id} />
+          <RecentRounds slug={slug} />
         </div>
         <Tabs defaultValue="moments">
           <TabsList className="h-10 rounded-xl bg-raised p-1">
@@ -95,7 +101,9 @@ export default function ChannelPage() {
       </div>
 
       <aside data-testid="market-aside" className="hidden space-y-4 xl:sticky xl:top-[4.5rem] xl:block xl:h-fit">
-        <MarketPanel m={market ?? undefined} pool={data?.pool.key} emptyHint={waitingReason(stream)} />
+        <VisionPanel s={stream} />
+        <PlayingOut slug={slug} exclude={market?.id} />
+        <RecentRounds slug={slug} />
         {market && (
           <section className="surface p-4">
             <h3 className="mb-3 text-sm font-semibold">Recent trades</h3>

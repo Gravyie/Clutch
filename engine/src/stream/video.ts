@@ -3,16 +3,17 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   categoryFor,
-  MIN_CONFIDENCE,
-  readable,
+  counterRule,
+  defaultQuestion,
+  evaluateCounter,
   ruleHash as hashRule,
-  validate,
-  visionTemplateById,
-  VISION_TEMPLATES,
+  tradeable,
   type AiDecision,
   type Category,
+  type CounterKind,
+  type CounterReading,
+  type CounterSpec,
   type MarketView,
-  type Reading,
   type Receipt,
   type Refusal,
   type Rule,
@@ -20,13 +21,12 @@ import {
   type SourceReading,
   type StreamState,
   type StreamSummary,
-  type VisionTemplate,
 } from "@clutch/shared";
 import { keccak256, toBytes, type Hex } from "viem";
 import { config } from "../config";
 import { log } from "../log";
 import * as chain from "../chain";
-import { all, one, run } from "../db";
+import { all, run } from "../db";
 import type { ZeroG } from "../ai/zeroG";
 import { storeEvidence } from "../evidence";
 import { FrameSampler, grabFrame, probe, type ChannelRef, type Frame } from "../video/capture";
@@ -36,67 +36,53 @@ import type { StreamRow } from "./runner";
 const framesDir = join(config.dataDir, "frames");
 mkdirSync(framesDir, { recursive: true });
 
-interface Active {
+interface Live {
   view: MarketView;
   rule: Rule;
-  template: VisionTemplate<any>;
-  params: Record<string, unknown>;
-  startA?: SceneState;
-  startB?: Reading;
-  b: Reading[];
-  resolving: boolean;
+  spec: CounterSpec;
+  /** reader B's readings: window start, any confirming checks, window end */
+  b: CounterReading[];
+  bStarted: boolean;
   checking: boolean;
+  resolving: boolean;
   retryAt?: number;
+  frames: { at: number; sha: string; reader: string; note: string }[];
 }
 
-/** Base rates used when 0G isn't configured. Shown as "base rates" on every market they price. */
-function prior(t: VisionTemplate<any>, s: SceneState, p: any): number {
-  switch (t.id) {
-    case "score_change":
-      return s.phase === "buy" ? 0.2 : (s.clock ?? 90) < 55 ? 0.7 : 0.45;
-    case "team_scores_next": {
-      const diff = (p.team === "A" ? (s.scoreA ?? 0) - (s.scoreB ?? 0) : (s.scoreB ?? 0) - (s.scoreA ?? 0)) * 0.03;
-      return Math.min(0.8, Math.max(0.2, 0.47 + diff));
-    }
-    case "round_ends":
-      return (s.clock ?? 90) <= 40 ? 0.88 : 0.4;
-    case "clutch":
-      return p.side === "A" ? [0, 0.62, 0.3, 0.17, 0.09, 0.05][s.aliveB ?? 2] ?? 0.1 : [0, 0.62, 0.3, 0.17, 0.09, 0.05][s.aliveA ?? 2] ?? 0.1;
-    case "bomb_plant":
-      return 0.56;
-    case "field_shrinks":
-      return 0.5;
-    case "pov_survives":
-      return 0.55;
-    default:
-      return 0.5;
-  }
+interface Reading {
+  at: number;
+  sha: string;
+  state: SceneState;
 }
 
-const PRIORITY = ["clutch", "bomb_plant", "round_ends", "team_scores_next", "score_change", "field_shrinks", "pov_survives"];
+const MAX_LIVE = 2; // one trading + one playing out, so there's almost always something to trade
 
 /**
- * A live video channel (Twitch, Kick, YouTube). Reader A perceives sampled frames continuously; Reader B checks
- * at window start and end over its own connection. Markets open only on live gameplay that both readers can see,
- * never on reruns, and void whenever the readers disagree.
+ * A live video channel (Twitch, Kick, YouTube).
+ *
+ * Reader A (0G vision) reads every sampled frame in one pass: mode, survival, and every counter on the HUD.
+ * The 0G agent turns steady, contested counters into markets ("Clix eliminations go up in the next 45s?").
+ * Reader B (a different model family) independently reads just that counter on its own frames over its own
+ * connection: before opening, at window start, when A sees the outcome early, and at window end. Both must reach
+ * the same verdict or the market voids and everyone is refunded. Reruns never get markets.
  */
 export class VideoRunner extends EventEmitter {
   state: StreamState;
-  active?: Active;
   readonly ref: ChannelRef;
+  private live: Live[] = [];
   private sampler?: FrameSampler;
   private timeline: Reading[] = [];
   private perceiving = false;
   private lastProposalAt = 0;
-  private lastSettledAt = 0;
   private proposing = false;
   private refused = new Set<string>();
+  private recentQuestions: string[] = [];
   private ticker?: NodeJS.Timeout;
   private prober?: NodeJS.Timeout;
   private category: Category = "other";
   chainBlocked = false;
-  /** Set by the hub: whether this channel may hold one of the limited vision slots. */
   slotGranted = false;
+  helixManaged = false;
 
   constructor(readonly row: StreamRow & { platform: string; channel: string; category: string | null }, private readonly zg: ZeroG, private readonly readers: { a: VisionReader; b: VisionReader; independent: string }) {
     super();
@@ -132,6 +118,16 @@ export class VideoRunner extends EventEmitter {
     return this.row.pool_id as Hex;
   }
 
+  /** The market a viewer should see first: the one still trading, else the newest. */
+  get active() {
+    const pick = this.live.find((m) => m.view.phase === "trading") ?? this.live[this.live.length - 1];
+    return pick ? { view: pick.view } : undefined;
+  }
+
+  get wantsVision() {
+    return this.state.live && !this.state.rerun;
+  }
+
   start() {
     this.ticker = setInterval(() => void this.tick(), 1000);
     this.prober = setInterval(() => void this.refreshInfo(), 60_000);
@@ -150,27 +146,19 @@ export class VideoRunner extends EventEmitter {
     return { ...s, market: v ? { id: v.id, question: v.question, phase: v.phase, priceYes: v.priceYes, lockTime: v.lockTime, volume: v.volume, outcome: v.outcome } : undefined };
   }
 
-  /** Whether this channel wants a vision slot (live, not a rerun). */
-  get wantsVision() {
-    return this.state.live && !this.state.rerun;
-  }
-
   // ─── Liveness ────────────────────────────────────────────────────────────────────────────────
-
-  /** Twitch channels get liveness, titles and viewers from Helix (via the hub) instead of per-channel probes. */
-  helixManaged = false;
 
   applyInfo(info: { live: boolean; title?: string; game?: string; viewers?: number }) {
     if (info.viewers !== undefined) this.state.platformViewers = info.viewers;
-    void this.updateInfo({ live: info.live, title: info.title, game: info.game, rerun: /\b(rerun|re-run|vod|replay|rebroadcast|highlights?)\b/i.test(info.title ?? "") });
+    this.updateInfo({ live: info.live, title: info.title, game: info.game, rerun: /\b(rerun|re-run|vod|replay|rebroadcast|highlights?)\b/i.test(info.title ?? "") });
   }
 
   private async refreshInfo() {
     if (this.helixManaged) return;
-    await this.updateInfo(await probe(this.ref));
+    this.updateInfo(await probe(this.ref));
   }
 
-  private async updateInfo(info: { live: boolean; title?: string; game?: string; rerun: boolean; author?: string }) {
+  private updateInfo(info: { live: boolean; title?: string; game?: string; rerun: boolean }) {
     const wasLive = this.state.live;
     this.state.live = info.live;
     this.state.rerun = info.rerun;
@@ -187,13 +175,12 @@ export class VideoRunner extends EventEmitter {
     this.changed();
   }
 
-  /** Called by the hub when this channel gains or loses one of the limited vision slots. */
   setSlot(granted: boolean) {
     if (granted === this.slotGranted) return;
     this.slotGranted = granted;
     this.state.reading = granted;
     if (granted) {
-      this.sampler = new FrameSampler(this.ref).start();
+      this.sampler = new FrameSampler(this.ref, { intervalSec: 2, width: 1024, keep: 60 }).start();
       this.sampler.on("frame", (f: Frame) => {
         this.state.frameAt = f.at;
         writeFileSync(join(framesDir, `${this.row.slug}.jpg`), f.jpeg);
@@ -203,123 +190,66 @@ export class VideoRunner extends EventEmitter {
       this.sampler?.stop();
       this.sampler = undefined;
     }
+    this.changed();
   }
 
-  // ─── Perception (Reader A) ───────────────────────────────────────────────────────────────────
+  // ─── Reader A ────────────────────────────────────────────────────────────────────────────────
 
   private async perceive(f: Frame) {
-    if (this.perceiving) return; // drop frames while the model is busy; the next one is fresher anyway
+    if (this.perceiving) return; // the next frame is fresher anyway
     this.perceiving = true;
     try {
-      const r = await this.readers.a.read(f.jpeg, this.category, this.state.game);
-      const reading: Reading = { at: f.at, frame: f.sha, state: r.state, reader: this.readers.a.name };
-      this.timeline.push(reading);
-      if (this.timeline.length > 400) this.timeline.splice(0, 100);
+      const r = await this.readers.a.discover(f.jpeg, this.state.game);
+      this.timeline.push({ at: f.at, sha: f.sha, state: r.state });
+      if (this.timeline.length > 300) this.timeline.splice(0, 60);
       this.state.vision = { state: r.state, at: f.at, reader: this.readers.a.name, ms: r.ms };
       this.changed();
-      if (this.active && this.active.view.phase === "window") void this.maybeEarly();
-      else void this.maybeOpen();
+      // A decisive change for a live market: ask B to confirm right away.
+      for (const m of this.live) if (m.view.phase === "window" && !m.resolving && this.evalA(m, false) !== "PENDING") void this.confirm(m);
+      void this.maybeOpen();
     } catch (e: any) {
-      log.warn(`${this.row.slug} perception`, e.message);
+      log.warn(`${this.row.slug} reader A`, e.message);
     } finally {
       this.perceiving = false;
     }
   }
 
+  /** Counters read with the same value in at least two of the last three readings: safe to build a market on. */
+  private steadyCounters() {
+    const recent = this.timeline.slice(-3).filter((r) => r.state.mode === "gameplay");
+    if (recent.length < 2) return [];
+    const latest = recent[recent.length - 1].state.counters ?? [];
+    return latest.filter((c) => recent.slice(0, -1).some((r) => r.state.counters?.some((x) => x.key === c.key && Math.abs(x.value - c.value) <= Math.max(1, c.value * 0.2))) && tradeable(c.key, c.label));
+  }
+
   // ─── Opening ─────────────────────────────────────────────────────────────────────────────────
 
   private async maybeOpen() {
+    if (this.proposing || this.state.paused || this.chainBlocked || !this.poolId || this.state.rerun) return;
+    if (this.live.some((m) => m.view.phase === "trading") || this.live.length >= MAX_LIVE) return;
+    if (Date.now() - this.lastProposalAt < 6000) return;
     const latest = this.timeline[this.timeline.length - 1];
-    if (!latest || this.active || this.proposing || this.state.paused || this.chainBlocked || !this.poolId) return;
-    if (this.state.rerun) return this.refuseOnce("rerun", "Markets on this stream", "not-resolvable", "This is a rerun: the result already happened, so trading it would be insider trading.");
-    const now = Date.now();
-    if (now - this.lastSettledAt < config.cooldownSec * 1000 || now - this.lastProposalAt < 15_000) return;
-    if (latest.state.mode !== "gameplay" || latest.state.confidence < MIN_CONFIDENCE) return;
-    if (this.zg.mode === "paused") return;
+    if (!latest || latest.state.mode !== "gameplay") return;
+    const counters = this.steadyCounters();
+    const pov = latest.state.povAlive === true && this.timeline.slice(-3).filter((r) => r.state.povAlive === true).length >= 2;
+    if (!counters.length && !pov) return;
 
-    const s = latest.state;
-    const candidates: { t: VisionTemplate<any>; params: any; question: string; p: number }[] = [];
-    for (const t of VISION_TEMPLATES) {
-      if (!t.categories.includes(this.category)) continue;
-      if (!t.eligible(s)) continue;
-      const params = t.params(s);
-      const question = t.question(params, s);
-      const p = prior(t, s, params);
-      const refusal = validate({ template: t as any, pYes: p, sources: ["vision:a", "vision:b"], vetoedCategories: this.state.vetoed, fieldsOk: readable(t, s) });
-      if (refusal && refusal.reason !== "not-uncertain") {
-        this.refuseOnce(t.id, question, refusal.reason, refusal.detail);
-        continue;
-      }
-      if (!refusal) candidates.push({ t, params, question, p });
-    }
-    if (!candidates.length) return;
     this.proposing = true;
-    this.lastProposalAt = now;
+    this.lastProposalAt = Date.now();
     try {
-      const pick = await this.choose(candidates, s);
+      const pick = await this.choose(counters, latest.state, pov);
       if (!pick) return;
-
-      // Reader B must independently see the same fields before we commit money to it.
-      const fb = await grabFrame(this.ref);
-      const rb = await this.readers.b.read(fb.jpeg, this.category, this.state.game);
-      if (!readable(pick.t, rb.state) || !pick.t.eligible(rb.state)) {
-        log.info(`${this.row.slug}: reader B can't confirm "${pick.question}" (${rb.state.summary})`);
-        return;
+      // Reader B must see the counter on its own frame before money goes on it.
+      const keys = this.keysOf(pick.spec);
+      if (keys.length) {
+        const fb = await grabFrame(this.ref, 1024);
+        const rb = await this.readers.b.readKeys(fb.jpeg, keys);
+        if (rb.mode !== "gameplay" || keys.some((k) => rb.values[k.key] === null)) {
+          log.info(`${this.row.slug}: reader B can't see "${pick.spec.label}"; skipping`);
+          return;
+        }
       }
-
-      const t0 = await chain.chainNow();
-      const lockTime = t0 + config.tradingSec;
-      const windowStart = lockTime + this.state.latencyBufferSec;
-      const windowEnd = windowStart + pick.t.windowSeconds;
-      const rule: Rule = {
-        v: 1,
-        adapter: "vision",
-        template: pick.t.id,
-        params: pick.params,
-        subject: { stream: `${this.ref.platform}:${this.ref.channel}`, scene: s.scene, teams: [s.teamA, s.teamB].filter(Boolean) as string[] },
-        question: pick.question,
-        resolution: pick.t.rule(pick.params),
-        sources: [this.readers.a.name, this.readers.b.name],
-        lockTime,
-        windowStart,
-        windowEnd,
-        agreement: "Both readers must reach the same verdict from their own frames. Otherwise VOID.",
-      };
-      const ruleHash = hashRule(rule);
-      const opened = await chain.openMarket({ poolId: this.poolId, ruleHash, lockTime, windowStart, windowEnd, bUsdc: config.liquidityB, pYes: pick.p });
-      const view: MarketView = {
-        id: opened.id,
-        slug: this.row.slug,
-        streamTitle: this.state.title,
-        question: pick.question,
-        template: pick.t.id,
-        rule,
-        ruleHash,
-        phase: "trading",
-        openedAt: t0,
-        lockTime,
-        windowStart,
-        windowEnd,
-        pYes0: pick.p,
-        priceYes: pick.p,
-        b: config.liquidityB,
-        subsidy: opened.subsidy,
-        volume: 0,
-        trades: 0,
-        traders: 0,
-        ai: pick.ai,
-        tx: { open: opened.tx },
-      };
-      await run(
-        `INSERT OR REPLACE INTO markets (id, slug, question, template, rule, rule_hash, ai, p_yes0, price_yes, b, subsidy, opened_at, lock_time, window_start, window_end, phase, tx_open, game_id)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [view.id, view.slug, view.question, view.template, JSON.stringify(rule), ruleHash, JSON.stringify(pick.ai), view.pYes0, view.priceYes, view.b, view.subsidy, t0, lockTime, windowStart, windowEnd, "trading", opened.tx, `${this.ref.platform}:${this.ref.channel}`],
-      );
-      this.active = { view, rule, template: pick.t, params: pick.params, b: [], resolving: false, checking: false };
-      log.market(`${this.row.slug} #${view.id}`, `"${pick.question}"`, `p=${pick.p}`, pick.ai.provider);
-      this.moment(`New market: ${pick.question}`, "market");
-      this.emit("market", view);
-      this.changed();
+      await this.open(pick.spec, pick.question, pick.p, pick.ai, latest.state);
     } catch (e: any) {
       log.warn(`${this.row.slug} open failed`, e.shortMessage ?? e.message);
     } finally {
@@ -327,145 +257,264 @@ export class VideoRunner extends EventEmitter {
     }
   }
 
-  /** 0G picks and prices when configured; otherwise the highest-priority template at its base rate. */
-  private async choose(cands: { t: VisionTemplate<any>; params: any; question: string; p: number }[], s: SceneState) {
+  private keysOf(s: CounterSpec) {
+    if (s.key === "__pov_alive") return [];
+    return [{ key: s.key, label: s.label }, ...(s.key2 ? [{ key: s.key2, label: s.label2 ?? s.key2 }] : [])];
+  }
+
+  /** The 0G agent picks a counter, a kind, a threshold and a window, prices it, and phrases the question. */
+  private async choose(counters: { key: string; label: string; value: number }[], s: SceneState, pov: boolean) {
+    const recent = this.live.map((m) => m.spec.key);
     if (this.zg.provider === "0g") {
+      const history = this.timeline.slice(-8).map((r) => ({ t: Math.round((r.at - Date.now()) / 1000), mode: r.state.mode, counters: Object.fromEntries((r.state.counters ?? []).map((c) => [c.key, c.value])) }));
       try {
-        const recent = this.timeline.slice(-8).map((r) => ({ t: Math.round((r.at - Date.now()) / 1000), ...r.state }));
-        const res = await this.zg.json<{ template: string; pYes: number; rationale: string }>(
-          `You are the moment engine for Clutch, live prediction markets on streams. Pick the single candidate whose outcome is most genuinely uncertain and exciting right now and give a calibrated probability it resolves YES. Viewers trade against your number. Respond with JSON {"template","pYes","rationale"}.`,
-          JSON.stringify({ game: this.state.game, recentStates: recent, candidates: cands.map((c) => ({ id: c.t.id, question: c.question, rule: c.t.rule(c.params), baseRate: c.p })) }),
+        const res = await this.zg.json<{ kind: CounterKind | "survives"; key: string; key2?: string; threshold?: number; seconds: number; pYes: number; question: string; contested: boolean; rationale: string }>(
+          `You create live prediction markets for Clutch from what's on a stream's screen. Pick ONE market that is genuinely uncertain and exciting in the next 20-60 seconds.
+Allowed kinds:
+- goes_up: a counter increases (kills, eliminations, team score)
+- reaches: a counter reaches a threshold
+- drops_below: a counter falls below a threshold (players left, health, shield)
+- race: counter key increases before counter key2 (e.g. which team scores first)
+- survives: the streamer's player is still alive at the end (only if povAlive, and only when no counter makes a good market)
+Rules: use only the counter keys provided; never use counters the streamer alone controls (ammo, money spent) or clocks; it must be contested by opponents or chance. seconds between 20 and 60. pYes is your calibrated probability (viewers trade against it), between 0.15 and 0.85. question: natural, punchy, at most 60 characters, ends with "?", must mean exactly the structured rule (name the team/player when known). Prefer counter markets (scores, kills, players left) over "survives". Vary the market: avoid repeating recent ones: ${JSON.stringify([...recent, ...this.recentQuestions])}.
+Respond with JSON only: {"kind","key","key2","threshold","seconds","pYes","question","contested","rationale"}`,
+          JSON.stringify({ game: s.game ?? this.state.game, streamTitle: this.state.streamTitle, summary: s.summary, povAlive: s.povAlive, counters, history }),
         );
-        const c = cands.find((x) => x.t.id === res.data.template);
-        const p = Math.round(Number(res.data.pYes) * 100) / 100;
-        if (c && p >= 0.15 && p <= 0.85) {
-          const ai: AiDecision = { provider: "0g", model: config.zgModel, requestId: res.requestId, latencyMs: res.latencyMs, costUsd: res.costUsd, rationale: res.data.rationale };
-          return { ...c, p, ai };
+        const d = res.data;
+        const ai: AiDecision = { provider: "0g", model: config.zgModel, requestId: res.requestId, latencyMs: res.latencyMs, costUsd: res.costUsd, rationale: d.rationale };
+        const p = Math.round(Number(d.pYes) * 100) / 100;
+        const seconds = Math.max(20, Math.min(60, Math.round(Number(d.seconds) || 45)));
+        if (d.contested === false) return this.refuse(d.question ?? "AI proposal", "steerable", "One person could decide it.");
+        if (!(p >= 0.15 && p <= 0.85)) return this.refuse(d.question ?? "AI proposal", "not-uncertain", `Opening probability ${Math.round(p * 100)}% is outside 15-85%.`);
+        let spec: CounterSpec;
+        if (d.kind === "survives") {
+          if (!pov) return null;
+          spec = { kind: "goes_up", key: "__pov_alive", label: "Streamer alive", seconds };
+        } else {
+          const c = counters.find((x) => x.key === d.key);
+          const c2 = d.key2 ? counters.find((x) => x.key === d.key2) : undefined;
+          if (!c || (d.kind === "race" && !c2)) return null;
+          if (!["goes_up", "reaches", "drops_below", "race"].includes(d.kind)) return null;
+          spec = { kind: d.kind, key: c.key, label: c.label, key2: c2?.key, label2: c2?.label, threshold: d.threshold !== undefined && d.threshold !== null ? Number(d.threshold) : undefined, seconds };
+          // A threshold that's already met isn't a question.
+          if (spec.kind === "reaches" && !(Number(spec.threshold) > c.value)) return null;
+          if (spec.kind === "drops_below" && !(Number(spec.threshold) <= c.value)) return null;
         }
+        const question = typeof d.question === "string" && d.question.length <= 70 && d.question.trim().endsWith("?") ? d.question.trim() : defaultQuestion(spec);
+        return { spec, question, p, ai };
       } catch (e: any) {
-        log.warn("0G moment call failed", e.message);
+        log.warn(`${this.row.slug} 0G moment call`, e.message);
         return null;
       }
     }
-    const c = [...cands].sort((a, b) => PRIORITY.indexOf(a.t.id) - PRIORITY.indexOf(b.t.id))[0];
-    const ai: AiDecision = { provider: "heuristic", model: `vision:${this.readers.a.name} + base rates`, rationale: `Read from the stream: ${s.summary || s.scene}. Priced from base rates for this situation.` };
-    return { ...c, p: Math.round(c.p * 100) / 100, ai };
+    // Without 0G: the first steady contested counter, at an even-ish base rate.
+    const c = counters[0];
+    if (!c && pov) {
+      const spec: CounterSpec = { kind: "goes_up", key: "__pov_alive", label: "Streamer alive", seconds: 45 };
+      return { spec, question: "Streamer survives the next 45s?", p: 0.6, ai: { provider: "heuristic", model: "base rates", rationale: "Survival base rate." } as AiDecision };
+    }
+    if (!c) return null;
+    const spec: CounterSpec = { kind: "goes_up", key: c.key, label: c.label, seconds: 45 };
+    return { spec, question: defaultQuestion(spec), p: 0.45, ai: { provider: "heuristic", model: "base rates", rationale: `Read "${c.label}" = ${c.value} from the stream.` } as AiDecision };
   }
 
-  private refuseOnce(key: string, question: string, reason: Refusal["reason"], detail: string) {
-    if (this.refused.has(key)) return;
+  private refuse(question: string, reason: Refusal["reason"], detail: string) {
+    const key = `${reason}:${question}`;
+    if (this.refused.has(key)) return null;
     this.refused.add(key);
-    const r: Refusal = { at: Date.now(), slug: this.row.slug, template: key, question, reason, detail };
+    const r: Refusal = { at: Date.now(), slug: this.row.slug, template: "counter", question, reason, detail };
     void run(`INSERT INTO refusals (slug, at, json) VALUES (?,?,?)`, [this.row.slug, r.at, JSON.stringify(r)]);
     this.emit("refusal", r);
+    return null;
+  }
+
+  private async open(spec: CounterSpec, question: string, p: number, ai: AiDecision, s: SceneState) {
+    const t0 = await chain.chainNow();
+    const lockTime = t0 + config.videoTradingSec;
+    const windowStart = lockTime + this.state.latencyBufferSec;
+    const windowEnd = windowStart + spec.seconds;
+    const rule: Rule = {
+      v: 1,
+      adapter: "vision",
+      template: spec.key === "__pov_alive" ? "survives" : `counter:${spec.kind}`,
+      params: { ...spec },
+      subject: { stream: `${this.ref.platform}:${this.ref.channel}`, scene: s.game ?? s.scene, teams: [s.teamA, s.teamB].filter(Boolean) as string[] },
+      question,
+      resolution: spec.key === "__pov_alive" ? `YES if the streamer's player is still alive at window end (${spec.seconds}s). NO if they are eliminated first.` : counterRule(spec),
+      sources: [this.readers.a.name, this.readers.b.name],
+      lockTime,
+      windowStart,
+      windowEnd,
+      agreement: "Both readers, each on its own frames, must reach the same verdict. Otherwise VOID.",
+    };
+    const ruleHash = hashRule(rule);
+    const opened = await chain.openMarket({ poolId: this.poolId, ruleHash, lockTime, windowStart, windowEnd, bUsdc: config.liquidityB, pYes: p });
+    const view: MarketView = {
+      id: opened.id,
+      slug: this.row.slug,
+      streamTitle: this.state.title,
+      question,
+      template: rule.template,
+      rule,
+      ruleHash,
+      phase: "trading",
+      openedAt: t0,
+      lockTime,
+      windowStart,
+      windowEnd,
+      pYes0: p,
+      priceYes: p,
+      b: config.liquidityB,
+      subsidy: opened.subsidy,
+      volume: 0,
+      trades: 0,
+      traders: 0,
+      ai,
+      tx: { open: opened.tx },
+    };
+    await run(
+      `INSERT OR REPLACE INTO markets (id, slug, question, template, rule, rule_hash, ai, p_yes0, price_yes, b, subsidy, opened_at, lock_time, window_start, window_end, phase, tx_open, game_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [view.id, view.slug, question, view.template, JSON.stringify(rule), ruleHash, JSON.stringify(ai), p, p, view.b, view.subsidy, t0, lockTime, windowStart, windowEnd, "trading", opened.tx, `${this.ref.platform}:${this.ref.channel}`],
+    );
+    this.live.push({ view, rule, spec, b: [], bStarted: false, checking: false, resolving: false, frames: [] });
+    this.recentQuestions = [question, ...this.recentQuestions].slice(0, 5);
+    log.market(`${this.row.slug} #${view.id}`, `"${question}"`, `p=${p}`, ai.provider, ai.requestId ?? "");
+    this.moment(`New market: ${question}`, "market");
+    this.emit("market", view);
+    this.changed();
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────────────────────────────────
 
   private async tick() {
-    const act = this.active;
-    if (!act) return;
     const now = Date.now() / 1000;
-    const v = act.view;
-    const phase = now < v.lockTime ? "trading" : now < v.windowStart ? "locked" : act.resolving ? "resolving" : "window";
-    if (phase !== v.phase) {
-      v.phase = phase;
-      if (phase === "locked") this.moment(`Trading closed. Window opens in ${this.state.latencyBufferSec}s`, "integrity");
-      void run(`UPDATE markets SET phase = ? WHERE id = ?`, [phase, v.id]);
-      this.emit("market", v);
-      this.changed();
+    for (const m of [...this.live]) {
+      const v = m.view;
+      const phase = now < v.lockTime ? "trading" : now < v.windowStart ? "locked" : m.resolving ? "resolving" : "window";
+      if (phase !== v.phase) {
+        v.phase = phase;
+        if (phase === "locked") void this.maybeOpen(); // the next round can open while this one plays out
+        void run(`UPDATE markets SET phase = ? WHERE id = ?`, [phase, v.id]);
+        this.emit("market", v);
+        this.changed();
+      }
+      if (now >= v.windowStart && !m.bStarted && !m.checking) void this.readB(m, "start");
+      if (now >= v.windowEnd + 1 && !m.resolving && (m.retryAt ?? 0) <= Date.now()) void this.finish(m);
+      if (now > v.windowEnd + 120 && !m.resolving) void this.finish(m, "The stream stopped giving readable frames.");
     }
-    // Reader B's first checkpoint, right at window start.
-    if (now >= v.windowStart && !act.startB && !act.checking) void this.checkpointB(true);
-    if (now >= v.windowEnd + 2 && !act.resolving && (act.retryAt ?? 0) <= Date.now()) void this.finish(true);
-    if (now > v.windowEnd + 180 && !act.resolving) void this.finish(true, "The stream stopped giving readable frames.");
   }
 
-  private async checkpointB(isStart: boolean) {
-    const act = this.active;
-    if (!act || act.checking) return;
-    act.checking = true;
+  private povReading(alive: boolean | null) {
+    return { __pov_alive: alive === null ? null : alive ? 0 : 1 };
+  }
+
+  /** Reader A's view of a market, from the timeline. */
+  private evalA(m: Live, ended: boolean) {
+    const ws = m.view.windowStart * 1000;
+    const toReading = (r: Reading): CounterReading => ({ at: r.at, values: m.spec.key === "__pov_alive" ? this.povReading(r.state.povAlive) : Object.fromEntries((r.state.counters ?? []).map((c) => [c.key, c.value])) });
+    const start = [...this.timeline].reverse().find((r) => r.at <= ws);
+    const during = this.timeline.filter((r) => r.at > ws && r.at <= m.view.windowEnd * 1000 + 2500 && r.state.mode === "gameplay").map(toReading);
+    if (m.spec.key === "__pov_alive") return this.survived(start ? toReading(start) : undefined, during, ended);
+    return evaluateCounter(m.spec, start ? toReading(start) : undefined, during, ended);
+  }
+
+  private evalB(m: Live, ended: boolean) {
+    const [start, ...rest] = m.b;
+    if (m.spec.key === "__pov_alive") return this.survived(start, rest, ended);
+    return evaluateCounter(m.spec, start, rest, ended);
+  }
+
+  /** "Survives" = an alive(0)/dead(1) counter that must not go up. */
+  private survived(start: CounterReading | undefined, during: CounterReading[], ended: boolean) {
+    const died = evaluateCounter({ kind: "goes_up", key: "__pov_alive", label: "", seconds: 0 }, start ?? { at: 0, values: { __pov_alive: 0 } }, during, ended);
+    return died === "PENDING" ? "PENDING" : died === "YES" ? "NO" : "YES";
+  }
+
+  /** Reader B reads this market's counter on a fresh frame over its own connection. */
+  private async readB(m: Live, why: "start" | "confirm" | "end") {
+    if (m.checking) return;
+    m.checking = true;
     try {
-      const f = await grabFrame(this.ref);
-      const r = await this.readers.b.read(f.jpeg, this.category, this.state.game);
-      const reading: Reading = { at: f.at, frame: f.sha, state: r.state, reader: this.readers.b.name };
+      const f = await grabFrame(this.ref, 1024);
       writeFileSync(join(framesDir, `${f.sha}.jpg`), f.jpeg);
-      if (isStart) act.startB = reading;
-      else act.b.push(reading);
+      let values: Record<string, number | null>;
+      let mode: SceneState["mode"];
+      if (m.spec.key === "__pov_alive") {
+        const r = await this.readers.b.discover(f.jpeg, this.state.game);
+        mode = r.state.mode;
+        values = this.povReading(r.state.povAlive);
+      } else {
+        const r = await this.readers.b.readKeys(f.jpeg, this.keysOf(m.spec));
+        mode = r.mode;
+        values = r.values;
+      }
+      const reading: CounterReading = { at: f.at, values };
+      if (why === "start") {
+        m.b.unshift(reading);
+        m.bStarted = true;
+      } else m.b.push(reading);
+      const fmt = (k: string, x: number | null) => (k === "__pov_alive" ? `alive: ${x === 0 ? "yes" : x === 1 ? "no" : "?"}` : `${m.spec.key === k ? m.spec.label : m.spec.label2}: ${x ?? "?"}`);
+      m.frames.push({ at: f.at, sha: f.sha, reader: this.readers.b.name, note: `${why} · ${Object.entries(values).map(([k, x]) => fmt(k, x)).join(", ")} · ${mode}` });
     } catch (e: any) {
       log.warn(`${this.row.slug} reader B`, e.message);
+      if (why === "start") m.bStarted = true; // no start reading → B can't confirm → void at the end
     } finally {
-      act.checking = false;
+      m.checking = false;
     }
   }
 
-  /** Reader A thinks it's decided before the window ends: ask B for a confirming checkpoint. */
-  private async maybeEarly() {
-    const act = this.active;
-    if (!act || act.resolving || act.checking || !act.startB) return;
-    const evA = this.evaluateA(act, false);
+  /** A saw the outcome early: if B confirms on its own frame, settle now instead of waiting out the window. */
+  private async confirm(m: Live) {
+    if (m.checking || m.resolving || !m.bStarted) return;
+    const evA = this.evalA(m, false);
     if (evA === "PENDING") return;
-    await this.checkpointB(false);
-    const evB = act.template.evaluate(act.params, act.startB.state, act.b, false);
-    if (evB === evA) void this.finish(false);
+    await this.readB(m, "confirm");
+    if (this.evalB(m, false) === evA) void this.finish(m);
   }
 
-  private evaluateA(act: Active, ended: boolean) {
-    const ws = act.view.windowStart * 1000;
-    const start = [...this.timeline].reverse().find((r) => r.at <= ws)?.state;
-    act.startA = start;
-    const during = this.timeline.filter((r) => r.at > ws && r.at <= act.view.windowEnd * 1000 + 3000);
-    return act.template.evaluate(act.params, start, during, ended);
-  }
-
-  private async finish(ended: boolean, forcedVoid?: string) {
-    const act = this.active;
-    if (!act || act.resolving) return;
-    act.resolving = true;
+  private async finish(m: Live, forcedVoid?: string) {
+    if (m.resolving) return;
+    m.resolving = true;
     try {
-      if (ended && !forcedVoid) await this.checkpointB(false);
-      const evA = this.evaluateA(act, ended || Date.now() / 1000 >= act.view.windowEnd);
-      const evB = act.startB ? act.template.evaluate(act.params, act.startB.state, act.b, ended || Date.now() / 1000 >= act.view.windowEnd) : "PENDING";
+      const ended = Date.now() / 1000 >= m.view.windowEnd;
+      if (ended && !forcedVoid) await this.readB(m, "end");
+      const evA = this.evalA(m, ended || Boolean(forcedVoid));
+      const evB = this.evalB(m, ended || Boolean(forcedVoid));
       let verdict: "YES" | "NO" | "VOID" = evA === evB && evA !== "PENDING" ? evA : "VOID";
       let reason = forcedVoid;
-      if (!reason && verdict === "VOID") reason = evA === "PENDING" || evB === "PENDING" ? "A reader couldn't see the result on screen." : `The readers disagreed (${evA} vs ${evB}).`;
       if (forcedVoid) verdict = "VOID";
-      await this.settle(act, verdict, reason, evA, evB);
+      else if (verdict === "VOID") reason = evA === "PENDING" || evB === "PENDING" ? "A reader couldn't see the result on screen." : `The readers disagreed (${evA} vs ${evB}).`;
+      await this.settle(m, verdict, reason, evA, evB);
     } catch (e: any) {
       log.warn(`${this.row.slug} settle deferred`, e.shortMessage ?? e.message);
-      act.resolving = false;
-      act.retryAt = Date.now() + 5000;
+      m.resolving = false;
+      m.retryAt = Date.now() + 5000;
     }
   }
 
-  private async settle(act: Active, verdict: "YES" | "NO" | "VOID", voidReason: string | undefined, evA: string, evB: string) {
-    const v = act.view;
+  private async settle(m: Live, verdict: "YES" | "NO" | "VOID", voidReason: string | undefined, evA: string, evB: string) {
+    const v = m.view;
     v.phase = "resolving";
     this.emit("market", v);
     const ws = v.windowStart * 1000;
-    const aWindow = this.timeline.filter((r) => r.at >= ws - 15_000 && r.at <= v.windowEnd * 1000 + 3000);
-    const reading = (name: string, ev: string, rs: Reading[]): SourceReading => ({
-      source: name,
-      evaluation: (ev === "PENDING" ? "MISSING" : ev) as SourceReading["evaluation"],
-      plies: rs.length,
-      status: rs[rs.length - 1]?.state.summary ?? "no frames",
-      digest: keccak256(toBytes(rs.map((r) => r.frame).join(","))),
-      excerpt: rs.slice(-12).map((r) => ({ san: score(r.state), at: r.at, material: 0 })),
-    });
-    const bAll = [act.startB, ...act.b].filter(Boolean) as Reading[];
-    const readings: [SourceReading, SourceReading] = [reading(this.readers.a.name, evA, aWindow), reading(this.readers.b.name, evB, bAll)];
+    const aWindow = this.timeline.filter((r) => r.at >= ws - 8000 && r.at <= v.windowEnd * 1000 + 3000);
+    const note = (r: Reading) => (m.spec.key === "__pov_alive" ? `alive: ${r.state.povAlive ?? "?"}` : `${m.spec.label}: ${r.state.counters?.find((c) => c.key === m.spec.key)?.value ?? "?"}`);
+    const readings: [SourceReading, SourceReading] = [
+      { source: this.readers.a.name, evaluation: evA === "PENDING" ? "MISSING" : (evA as "YES" | "NO"), plies: aWindow.length, status: aWindow[aWindow.length - 1]?.state.summary ?? "no frames", digest: keccak256(toBytes(aWindow.map((r) => r.sha).join(","))), excerpt: aWindow.slice(-10).map((r) => ({ san: note(r), at: r.at, material: 0 })) },
+      { source: this.readers.b.name, evaluation: evB === "PENDING" ? "MISSING" : (evB as "YES" | "NO"), plies: m.b.length, status: m.frames[m.frames.length - 1]?.note ?? "no frames", digest: keccak256(toBytes(m.frames.map((f) => f.sha).join(","))), excerpt: m.frames.map((f) => ({ san: f.note, at: f.at, material: 0 })) },
+    ];
     const bundle = {
       kind: "clutch.evidence.v1",
       adapter: "vision",
       market: { id: v.id, chainId: config.chainId, hook: config.deployment.clutchHook, poolId: this.poolId, stream: `${this.ref.platform}:${this.ref.channel}` },
-      rule: act.rule,
+      rule: m.rule,
       ruleHash: v.ruleHash,
       verdict,
       voidReason,
       independence: this.readers.independent,
-      readerA: { name: this.readers.a.name, readings: aWindow },
-      readerB: { name: this.readers.b.name, readings: bAll },
-      frames: bAll.map((r) => ({ sha256: r.frame, url: `/frames/${r.frame}.jpg` })),
+      readerA: { name: this.readers.a.name, readings: aWindow.map((r) => ({ at: r.at, frame: r.sha, mode: r.state.mode, counters: r.state.counters, povAlive: r.state.povAlive })) },
+      readerB: { name: this.readers.b.name, readings: m.b, frames: m.frames },
       agent: { address: chain.agent.address, decision: v.ai },
       createdAt: Date.now(),
     };
@@ -479,7 +528,7 @@ export class VideoRunner extends EventEmitter {
       marketId: v.id,
       slug: v.slug,
       question: v.question,
-      rule: act.rule,
+      rule: m.rule,
       ruleHash: v.ruleHash,
       readings,
       verdict: r.outcome,
@@ -490,20 +539,19 @@ export class VideoRunner extends EventEmitter {
       resolvedAt: Date.now(),
       tx: r.tx,
       ai: v.ai,
-      frames: bAll.map((x) => ({ at: x.at, url: `/frames/${x.frame}.jpg`, reader: x.reader, summary: x.state.summary })),
+      frames: m.frames.map((f) => ({ at: f.at, url: `/frames/${f.sha}.jpg`, reader: f.reader, summary: f.note })),
     };
     await run(`UPDATE markets SET phase = ?, outcome = ?, void_reason = ?, tx_resolve = ?, resolved_at = ? WHERE id = ?`, [v.phase, r.outcome, v.voidReason ?? null, r.tx, receipt.resolvedAt, v.id]);
     await run(`INSERT OR REPLACE INTO receipts (market_id, slug, json, resolved_at) VALUES (?,?,?,?)`, [v.id, v.slug, JSON.stringify(receipt), receipt.resolvedAt]);
     log.market(`${this.row.slug} #${v.id} ${r.outcome}`, voidReason ?? "", stored.root);
-    this.moment(r.outcome === "VOID" ? "Voided: everyone refunded" : `Settled ${r.outcome}`, "market");
+    this.moment(r.outcome === "VOID" ? `Voided: ${v.question}` : `${r.outcome}: ${v.question}`, "market");
+    this.live = this.live.filter((x) => x !== m);
     this.emit("market", v);
     this.emit("receipt", receipt);
-    this.active = undefined;
-    this.lastSettledAt = Date.now();
     this.changed();
+    void this.maybeOpen();
   }
 
-  /** Markets left open by a restart can't be re-observed from video: void them so everyone is refunded. */
   async voidStale(ids: number[]) {
     for (const id of ids) {
       try {
@@ -516,13 +564,13 @@ export class VideoRunner extends EventEmitter {
   }
 
   onTrade(marketId: number, amount: number, priceYesAfter: number, newTrader: boolean) {
-    const v = this.active?.view;
-    if (!v || v.id !== marketId) return;
-    v.priceYes = priceYesAfter;
-    v.volume += amount;
-    v.trades += 1;
-    if (newTrader) v.traders += 1;
-    this.emit("market", v);
+    const m = this.live.find((x) => x.view.id === marketId);
+    if (!m) return;
+    m.view.priceYes = priceYesAfter;
+    m.view.volume += amount;
+    m.view.trades += 1;
+    if (newTrader) m.view.traders += 1;
+    this.emit("market", m.view);
     this.changed();
   }
 
@@ -553,13 +601,6 @@ export class VideoRunner extends EventEmitter {
   }
 }
 
-function score(s: SceneState) {
-  if (s.scoreA !== null && s.scoreB !== null) return `${s.teamA ?? "A"} ${s.scoreA}-${s.scoreB} ${s.teamB ?? "B"}`;
-  if (s.remaining !== null) return `${s.remaining} left`;
-  return s.mode;
-}
-
 export async function staleVideoMarkets(slug: string) {
   return (await all<{ id: number }>(`SELECT id FROM markets WHERE slug = ? AND phase IN ('trading','locked','window','resolving')`, [slug])).map((r) => Number(r.id));
 }
-export { one };

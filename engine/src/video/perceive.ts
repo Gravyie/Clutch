@@ -17,7 +17,34 @@ import type { ZeroG } from "../ai/zeroG";
 export interface VisionReader {
   name: string;
   read(jpeg: Buffer, category: Category, hint?: string): Promise<{ state: SceneState; requestId?: string; costUsd?: number; ms: number }>;
+  /** One pass over the whole frame: mode, survival, and every counter the HUD shows. */
+  discover(jpeg: Buffer, hint?: string): Promise<{ state: SceneState; requestId?: string; ms: number }>;
+  /** Read only the named counters (fast). Values are null when not clearly visible. */
+  readKeys(jpeg: Buffer, keys: { key: string; label: string }[]): Promise<{ mode: SceneState["mode"]; values: Record<string, number | null>; requestId?: string; ms: number }>;
 }
+
+const DISCOVER_PROMPT = `Read this live-stream frame. Return one JSON object only, no prose:
+{"mode":"gameplay|menu|replay|break|camera|other","game":string,"povAlive":true|false|null,
+ "counters":[{"key":"snake_case_id","label":"Short label","value":number}],
+ "teams":[string,string]|null,"summary":"one short factual sentence","confidence":0..1}
+counters: every number shown on the HUD or scoreboard that can change during play (team scores, round, kills/eliminations, players or teams left, health, shield, gold, goals…), max 10. Use the team or player name in the label when shown (e.g. "TYLOO score", "Clix eliminations"). Keep keys stable: lowercase words joined by underscores, team/player name first. Convert clocks to seconds with key ending in _clock. Only include values you can clearly read.
+mode "replay" for instant replays/killcams, "menu" for lobbies/loading/end screens, "camera" for a person talking with no game.`;
+
+const DISCOVER_SCHEMA = {
+  type: "object",
+  properties: {
+    mode: { enum: ["gameplay", "menu", "replay", "break", "camera", "other"] },
+    game: { type: "string" },
+    povAlive: { type: ["boolean", "null"] },
+    counters: { type: "array", items: { type: "object", properties: { key: { type: "string" }, label: { type: "string" }, value: { type: "number" } }, required: ["key", "label", "value"] } },
+    teams: { type: ["array", "null"], items: { type: "string" } },
+    summary: { type: "string" },
+    confidence: { type: "number" },
+  },
+  required: ["mode", "game", "povAlive", "counters", "teams", "summary", "confidence"],
+};
+
+const slug = (k: string) => k.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40);
 
 /** Where each category's scoreboard usually lives, as fractions of the frame: [left, top, width, height]. */
 const HUD: Record<Category, [number, number, number, number] | null> = {
@@ -68,8 +95,13 @@ const SCENE_SCHEMA = {
 function parseJson(text: string) {
   let s = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
   // Models without constrained decoding sometimes write clocks as 1:17; turn bare mm:ss into seconds.
-  s = s.replace(/:\s*"?(\d{1,2}):(\d{2})"?(\s*[,}])/g, (_m, mm, ss, end) => `: ${Number(mm) * 60 + Number(ss)}${end}`);
-  return JSON.parse(s);
+  s = s.replace(/:\s*"?(\d{1,2}):(\d{2})"?(\s*[,}\]])/g, (_m, mm, ss, end) => `: ${Number(mm) * 60 + Number(ss)}${end}`);
+  try {
+    return JSON.parse(s);
+  } catch {
+    // Common slips: trailing commas, comments, single quotes.
+    return JSON.parse(s.replace(/\/\/[^\n]*/g, "").replace(/,\s*([}\]])/g, "$1").replace(/'/g, '"'));
+  }
 }
 
 const num = (v: any, max: number) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= max ? Math.round(v) : null);
@@ -85,8 +117,60 @@ export class OpenAIVision implements VisionReader {
     private readonly model: string,
     private readonly onCost?: (usage: { prompt_tokens?: number; completion_tokens?: number } | undefined, requestId?: string) => void,
     private readonly constrained = true,
+    private readonly reasoning: "none" | "low" = "low",
   ) {
     this.client = new OpenAI({ baseURL, apiKey, timeout: 60_000, maxRetries: 1 });
+  }
+
+  async discover(jpeg: Buffer, hint?: string) {
+    this.gate?.();
+    const t0 = Date.now();
+    const img = await sharp(jpeg).resize({ width: 1024, withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+    const { json: j, requestId } = await this.ask(img, `${DISCOVER_PROMPT}${hint ? `\nThe stream's category is "${hint}".` : ""}`, DISCOVER_SCHEMA);
+    const seen = new Set<string>();
+    const counters = (Array.isArray(j.counters) ? j.counters : [])
+      .map((c: any) => ({ key: slug(String(c?.key ?? c?.label ?? "")), label: String(c?.label ?? c?.key ?? "").trim().slice(0, 32), value: Number(c?.value) }))
+      .filter((c: any) => c.key && c.label && Number.isFinite(c.value) && c.value >= 0 && c.value < 100000 && !seen.has(c.key) && seen.add(c.key))
+      .slice(0, 10);
+    const mode = ["gameplay", "menu", "replay", "break", "camera", "other"].includes(j.mode) ? j.mode : "other";
+    const teams = Array.isArray(j.teams) && j.teams.length === 2 ? j.teams.map((t: any) => text(t)) : [null, null];
+    const state: SceneState = {
+      scene: text(j.game) ?? hint ?? "unknown",
+      game: text(j.game) ?? undefined,
+      mode,
+      teamA: teams[0],
+      teamB: teams[1],
+      scoreA: null,
+      scoreB: null,
+      phase: null,
+      aliveA: null,
+      aliveB: null,
+      remaining: null,
+      clock: null,
+      bomb: null,
+      povAlive: typeof j.povAlive === "boolean" ? j.povAlive : null,
+      summary: typeof j.summary === "string" ? j.summary.slice(0, 160) : "",
+      confidence: Math.max(0, Math.min(1, Number(j.confidence ?? 0.7) || 0)),
+      counters,
+    };
+    return { state, requestId, ms: Date.now() - t0 };
+  }
+
+  async readKeys(jpeg: Buffer, keys: { key: string; label: string }[]) {
+    this.gate?.();
+    const t0 = Date.now();
+    const img = await sharp(jpeg).resize({ width: 1024, withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+    const props: Record<string, object> = { mode: { enum: ["gameplay", "menu", "replay", "break", "camera", "other"] } };
+    for (const k of keys) props[k.key] = { type: ["number", "null"] };
+    const prompt = `Read only these values from this live-stream frame. Use null if a value is not clearly visible.\n${keys.map((k) => `- ${k.key}: ${k.label}`).join("\n")}\n- mode: gameplay, menu, replay, break, camera or other\nReply with one line of JSON with exactly these keys.`;
+    const { json: j, requestId } = await this.ask(img, prompt, { type: "object", properties: props, required: Object.keys(props) });
+    const values: Record<string, number | null> = {};
+    for (const k of keys) {
+      const x = Number(j[k.key]);
+      values[k.key] = j[k.key] === null || j[k.key] === undefined || !Number.isFinite(x) ? null : x;
+    }
+    const mode = ["gameplay", "menu", "replay", "break", "camera", "other"].includes(j.mode) ? j.mode : "other";
+    return { mode, values, requestId, ms: Date.now() - t0 };
   }
 
   private async ask(img: Buffer, prompt: string, schema: object) {
@@ -96,7 +180,7 @@ export class OpenAIVision implements VisionReader {
         temperature: 0,
         // 0G's Claude models think adaptively by default; keep it brief and leave room for the answer.
         max_tokens: this.constrained ? 300 : 1500,
-        ...(this.constrained ? {} : { reasoning_effort: "low" as any }),
+        ...(this.constrained ? {} : { reasoning_effort: this.reasoning as any }),
         // Constrained decoding where supported (llama.cpp). 0G's Claude models reject JSON mode, so for them the
         // prompt asks for JSON only and the parser extracts it.
         ...(this.constrained ? { response_format: { type: "json_schema", json_schema: { name: "read", schema } } as any } : {}),
@@ -168,11 +252,14 @@ export class OpenAIVision implements VisionReader {
 export function makeReaders(zg: ZeroG): { a: VisionReader; b: VisionReader; independent: string } {
   const local = (suffix = "") => new OpenAIVision(`local:${config.localVisionModel}${suffix}`, config.localVisionUrl, "local", config.localVisionModel);
   if (config.zgApiKey) {
-    const zero = new OpenAIVision(`0g:${config.zgVisionModel}`, config.zgRouterUrl, config.zgApiKey, config.zgVisionModel, (usage, id) => zg.record(usage, id), false);
-    zero.gate = () => {
+    const gate = () => {
       if (zg.mode === "paused") throw new Error("daily 0G budget spent; markets pause until 00:00 UTC");
     };
-    return { a: zero, b: local(), independent: "different model families, different frames, different connections" };
+    const a = new OpenAIVision(`0g:${config.zgVisionModel}`, config.zgRouterUrl, config.zgApiKey, config.zgVisionModel, (usage, id) => zg.record(usage, id), false, "none");
+    const b = new OpenAIVision(`0g:${config.zgVerifyModel}`, config.zgRouterUrl, config.zgApiKey, config.zgVerifyModel, (usage, id) => zg.record(usage, id), false, "none");
+    a.gate = gate;
+    b.gate = gate;
+    return { a, b, independent: `two model families on 0G (${config.zgVisionModel} and ${config.zgVerifyModel}), different frames, different connections` };
   }
   return { a: local(), b: local("#b"), independent: "same open-weights model on different frames over a separate connection (add a 0G key for a second model family)" };
 }

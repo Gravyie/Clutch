@@ -46,13 +46,11 @@ async function liveMarket(slug, minLeft = 10) {
 
   const s = await liveMarket(undefined, 12);
   await page.goto(`${APP}/c/${s.slug}`);
-  const panel = page.getByTestId("market-aside");
-  await panel.getByRole("button", { name: "$5" }).click();
-  await panel.getByRole("button", { name: /Buy Yes/ }).click();
-  await page.getByText(/Bought .* YES/).waitFor({ timeout: 30_000 });
+  const panel = page.getByTestId("round");
+  await panel.getByRole("radio", { name: "$5" }).click();
+  await panel.getByRole("button", { name: /^Yes/ }).click();
+  await page.getByText(/Yes · \$5 in/).waitFor({ timeout: 30_000 });
   check("trade: one tap, no wallet prompt", true, `${s.slug} #${s.market.id}`);
-  await panel.getByText("Your position").waitFor({ timeout: 15_000 });
-  check("position shows on the market");
   await page.screenshot({ path: `${OUT}/2-traded.png` });
 
   await page.goto(`${APP}/portfolio`);
@@ -83,8 +81,8 @@ async function liveMarket(slug, minLeft = 10) {
   await page.keyboard.press("Escape");
   await liveMarket("replay", 10);
   await page.goto(`${APP}/c/replay`);
-  const panel = page.getByTestId("market-aside");
-  await panel.getByRole("button", { name: /Buy Yes/ }).click();
+  const panel = page.getByTestId("round");
+  await panel.getByRole("button", { name: /^Yes/ }).click();
   const ok = await panel.getByText("Trade blocked").waitFor({ timeout: 30_000 }).then(() => true, () => false);
   check("streamer is blocked from their own market", ok);
   await page.screenshot({ path: `${OUT}/5-streamer-blocked.png` });

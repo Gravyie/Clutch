@@ -57,6 +57,9 @@ export interface SceneState {
   povAlive: boolean | null;
   /** one short sentence, for the moment engine and the receipt */
   summary: string;
+  /** every number the HUD shows that can change during play (counter markets) */
+  counters?: { key: string; label: string; value: number }[];
+  game?: string;
   /** 0..1, the reader's own confidence in the numbers above */
   confidence: number;
 }
