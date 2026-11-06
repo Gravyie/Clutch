@@ -153,11 +153,7 @@
   --shadow-card: var(--shadow-card);
   --shadow-float: var(--shadow-float);
 
-  --animate-marquee: marquee 60s linear infinite;
-  @keyframes marquee {
-    from { transform: translateX(0); }
-    to { transform: translateX(-50%); }
-  }
+  --animate-marquee: marquee var(--duration) linear infinite;
   --animate-scan: scan 3.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
   @keyframes scan {
     0% { transform: translateY(-10%); opacity: 0; }
@@ -182,6 +178,15 @@
   @keyframes shimmer {
     from { background-position: -200% 0; }
     to { background-position: 200% 0; }
+  }
+  --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(calc(-100% - var(--gap))); }
+  }
+  @keyframes marquee-vertical {
+    from { transform: translateY(0); }
+    to { transform: translateY(calc(-100% - var(--gap))); }
   }
 }
 
@@ -322,3 +327,63 @@ body.overlay {
   }
 }
 
+/*
+  Landing page ("/") has its own editorial surfaces, independent of the app's light/dark theme:
+  warm paper, warm night, and glow panels drawn from the product's semantic hues.
+*/
+.landing {
+  --l-paper: #f2f1ec;
+  --l-paper-2: #e8e6df;
+  --l-card: #fbfaf7;
+  --l-ink: #171614;
+  --l-ink-2: #55524b;
+  --l-ink-3: #8b877e;
+  --l-line: rgb(23 22 20 / 0.09);
+  --l-night: #131211;
+  --l-night-2: #1b1a18;
+  --l-snow: #f1efe9;
+  --l-snow-2: #a7a39a;
+  --l-snow-3: #6f6b64;
+  --l-night-line: rgb(241 239 233 / 0.09);
+  --l-dot: #7c93a6;
+  --l-lime: #b8f36b;
+  --l-yes: #4ad6b0;
+  --l-no: #ff8585;
+  font-feature-settings: "ss01", "cv11";
+}
+.landing .serif {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  font-optical-sizing: auto;
+  letter-spacing: -0.022em;
+  font-weight: 400;
+}
+/* a glyph drawn in dots: the "not yet solid" state of the type-in effect */
+.landing .stipple {
+  color: transparent;
+  background-image: radial-gradient(circle, var(--l-dot) 0.026em, transparent 0.036em);
+  background-size: 0.072em 0.072em;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.landing .glow-indigo {
+  background: radial-gradient(120% 90% at 85% 0%, #3557d6 0%, #1b2f86 32%, #0c1640 62%, #080e26 100%);
+}
+.landing .glow-mint {
+  background: radial-gradient(120% 90% at 15% 0%, #39b993 0%, #146a55 34%, #0a2e27 66%, #071a16 100%);
+}
+.landing .glow-coral {
+  background: radial-gradient(120% 90% at 85% 100%, #f08a63 0%, #b2482f 34%, #4a1a14 68%, #1d0b09 100%);
+}
+.landing .glow-plum {
+  background: linear-gradient(155deg, #c7b6d2 0%, #9a7fac 38%, #6a4f7e 70%, #4a3560 100%);
+}
+.landing .sunset {
+  background: linear-gradient(180deg, var(--l-paper) 0%, #ecd9c8 22%, #dcaa8a 46%, #b8735a 68%, #6e3a45 88%, #3f2433 100%);
+}
+.landing .sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgb(255 255 255 / 0.14) 48%, transparent 62%);
+}

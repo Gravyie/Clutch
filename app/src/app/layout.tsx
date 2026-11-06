@@ -1,8 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
+import { Newsreader } from "next/font/google";
 import { Providers } from "@/components/providers";
 import "./globals.css";
+
+/** Editorial serif for landing-page headlines only; the product UI stays on Geist. */
+const serif = Newsreader({ subsets: ["latin"], variable: "--font-serif", axes: ["opsz"], style: ["normal", "italic"], display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "Clutch · Every moment is a market", template: "%s · Clutch" },
@@ -21,7 +25,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} dark`} suppressHydrationWarning>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} ${serif.variable} dark`} suppressHydrationWarning>
       <body>
         <Providers>{children}</Providers>
       </body>
