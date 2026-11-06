@@ -78,40 +78,51 @@ export default function ChannelPage() {
   return (
     <div className="mx-auto max-w-[1560px] px-3 pb-8 pt-3 sm:px-6 sm:pt-5">
       {stream ? <ChannelHeader s={stream} /> : <div className="shimmer mb-4 h-12 w-72 rounded-xl bg-raised/60" />}
-      <div className="grid items-start gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1fr)_392px] xl:[grid-template-areas:'stage_rail'_'below_rail']">
+      <div className="grid items-start gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1fr)_392px] xl:grid-rows-[auto_1fr] xl:[grid-template-areas:'stage_rail'_'below_rail']">
         <div className="min-w-0 xl:[grid-area:stage]">
           <StreamStage stream={stream} />
         </div>
 
-        <aside data-testid="market-aside" aria-label="Prediction" className="min-w-0 space-y-3 xl:sticky xl:top-[76px] xl:[grid-area:rail]">
-          <div data-testid="round" id="moment" className="scroll-mt-20">
+        {/* The rail: the market on top; on Twitch the chat fills the rest of the column, so nothing sits empty. */}
+        <aside
+          data-testid="market-aside"
+          aria-label="Prediction and chat"
+          className="scrollbar-none flex min-w-0 flex-col gap-3 xl:sticky xl:top-[76px] xl:h-[calc(100dvh-92px)] xl:overflow-y-auto xl:[grid-area:rail]"
+        >
+          <div data-testid="round" id="moment" className="shrink-0 scroll-mt-20">
             <RoundPanel m={market ?? undefined} stream={stream} pool={data?.pool.key} next={waitingReason(stream)} />
           </div>
-          {market && <YourPosition m={market} />}
-          <PlayingOut slug={slug} exclude={market?.id} />
-          <div className="hidden xl:block">
-            <RecentRounds slug={slug} />
+          {market && (
+            <div className="shrink-0">
+              <YourPosition m={market} />
+            </div>
+          )}
+          <div className="shrink-0 empty:hidden">
+            <PlayingOut slug={slug} exclude={market?.id} />
           </div>
+          {isTwitch && stream?.media?.kind === "video" ? (
+            <TwitchChat channel={stream.media.channel} slug={slug} className="h-[380px] shrink-0 xl:h-auto xl:min-h-[340px] xl:flex-1" />
+          ) : (
+            <div className="hidden shrink-0 xl:block">
+              <RecentRounds slug={slug} />
+            </div>
+          )}
         </aside>
 
         <div className="min-w-0 xl:[grid-area:below]">
-          <Tabs defaultValue={isTwitch ? "chat" : "activity"} key={isTwitch ? "t" : "o"}>
-            <TabsList className="scrollbar-none h-10 w-full justify-start overflow-x-auto sm:w-auto">
-              {isTwitch && <Tab v="chat">Chat</Tab>}
+          <Tabs defaultValue="activity">
+            <TabsList className="scrollbar-none h-10 w-fit max-w-full justify-start gap-0.5 overflow-x-auto rounded-full bg-secondary p-1">
               <Tab v="activity">Activity</Tab>
               {isVideo && <Tab v="vision">AI view</Tab>}
               <Tab v="history">Past markets</Tab>
               <Tab v="integrity">Integrity</Tab>
             </TabsList>
-            {isTwitch && stream?.media?.kind === "video" && (
-              <TabsContent value="chat" className="mt-4">
-                <TwitchChat channel={stream.media.channel} slug={slug} className="h-[420px]" />
-              </TabsContent>
-            )}
             <TabsContent value="activity" className="mt-4 space-y-4">
-              <Moments s={stream} />
-              <div className="xl:hidden">
-                <RecentRounds slug={slug} />
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-[repeat(auto-fit,minmax(340px,1fr))]">
+                <Moments s={stream} />
+                <div className={cn("empty:hidden", !isTwitch && "xl:hidden")}>
+                  <RecentRounds slug={slug} />
+                </div>
               </div>
               {market && (
                 <Card className="gap-3">
@@ -126,9 +137,7 @@ export default function ChannelPage() {
             </TabsContent>
             {isVideo && (
               <TabsContent value="vision" className="mt-4">
-                <div className="max-w-[560px]">
-                  <VisionPanel s={stream} />
-                </div>
+                <VisionPanel s={stream} />
               </TabsContent>
             )}
             <TabsContent value="history" className="mt-4">
@@ -187,7 +196,7 @@ function MobileDock({ m }: { m: MarketView }) {
 
 function Tab({ v, children }: { v: string; children: React.ReactNode }) {
   return (
-    <TabsTrigger value={v} className="flex-none shrink-0 px-3.5 text-[13px]">
+    <TabsTrigger value={v} className="h-8 flex-none shrink-0 rounded-full px-4 text-[13px] data-[state=active]:bg-card data-[state=active]:shadow-sm dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-card">
       {children}
     </TabsTrigger>
   );

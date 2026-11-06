@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import type { MarketView, StreamState } from "@clutch/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Spinner } from "@/components/ui/spinner";
@@ -469,50 +469,98 @@ function Waiting({ stream, hint }: { stream?: StreamState; hint?: string }) {
   );
 }
 
-/** What the AI reads off the stream right now: every counter, live. */
+/** What the AI reads off the stream right now: the frame on one side, everything it read from it on the other. */
 export function VisionPanel({ s }: { s?: StreamState }) {
   const now = useNow(1000);
+  const agent = useLive((x) => x.agent);
   if (!s || s.media?.kind !== "video") return null;
   const v = s.vision;
-  const fresh = v && now * 1000 - v.at < 30_000;
+  const age = v ? Math.max(0, Math.round(now - v.at / 1000)) : undefined;
+  const fresh = age !== undefined && age < 30;
+  const paused = !!agent && (agent.mode !== "full" || !!agent.outOfCredits);
+  const idle = paused
+    ? { title: "AI engine paused", body: "The reader is out of 0G credits right now, so this stream isn't being read and no new markets open. Readings return here automatically." }
+    : s.rerun
+      ? { title: "Reruns are never read", body: "The result already happened, so a rerun can't fairly get markets." }
+      : s.reading
+        ? { title: "Starting to read", body: "The first reading of this stream is on its way. It usually takes a few seconds." }
+        : { title: "Queued for a reader", body: "The busiest live channels are read first. This one gets a reader slot as soon as one frees up." };
+  const counters = v?.state.counters ?? [];
   return (
-    <Card className="gap-0 overflow-hidden py-0">
-      <CardHeader className="flex items-center border-b px-4 py-3 [.border-b]:pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <ScanIcon size={16} className={fresh ? "text-yes" : "text-faint"} /> What the AI sees
-        </CardTitle>
-        {v && <CardAction className="self-center text-[11px] text-faint">{Math.max(0, Math.round(now - v.at / 1000))}s ago</CardAction>}
-      </CardHeader>
-      {s.frameAt && <img src={`${ENGINE_URL}/frames/${s.slug}.jpg?t=${Math.floor(s.frameAt / 2000)}`} alt="Latest frame the AI read" className="aspect-video w-full object-cover" />}
-      <CardContent className="space-y-2.5 p-4">
-        {!v ? (
-          <p className="text-sm text-faint">{s.reading ? "Starting to read this stream…" : s.rerun ? "Reruns are never read: the result already happened." : "Queued for an AI reader."}</p>
+    <Card className="grid grid-cols-1 gap-0 overflow-hidden py-0 md:grid-cols-[1.25fr_1fr]">
+      <div className="relative min-h-[220px] bg-black md:min-h-[340px]">
+        {s.frameAt ? (
+          <img src={`${ENGINE_URL}/frames/${s.slug}.jpg?t=${Math.floor(s.frameAt / 2000)}`} alt="Latest frame the AI read" className="absolute inset-0 size-full object-cover" />
         ) : (
-          <>
+          <div className="absolute inset-0 grid place-items-center text-white/40">
+            <ScanIcon size={32} />
+          </div>
+        )}
+        <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent" />
+        <div className="absolute left-3 top-3 flex items-center gap-1.5">
+          <Badge className="h-6 gap-1.5 rounded-full bg-black/55 px-2.5 text-[11.5px] font-medium text-white backdrop-blur">
+            <ScanIcon size={12} /> {s.frameAt ? "Latest frame the AI read" : "No frame yet"}
+          </Badge>
+        </div>
+        {age !== undefined && <span className="absolute bottom-3 left-3 text-[11.5px] text-white/80 tabular-nums">read {age}s ago</span>}
+      </div>
+
+      <div className="flex flex-col p-5 sm:p-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[15px] font-semibold">What the AI sees</h3>
+          <span className={cn("flex items-center gap-1.5 text-[12px]", v ? (fresh ? "text-yes" : "text-faint") : paused ? "text-warn" : "text-faint")}>
+            <span className={cn("size-1.5 rounded-full", v ? (fresh ? "animate-live bg-yes" : "bg-faint") : paused ? "bg-warn" : "bg-faint")} />
+            {v ? (fresh ? "Live reading" : "Last reading") : paused ? "Paused" : "Waiting"}
+          </span>
+        </div>
+
+        {!v ? (
+          <div className="mt-5 space-y-4">
+            <div>
+              <div className="text-[14.5px] font-medium">{idle.title}</div>
+              <p className="mt-1 text-[13.5px] leading-relaxed text-muted-foreground">{idle.body}</p>
+            </div>
+            <ol className="space-y-2 border-t pt-4 text-[13px] text-muted-foreground">
+              {["Grabs a frame from the stream every few seconds", "Reads the score, kill feed and anything that counts", "Opens a market only when a moment gets uncertain"].map((t, i) => (
+                <li key={t} className="flex items-start gap-2.5">
+                  <span className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-semibold text-foreground">{i + 1}</span>
+                  {t}
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : (
+          <div className="mt-5 flex flex-1 flex-col gap-4">
             <div className="flex flex-wrap items-center gap-1.5">
-              <Badge variant="secondary" className={cn(v.state.mode === "gameplay" && "bg-yes-soft text-yes")}>
+              <Badge variant="secondary" className={cn("rounded-full", v.state.mode === "gameplay" && "bg-yes-soft text-yes")}>
                 {v.state.mode}
               </Badge>
-              {v.state.povAlive !== null && <Badge variant="secondary">player {v.state.povAlive ? "alive" : "down"}</Badge>}
-              {v.state.game && <span className="truncate text-xs text-faint">{v.state.game}</span>}
+              {v.state.povAlive !== null && (
+                <Badge variant="secondary" className="rounded-full">
+                  player {v.state.povAlive ? "alive" : "down"}
+                </Badge>
+              )}
+              {v.state.game && <span className="truncate text-[12.5px] text-faint">{v.state.game}</span>}
             </div>
-            {v.state.counters && v.state.counters.length > 0 ? (
-              <dl className="grid grid-cols-2 gap-1.5">
-                {v.state.counters.slice(0, 8).map((c) => (
-                  <div key={c.key} className="rounded-lg border bg-secondary/40 px-2.5 py-1.5">
-                    <dt className="truncate text-[11px] text-faint">{c.label}</dt>
-                    <dd className="font-mono text-sm font-semibold tabular">{c.value}</dd>
+            {counters.length > 0 ? (
+              <dl className="grid grid-cols-2 gap-2">
+                {counters.slice(0, 6).map((c) => (
+                  <div key={c.key} className="rounded-xl bg-secondary/60 px-3 py-2.5">
+                    <dt className="truncate text-[11.5px] text-muted-foreground">{c.label}</dt>
+                    <dd className="mt-0.5 text-[17px] font-semibold tabular-nums">{c.value}</dd>
                   </div>
                 ))}
               </dl>
             ) : (
-              <p className="text-xs text-faint">No counters on screen right now.</p>
+              <p className="rounded-xl bg-secondary/60 px-3 py-2.5 text-[13px] text-muted-foreground">No numbers on screen in this frame. Markets wait for one.</p>
             )}
-            <p className="text-xs text-muted-foreground">{v.state.summary}</p>
-            <p className="text-[11px] text-faint">Read by {v.reader} in {(v.ms / 1000).toFixed(1)}s</p>
-          </>
+            <p className="text-[13.5px] leading-relaxed text-muted-foreground">{v.state.summary}</p>
+            <p className="mt-auto border-t pt-3 text-[12px] text-faint">
+              Read by {v.reader} in {(v.ms / 1000).toFixed(1)}s
+            </p>
+          </div>
         )}
-      </CardContent>
+      </div>
     </Card>
   );
 }
@@ -547,11 +595,11 @@ export function PlayingOut({ slug, exclude }: { slug: string; exclude?: number }
 }
 
 /** The last results on this channel, newest first. */
-export function RecentRounds({ slug }: { slug: string }) {
+export function RecentRounds({ slug, className }: { slug: string; className?: string }) {
   const receipts = useLive((s) => s.receipts).filter((r) => r.slug === slug).slice(0, 8);
   if (!receipts.length) return null;
   return (
-    <Card className="gap-1 py-3">
+    <Card className={cn("flex-col gap-1 overflow-hidden py-3", className)}>
       <CardHeader className="px-4">
         <CardTitle className="text-sm">Recent results</CardTitle>
       </CardHeader>
