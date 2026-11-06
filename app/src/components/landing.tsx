@@ -20,8 +20,6 @@ import {
   SealCheckIcon,
   ShieldCheckIcon,
   SlidersHorizontalIcon,
-  SpeakerHighIcon,
-  SpeakerSlashIcon,
   TimerIcon,
 } from "@phosphor-icons/react";
 import type { AgentState, ChainState, MarketView, Receipt, StreamSummary } from "@clutch/shared";
@@ -255,9 +253,12 @@ function ProductWindow({ d }: { d: D }) {
   const [pin, setPin] = useState<string>();
   const pinned = pin ? d.list.find((x) => x.slug === pin) : undefined;
   const next = d.playable?.slug;
+  // Move on if the pinned channel goes offline, or the AI sees it leave gameplay (menu, lobby, break) while another
+  // channel is confirmed in gameplay. A still image can switch freely; it never reloads anything.
+  const leftGameplay = !!pinned?.vision && pinned.vision.state.mode !== "gameplay" && d.playable?.vision?.state.mode === "gameplay";
   useEffect(() => {
-    if ((!pinned || !pinned.live) && next && next !== pin) setPin(next);
-  }, [pinned, next, pin]);
+    if ((!pinned || !pinned.live || leftGameplay) && next && next !== pin) setPin(next);
+  }, [pinned, next, pin, leftGameplay]);
   const s = pinned ?? d.playable;
   const m = d.open.find((x) => x.slug === s?.slug);
   const paused = !!d.agent && (d.agent.mode !== "full" || !!d.agent.outOfCredits);
@@ -275,7 +276,7 @@ function ProductWindow({ d }: { d: D }) {
       <div className="grid grid-cols-1 gap-2 rounded-[16px] bg-[var(--l-paper)] p-2 md:grid-cols-[minmax(0,1fr)_340px]">
         <div className="overflow-hidden rounded-[12px] bg-[var(--l-night)]">
           <div className="relative aspect-video">
-            {s ? <HeroPlayer s={s} /> : <div className="absolute inset-0 animate-pulse bg-[var(--l-night-2)]" />}
+            {s ? <HeroShot key={s.slug} s={s} /> : <div className="absolute inset-0 animate-pulse bg-[var(--l-night-2)]" />}
             <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-1.5">
               <span className="rounded-[5px] bg-[#ff755f] px-1.5 py-px text-[10.5px] font-bold text-[#1a0703]">LIVE</span>
               {s && <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-white/90 backdrop-blur">{s.title}</span>}
@@ -294,84 +295,32 @@ function ProductWindow({ d }: { d: D }) {
 }
 
 /**
- * The hero's live stream. The still frame paints first (fast LCP); Twitch's player script loads only once the page is
- * idle, plays muted with no controls, and fades in over the frame once it is actually playing. One small button
- * toggles sound. Non-Twitch channels, offline streams or a blocked embed simply keep the frame.
+ * The hero's picture: Twitch's own full-resolution live thumbnail of the pinned gameplay channel, fetched once and held
+ * steady (no flicker), so it reads like a crisp screenshot. Falls back to the engine's last frame if Twitch has none.
  */
-function HeroPlayer({ s }: { s: StreamSummary }) {
+function HeroShot({ s }: { s: StreamSummary }) {
   const channel = s.media?.kind === "video" && s.media.platform === "twitch" ? s.media.channel : undefined;
-  const host = useRef<HTMLDivElement>(null);
-  const player = useRef<any>(null);
-  const [ready, setReady] = useState(false);
-  const [muted, setMuted] = useState(true);
-
-  useEffect(() => {
-    if (!channel || !host.current) return;
-    let cancelled = false;
-    const w = window as any;
-    const start = () => {
-      const T = w.Twitch;
-      if (cancelled || !host.current || !T?.Player) return;
-      host.current.innerHTML = "";
-      const p = new T.Player(host.current, { channel, parent: [location.hostname], width: "100%", height: "100%", autoplay: true, muted: true, controls: false });
-      player.current = p;
-      p.addEventListener(T.Player.PLAYING, () => !cancelled && setReady(true));
-      p.addEventListener(T.Player.OFFLINE, () => !cancelled && setReady(false));
-      p.addEventListener(T.Player.ENDED, () => !cancelled && setReady(false));
-    };
-    const load = () => {
-      if (w.Twitch?.Player) return start();
-      let tag = document.getElementById("twitch-player-js") as HTMLScriptElement | null;
-      if (!tag) {
-        const before = w.Twitch;
-        tag = document.createElement("script");
-        tag.id = "twitch-player-js";
-        tag.src = "https://player.twitch.tv/js/embed/v1.js";
-        tag.async = true;
-        // keep Twitch.Embed (used on channel pages) if it was already loaded
-        tag.addEventListener("load", () => (w.Twitch = { ...(before ?? {}), ...(w.Twitch ?? {}) }), { once: true });
-        document.body.appendChild(tag);
-      }
-      tag.addEventListener("load", start, { once: true });
-    };
-    const ric = w.requestIdleCallback as undefined | ((cb: () => void, o?: { timeout: number }) => number);
-    const handle = ric ? ric(load, { timeout: 2000 }) : window.setTimeout(load, 800);
-    return () => {
-      cancelled = true;
-      if (ric) w.cancelIdleCallback?.(handle);
-      else clearTimeout(handle);
-      setReady(false);
-      setMuted(true);
-      player.current = null;
-      if (host.current) host.current.innerHTML = "";
-    };
-  }, [channel]);
-
-  const toggle = () => {
-    const p = player.current;
-    if (!p) return;
-    const nextMuted = !muted;
-    p.setMuted(nextMuted);
-    if (!nextMuted) p.setVolume?.(0.5);
-    setMuted(nextMuted);
-  };
-
+  const [stamp] = useState(() => Math.floor(Date.now() / 300_000)); // Twitch refreshes previews every few minutes
+  const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const src = channel && !failed ? `https://static-cdn.jtvnw.net/previews-ttv/live_user_${channel}-1920x1080.jpg?t=${stamp}` : undefined;
   return (
     <>
-      {channel && <link rel="preconnect" href="https://player.twitch.tv" />}
-      <StreamImage s={s} priority className={cn("absolute inset-0 size-full object-cover transition-opacity duration-700", ready && "opacity-0")} />
-      {/* pointer-events off: no pause, no hover overlays; the only control is the sound button */}
-      <div ref={host} aria-hidden className={cn("pointer-events-none absolute inset-0 transition-opacity duration-700 [&>iframe]:size-full", ready ? "opacity-100" : "opacity-0")} />
-      {ready && (
-        <button
-          onClick={toggle}
-          aria-label={muted ? "Turn sound on" : "Mute"}
-          aria-pressed={!muted}
-          className="absolute bottom-3 right-3 z-10 grid size-9 place-items-center rounded-full bg-black/55 text-white ring-1 ring-white/15 backdrop-blur transition hover:bg-black/75 focus-visible:outline-2 focus-visible:outline-white"
-        >
-          {muted ? <SpeakerSlashIcon size={16} weight="fill" /> : <SpeakerHighIcon size={16} weight="fill" />}
-        </button>
+      {src ? (
+        <img
+          src={src}
+          alt={`${s.title} live${s.game ? `, playing ${s.game}` : ""}`}
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          className={cn("absolute inset-0 size-full object-cover transition-opacity duration-500", loaded ? "opacity-100" : "opacity-0")}
+        />
+      ) : (
+        <StreamImage s={s} priority className="absolute inset-0 size-full object-cover" />
       )}
+      {src && !loaded && <div className="absolute inset-0 animate-pulse bg-[var(--l-night-2)]" />}
     </>
   );
 }
