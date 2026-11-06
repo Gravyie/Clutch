@@ -122,6 +122,10 @@ export interface StreamSummary {
   rerun?: boolean;
   /** what the AI currently sees (vision channels) */
   vision?: { state: SceneState; at: number; reader: string; ms: number };
+  /** audience on the source platform (e.g. Twitch viewer count) */
+  platformViewers?: number;
+  /** the engine is currently reading this channel's video */
+  reading?: boolean;
   frameAt?: number;
   owner?: { address: `0x${string}`; lichess?: string; twitch?: string; verified: boolean };
   live: boolean;

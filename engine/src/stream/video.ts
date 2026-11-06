@@ -156,8 +156,20 @@ export class VideoRunner extends EventEmitter {
 
   // ─── Liveness ────────────────────────────────────────────────────────────────────────────────
 
+  /** Twitch channels get liveness, titles and viewers from Helix (via the hub) instead of per-channel probes. */
+  helixManaged = false;
+
+  applyInfo(info: { live: boolean; title?: string; game?: string; viewers?: number }) {
+    if (info.viewers !== undefined) this.state.platformViewers = info.viewers;
+    void this.updateInfo({ live: info.live, title: info.title, game: info.game, rerun: /\b(rerun|re-run|vod|replay|rebroadcast|highlights?)\b/i.test(info.title ?? "") });
+  }
+
   private async refreshInfo() {
-    const info = await probe(this.ref);
+    if (this.helixManaged) return;
+    await this.updateInfo(await probe(this.ref));
+  }
+
+  private async updateInfo(info: { live: boolean; title?: string; game?: string; rerun: boolean; author?: string }) {
     const wasLive = this.state.live;
     this.state.live = info.live;
     this.state.rerun = info.rerun;
@@ -178,6 +190,7 @@ export class VideoRunner extends EventEmitter {
   setSlot(granted: boolean) {
     if (granted === this.slotGranted) return;
     this.slotGranted = granted;
+    this.state.reading = granted;
     if (granted) {
       this.sampler = new FrameSampler(this.ref).start();
       this.sampler.on("frame", (f: Frame) => {

@@ -9,7 +9,7 @@ import type { Player, StreamState, StreamSummary } from "@clutch/shared";
 import { Avatar, LiveBadge } from "@/components/brand";
 import { api, useNow } from "@/lib/live";
 import { ENGINE_URL } from "@/lib/env";
-import { cents, clock, compactUsd } from "@/lib/format";
+import { cents, clock, compact, compactUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -276,7 +276,12 @@ export function ChannelCard({ s, size = "md" }: { s: StreamSummary; size?: "md" 
           {s.rerun && <span className="rounded-[5px] bg-warn px-1.5 py-px text-[10.5px] font-semibold text-black">RERUN</span>}
           {s.live && (
             <span className="flex items-center gap-1 rounded-full bg-background/75 px-1.5 py-0.5 text-[11px] text-muted-foreground backdrop-blur">
-              <EyeIcon size={12} /> {s.watching}
+              <EyeIcon size={12} /> {s.platformViewers ? compact(s.platformViewers) : s.watching}
+            </span>
+          )}
+          {s.reading && (
+            <span className="flex items-center gap-1 rounded-full bg-yes/90 px-1.5 py-0.5 text-[11px] font-medium text-black">
+              <ScanIcon size={12} weight="bold" /> AI watching
             </span>
           )}
         </div>

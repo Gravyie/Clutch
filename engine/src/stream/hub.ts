@@ -15,6 +15,7 @@ import { StreamRunner, type StreamRow } from "./runner";
 import { VideoRunner } from "./video";
 import { makeReaders } from "../video/perceive";
 import { parseChannel, probe, type ChannelRef } from "../video/capture";
+import { discover, twitchConfigured, viewers as twitchViewers } from "../video/twitch";
 import { categoryFor } from "@clutch/shared";
 
 export type Runner = StreamRunner | VideoRunner;
@@ -62,6 +63,11 @@ export class Hub extends EventEmitter {
     });
     void this.indexer.start();
 
+    if (twitchConfigured) {
+      void this.discoverTwitch();
+      setInterval(() => void this.discoverTwitch(), 4 * 60_000);
+      setInterval(() => void this.refreshTwitch(), 60_000);
+    }
     setInterval(() => void this.refreshChain(), 3000);
     setInterval(() => void this.refreshPaused(), 10_000);
     setInterval(() => void this.refreshToday(), 30_000);
@@ -95,9 +101,7 @@ export class Hub extends EventEmitter {
       const [platform, channel] = seed.split(":") as [ChannelRef["platform"], string];
       const slug = `${platform === "twitch" ? "" : platform + "-"}${channel}`.toLowerCase();
       if (await one(`SELECT slug FROM streams WHERE slug = ?`, [slug])) continue;
-      log.info(`creating pool for ${platform} channel ${channel}`);
-      const pool = await chain.createStreamPool({ name: `Clutch: ${channel}`, symbol: `c${channel.toUpperCase().slice(0, 8)}`, streamer: chain.owner.address, streamerNullifier: 0n, latencyBuffer: config.twitchLatencyBufferSec });
-      await this.insertStream({ slug, kind: "video", title: channel, subtitle: platform === "twitch" ? "Twitch" : platform === "kick" ? "Kick" : "YouTube", owner: chain.owner.address, ownerNullifier: "0", pool, latency: config.twitchLatencyBufferSec, platform, channel });
+      await this.insertStream({ slug, kind: "video", title: channel, subtitle: platform === "twitch" ? "Twitch" : platform === "kick" ? "Kick" : "YouTube", owner: chain.owner.address, ownerNullifier: "0", latency: config.twitchLatencyBufferSec, platform, channel });
     }
   }
 
@@ -148,7 +152,7 @@ export class Hub extends EventEmitter {
     twitch?: string;
     owner: string;
     ownerNullifier: string;
-    pool: { token: string; poolId: Hex; key: chain.PoolKeyShape };
+    pool?: { token: string; poolId: Hex; key: chain.PoolKeyShape };
     latency?: number;
     platform?: string;
     channel?: string;
@@ -167,10 +171,10 @@ export class Hub extends EventEmitter {
         s.twitch ?? null,
         s.owner.toLowerCase(),
         s.ownerNullifier,
-        s.pool.poolId,
-        s.pool.token,
-        s.pool.key.currency0,
-        s.pool.key.currency1,
+        s.pool?.poolId ?? null,
+        s.pool?.token ?? null,
+        s.pool?.key.currency0 ?? null,
+        s.pool?.key.currency1 ?? null,
         s.latency ?? config.defaultLatencyBufferSec,
         Date.now(),
         s.platform ?? null,
@@ -236,16 +240,73 @@ export class Hub extends EventEmitter {
     }
   }
 
+  /** Adds the top live Twitch streams in supported games as channels. Pools are created when they first get a slot. */
+  private async discoverTwitch() {
+    try {
+      const live = await discover();
+      let added = 0;
+      for (const st of live) {
+        const slug = st.login.toLowerCase();
+        if (this.runners.has(slug)) continue;
+        const row = await this.insertStream({ slug, kind: "video", title: st.name, subtitle: "Twitch", owner: chain.owner.address, ownerNullifier: "0", latency: config.twitchLatencyBufferSec, platform: "twitch", channel: slug, category: categoryFor(st.game) });
+        this.addRunner(row as Row);
+        added++;
+      }
+      if (added) log.info(`discovered ${added} live Twitch channel${added > 1 ? "s" : ""}`);
+      await this.refreshTwitch();
+    } catch (e: any) {
+      log.warn("twitch discovery", e.message);
+    }
+  }
+
+  /** Liveness, titles, games and viewer counts for every Twitch channel in one or two Helix calls. */
+  private async refreshTwitch() {
+    const tw = [...this.runners.values()].filter((r): r is VideoRunner => r instanceof VideoRunner && r.ref.platform === "twitch");
+    try {
+      const info = await twitchViewers(tw.map((r) => r.ref.channel));
+      for (const r of tw) {
+        r.helixManaged = true;
+        const i = info.get(r.ref.channel.toLowerCase());
+        r.applyInfo(i ? { live: true, title: i.title, game: i.game, viewers: i.viewers } : { live: false, viewers: 0 });
+      }
+    } catch (e: any) {
+      log.warn("twitch refresh", e.message);
+    }
+  }
+
+  private creatingPool = new Set<string>();
+
+  /** Lazily give a channel its market pool the first time it needs one. */
+  private async ensurePool(r: VideoRunner) {
+    if (r.row.pool_id || this.creatingPool.has(r.row.slug)) return;
+    this.creatingPool.add(r.row.slug);
+    try {
+      const pool = await chain.createStreamPool({ name: `Clutch: ${r.ref.channel}`, symbol: `c${r.ref.channel.toUpperCase().slice(0, 8)}`, streamer: chain.owner.address, streamerNullifier: 0n, latencyBuffer: config.twitchLatencyBufferSec });
+      await run(`UPDATE streams SET pool_id = ?, token = ?, currency0 = ?, currency1 = ? WHERE slug = ?`, [pool.poolId, pool.token, pool.key.currency0, pool.key.currency1, r.row.slug]);
+      r.row.pool_id = pool.poolId;
+      r.state.poolId = pool.poolId;
+      log.info(`${r.row.slug}: market pool ready`);
+    } catch (e: any) {
+      log.warn(`${r.row.slug} pool`, e.shortMessage ?? e.message);
+    } finally {
+      this.creatingPool.delete(r.row.slug);
+    }
+  }
+
   /**
    * Vision is the scarce resource (one model, a few seconds per frame). Grant live, non-rerun channels a slot:
    * channels with an open market first, then gaming categories, then by audience.
    */
   private allocateSlots() {
     const video = [...this.runners.values()].filter((r): r is VideoRunner => r instanceof VideoRunner);
-    const rank = (r: VideoRunner) => (r.active ? 1000 : 0) + (r.state.category === "irl" || r.state.category === "other" ? 0 : 100) + r.state.watching;
+    const rank = (r: VideoRunner) =>
+      (r.active ? 1e9 : 0) + (r.state.category === "irl" || r.state.category === "other" ? 0 : 1e8) + r.state.watching * 1e6 + (r.state.platformViewers ?? 0);
     const want = video.filter((r) => r.wantsVision || r.active).sort((a, b) => rank(b) - rank(a));
     const granted = new Set(want.slice(0, config.maxVideoStreams));
-    for (const r of video) r.setSlot(granted.has(r));
+    for (const r of video) {
+      if (granted.has(r) && !r.row.pool_id) void this.ensurePool(r);
+      r.setSlot(granted.has(r));
+    }
   }
 
   /** Markets that were open when the engine stopped: resume with their saved timeline, or void if impossible. */

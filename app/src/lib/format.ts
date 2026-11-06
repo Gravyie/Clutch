@@ -30,3 +30,5 @@ export function hueOf(s: string) {
   for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360;
   return h;
 }
+
+export const compact = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(n >= 1e4 ? 0 : 1)}K` : String(n));

@@ -35,7 +35,7 @@ import { useAccount } from "@/lib/account";
 import { useLive } from "@/lib/live";
 import { useUI } from "@/lib/ui";
 import { useWallet } from "@/lib/wallet";
-import { cents, short } from "@/lib/format";
+import { cents, compact, short } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -47,7 +47,8 @@ const NAV = [
 
 /** Live markets first, then live video, then live chess, then offline; audience breaks ties. */
 export function channelRank(a: StreamSummary, b: StreamSummary) {
-  const score = (s: StreamSummary) => (s.market?.phase === "trading" ? 1000 : 0) + (s.live && !s.rerun ? 100 : 0) + (s.media?.kind === "video" ? 50 : 0) + (s.live ? 10 : 0) + s.watching;
+  const score = (s: StreamSummary) =>
+    (s.market?.phase === "trading" ? 4e9 : 0) + (s.reading ? 2e9 : 0) + (s.live && !s.rerun ? 1e9 : 0) + (s.media?.kind === "video" ? 5e8 : 0) + (s.platformViewers ?? 0) + s.watching * 1000;
   return score(b) - score(a);
 }
 
@@ -217,7 +218,7 @@ function SideRail() {
               {s.market && s.market.phase === "trading" ? (
                 <span className="rounded-full bg-yes-soft px-1.5 py-0.5 font-mono text-[11px] font-medium text-yes tabular">{cents(s.market.priceYes)}</span>
               ) : s.live ? (
-                <span className="text-xs text-faint tabular">{s.watching}</span>
+                <span className="text-xs text-faint tabular">{s.platformViewers ? compact(s.platformViewers) : s.watching}</span>
               ) : null}
             </Link>
           );
