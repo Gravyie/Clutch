@@ -55,3 +55,18 @@ The earlier generation fixes are integrated with upstream AI pause/budget contro
 One authentic minimal 0G inference request returned HTTP 402 (request ID `41b1649868277945, 54fe76b5-aa30-457a-a3f1-fa0ca3de5502`); inference is NOT working/verified until billing/quota is restored. Existing World app ID/signing key are missing. Vercel CLI inspected all projects in `rajat-srivastavs-projects-9923da49`; no Clutch project was present. Subdomain A/AAAA/CNAME checks returned no records. DNS changes remain unapplied.
 
 EC2 IAM has been tightened to `GetSecretValue` on the two exact secret ARNs above, replacing the planned-name ARN suffix patterns. No create/update/delete/list permission was added to the EC2 role.
+
+Further read-only verification: after stripping compiler metadata and compiler-declared immutable references, the two deployments' hook/gate/vault/guard executable code matches. StreamRegistered logs were scanned from block 55316236 through 55366807 in 200-block ranges: the intended hook has NO registered streams. No existing stream pool can be imported; initial stream setup requires a separate reviewed owner transaction plan (do not redeploy core contracts).
+
+EC2 built and verified image `clutch-engine:rajat-f231cd9` from pushed commit `f231cd9` with the opt-in intended manifest. SSM command `240fd162-d488-41cf-81b7-5b6aefe54fa8` succeeded and printed chain 84532 / hook `0x574d...E888`. Both EC2 status checks are OK. No containers are running, no runtime secret file has been installed, and no on-chain transaction has been broadcast. The real-chain public role preflight correctly rejects the new addresses before credential retrieval, since role updates remain unapproved/unexecuted.
+
+Connect for authorized administration (no inbound SSH):
+
+```sh
+aws ssm start-session --region ap-south-1 --target i-0cb7500b58c3d8e0e
+# On the host:
+cd /opt/clutch/repo
+sudo cat /opt/clutch/DEPLOYMENT_STATUS
+sudo docker image inspect clutch-engine:rajat-f231cd9 --format '{{.Id}} {{.Architecture}}'
+# Do not start Compose until the prerequisites above are complete.
+```
