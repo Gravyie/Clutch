@@ -46,7 +46,7 @@ export function Onboarding() {
   }, [onboarding, wallet]);
 
   return (
-    <Dialog open={onboarding} onOpenChange={(o) => !o && closeOnboarding()}>
+    <Dialog open={onboarding && !wallet.authOpen} onOpenChange={(o) => !o && !wallet.authOpen && closeOnboarding()}>
       <DialogContent className="gap-0 overflow-hidden rounded-2xl border-border bg-surface p-0 sm:max-w-[440px]">
         <div className="flex items-center gap-3 border-b border-border px-6 pb-4 pt-6">
           <LogoMark className="size-8" />
