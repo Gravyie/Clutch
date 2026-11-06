@@ -235,7 +235,7 @@ function Waiting({ stream, hint }: { stream?: StreamState; hint?: string }) {
           {stream?.reading && <span className="absolute -right-0.5 -top-0.5 size-2.5 animate-live rounded-full bg-yes" />}
         </div>
         <div className="min-w-0">
-          <div className="text-sm font-semibold">Next market on this stream is coming</div>
+          <div className="text-sm font-semibold">{!stream || !stream.live || stream.rerun ? "No markets on this stream right now" : "Next market on this stream is coming"}</div>
           <div className="text-sm text-muted-foreground">{hint ?? "Markets open when the action gets uncertain."}</div>
         </div>
       </div>

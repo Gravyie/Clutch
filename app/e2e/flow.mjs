@@ -79,8 +79,12 @@ async function liveMarket(slug, minLeft = 10, waitSec = 90) {
   await ctx.close();
 }
 
+// With real World ID configured there is no test verifier, so the persona checks below run only on the dev setup.
+const WORLD_REAL = (await (await fetch(`${ENGINE}/config`)).json()).world?.configured;
+if (WORLD_REAL) console.log("- World ID is live: persona checks skipped (verify with World App or the simulator by hand)");
+
 // 2. Under 18: refused before any pass exists.
-{
+if (!WORLD_REAL) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
   const page = await ctx.newPage();
   await onboard(page);
@@ -92,7 +96,7 @@ async function liveMarket(slug, minLeft = 10, waitSec = 90) {
 }
 
 // 3. The replay channel's streamer: the contract refuses their trade on their own channel.
-{
+if (!WORLD_REAL) {
   const ctx = await browser.newContext({ viewport: { width: 1512, height: 982 } });
   const page = await ctx.newPage();
   await onboard(page);
