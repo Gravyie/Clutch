@@ -5,7 +5,7 @@ import { MemData } from '@0gfoundation/0g-ts-sdk';
 import { readFileSync, existsSync } from 'node:fs';
 const d=JSON.parse(readFileSync('/app/contracts/deployments/84532.json','utf8'));
 assert.equal(d.chainId,84532);
-assert.equal(d.clutchHook.toLowerCase(),'0x574d0c676a9beab18963468da010ba16bb2fe888');
+assert.deepEqual(d,JSON.parse(readFileSync('/run/check/deployment.json','utf8')));
 assert.equal(process.getuid(),1000);
 assert.equal(existsSync('/app/engine/.env'),false);
 assert.equal(existsSync('/app/app'),false);

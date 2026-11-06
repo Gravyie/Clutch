@@ -4,13 +4,14 @@ import { createWalletClient, http, parseEther, formatEther } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { ClutchRouterAbi, MockUSDCAbi, ClutchHookAbi, toUsdc } from "@clutch/shared";
 import { config } from "../config";
-import { publicClient, chain, owner } from "../chain";
+import { publicClient, chain } from "../chain";
 
 const d = config.deployment;
 const ENGINE = `http://localhost:${process.env.PORT ?? 8787}`;
 const me = privateKeyToAccount(generatePrivateKey());
 const wallet = createWalletClient({ account: me, chain, transport: http(config.rpcUrl) });
-const ownerWallet = createWalletClient({ account: owner, chain, transport: http(config.rpcUrl) });
+if (!config.local || !config.ownerKey) throw new Error("eth-bet is a local disposable-account demo; do not use an owner key in production");
+const ownerWallet = createWalletClient({ account: privateKeyToAccount(config.ownerKey), chain, transport: http(config.rpcUrl) });
 
 // gas money only: no USDC, no approvals
 await publicClient.waitForTransactionReceipt({ hash: await ownerWallet.sendTransaction({ to: me.address, value: parseEther("0.004") }) });

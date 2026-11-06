@@ -5,6 +5,7 @@ cd "$(dirname "$0")/../.."
 CHECK_DIR=$(mktemp -d /tmp/clutch-container-check.XXXXXX)
 CHECK_IMAGE=${CHECK_IMAGE:-clutch-engine:ec2-local}
 mkdir "$CHECK_DIR/data"
+cp contracts/deployments/84532.json "$CHECK_DIR/deployment.json"
 chmod 0777 "$CHECK_DIR/data" # Disposable marker DB only; production host directory uses UID 1000 / 0750.
 printf '%s\n' "Validation output: $CHECK_DIR"
 docker build -f deploy/ec2/Dockerfile -t "$CHECK_IMAGE" . > "$CHECK_DIR/build.log" 2>&1
@@ -31,7 +32,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -keyout "$CHECK_DIR/tls.key" -out "$CH
 chmod 0644 "$CHECK_DIR/tls.key" # Disposable localhost TLS fixture, not a deployment certificate.
 for MODE in 0 1; do
   docker run --rm --network none --read-only --tmpfs /tmp:rw,size=64m -e SMOKE_READ_ONLY="$MODE" \
-    -v "$CHECK_DIR/data:/app/engine/data" \
+    -v "$CHECK_DIR/data:/app/engine/data" -v "$CHECK_DIR:/run/check:ro" \
     -v "$PWD/deploy/ec2/native-check.mjs:/app/engine/native-check.mjs:ro" \
     --entrypoint node "$CHECK_IMAGE" native-check.mjs > "$CHECK_DIR/native-$MODE.log" 2>&1
 done

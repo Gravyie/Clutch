@@ -13,22 +13,22 @@ The engine unit suite is `pnpm --filter @clutch/engine test`; TypeScript is `pnp
 The supplied `contracts/deployments/84532.json` is the source of truth. It currently records:
 
 - Chain: **84532 (Base Sepolia)**
-- ClutchHook: `0x574d0c676a9beab18963468dA010Ba16BB2fE888`
-- Router: `0xaE044886964d37C9cF5b92aAC66C9d48D93221Ea`
-- USDC test asset: `0xAE2066B99e9c0674f6f8cc4303074e84Ea0C749F`
-- HumanPassGate: `0x80Ed9eb53160c6E85Cb64DAA4A3c5B9a6ec01924`
-- LPVault: `0xaCbbcBCd97019a20596C405Dc6D98188a05E285A`
+- ClutchHook: `0x6826872452e7Eea21D8a022E8533CEA0F4236888`
+- Router: `0x1B1F8484a4d2D54fFAAC2Ee9AAFb5B2F77352959`
+- USDC test asset: `0x7942bc2E19a89f4544638C1A0f8E4792b0da00F0`
+- HumanPassGate: `0xb5cc8d4f0A9d81BE6ff704d0eBd48cf382eee5f2`
+- LPVault: `0xb7dccDbeA0A05CaF3804382eaB824379F1615319`
 
-Read-only Base Sepolia calls during preparation confirmed that both the engine and gate signer still use `0x3750134287b3Fa078817ee2bAce1a69b372F3F8C`, also recorded as owner. **Do not put that funded owner key on EC2.** This runtime refuses owner reuse. The manifest's `agent` and `passSigner` fields are deployment-time metadata; actual role getters are authoritative after rotation.
+The current main-branch manifest already records separate owner (`0x83e60BfbB74b20F1E1279e02F879594527D176da`), agent (`0x5Fc7EC11Fac094DAAa7a75F0Eb52c035533A4E44`), and pass signer (`0x8Af096a0C69B9Dd514cAaf3B51D6d5D3685c57d8`). This PR preserves that manifest byte-for-byte. Supply only the dedicated agent/pass-signer keys at runtime; never the owner key. Startup verifies the actual on-chain roles and component addresses with read-only calls. No role-rotation transaction is required if those getters already match. The manifest's role fields are deployment-time metadata; on-chain getters remain authoritative.
 
 The existing contracts permit role separation without redeployment: the owner calls `ClutchHook.configure(engine,resolver,treasury,gate,vault)` and `HumanPassGate.setSigner(signer)`. This engine uses one dedicated agent for engine+resolver and another key for pass signing. Creating/importing an unrelated third resolver key is not supported by this runtime. Generate dedicated keys securely, fund the agent with only the gas it needs, and sign the configuration transactions from an offline admin machine. The pass signer needs no gas. These actions require owner approval and have **not** been executed here.
 
-Example owner commands, for review and later authorized execution only (Foundry encrypted keystore `clutch-owner`; never pass a raw owner key):
+Only if roles need changing: example owner commands, for review and later authorized execution only (Foundry encrypted keystore `clutch-owner`; never pass a raw owner key):
 
 ```sh
 export BASE_RPC='https://YOUR_BASE_SEPOLIA_RPC'
-export HOOK='0x574d0c676a9beab18963468dA010Ba16BB2fE888'
-export GATE='0x80Ed9eb53160c6E85Cb64DAA4A3c5B9a6ec01924'
+export HOOK='0x6826872452e7Eea21D8a022E8533CEA0F4236888'
+export GATE='0xb5cc8d4f0A9d81BE6ff704d0eBd48cf382eee5f2'
 export NEW_AGENT='0xYOUR_DEDICATED_AGENT_ADDRESS'
 export NEW_PASS_SIGNER='0xYOUR_DIFFERENT_PASS_SIGNER_ADDRESS'
 TREASURY=$(cast call "$HOOK" 'treasury()(address)' --rpc-url "$BASE_RPC")
@@ -88,7 +88,7 @@ sudo install -m 0600 deploy/ec2/engine.env.example /etc/clutch/engine.env
 sudoedit /etc/clutch/engine.env
 ```
 
-The provided 84532 manifest was untracked when work began and is included unchanged in this deployment branch so a clean checkout can build the image. It was not regenerated or overwritten. Never use `scripts/dev.sh` or `deploy-local.sh` for EC2: they are local development workflows and can deploy contracts/delete local state.
+The current main-branch 84532 manifest is retained unchanged; this PR does not modify deployment addresses or regenerate ABIs. Never use `scripts/dev.sh` or `deploy-local.sh` for EC2: they are local development workflows and can deploy contracts/delete local state.
 
 Set a unique `AUTH_SECRET` (generate with `openssl rand -hex 32`), HTTPS RPC, dedicated agent/pass keys, World settings, API domain, exact Vercel/custom origins, and 0G inference settings in `/etc/clutch/engine.env`. Keep the populated file root-readable only and out of Git, shell history, build context and screenshots. It is injected at container creation, not baked into the image. Leave `ZG_STORAGE_PRIVATE_KEY` empty unless separately authorized to upload/spend on 0G Storage.
 
@@ -168,7 +168,7 @@ No Base Sepolia creation/trade/settlement transaction was sent during this prepa
 6. Read the trader's on-chain `positions(id,address)`. Claim winning shares through `ClutchHook.claim(id,address)`, or claim each full cost refund on VOID. Verify the `Claimed` event and exact test-USDC balance delta. Losers have zero entitlement and should not submit a claim. Confirm vault outstanding funding returns to its prior level and the backend's receipt/history survives an engine recreation with the same EBS data.
 7. Disconnect/reconnect WSS and verify the same current/final market is recovered without a new submission. Save hashes, block timestamps, balances and evidence for review. Stop if roles, source freshness or contract addresses disagree.
 
-The earlier isolated local test used captured image bytes with **synthetic observation fixtures**, not live 0G outcome evidence. It executed creation, YES and NO trades, a real MarketLocked revert, VOID, and both 10-USDC refunds on a disposable Anvil/Uniswap v4 deployment. Live emongg capture was attempted separately and correctly refused menu/mixed-game screens. Its artifacts remain under `/tmp/clutch-isolated-ho7jm4ce`; that process is stopped. This is local backend/contract evidence, not a public-network smoke-test claim.
+Separate earlier backend validation (not a Docker or public-network test) used captured image bytes with **synthetic observation fixtures**, not live 0G outcome evidence. It executed creation, YES and NO trades, a real MarketLocked revert, VOID, and both 10-USDC refunds on a disposable Anvil/Uniswap v4 deployment. Live emongg capture was attempted separately and correctly refused menu/mixed-game screens. Its artifacts remain under `/tmp/clutch-isolated-ho7jm4ce`; that process is stopped. This is local backend/contract evidence, not a public-network smoke-test claim.
 
 ## References
 
