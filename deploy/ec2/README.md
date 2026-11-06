@@ -21,7 +21,7 @@ The checkout's `contracts/deployments/84532.json` is retained unchanged and must
 
 The operator reports that the intended contracts still authorize `0x3750134287b3Fa078817ee2bAce1a69b372F3F8C` as owner, agent and pass signer; dedicated keys have not been created. The current checkout retains main's recorded manifest, which differs from that report and must be confirmed as the canonical deployment before proceeding. Do not rewrite addresses or reuse the owner key to get past startup checks. The runtime checks actual on-chain getters and deliberately rejects a shared owner/runtime configuration.
 
-See [the planned Secrets Manager integration](secrets/README.md) for the two exact planned secret names, read-only IAM policy, approval boundaries and public-role verification before key retrieval. No secret record, ARN, hostname or private-key file is assumed to exist.
+See [the Secrets Manager integration](secrets/README.md) for the two exact runtime secret names, read-only IAM policy, approval boundaries and public-role verification before key retrieval. No secret record, ARN, hostname or private-key file is assumed to exist.
 
 The existing contracts permit role separation without redeployment: the owner calls `ClutchHook.configure(engine,resolver,treasury,gate,vault)` and `HumanPassGate.setSigner(signer)`. This engine uses one dedicated agent for engine+resolver and another key for pass signing. Creating/importing an unrelated third resolver key is not supported by this runtime. Generate dedicated keys securely, fund the agent with only the gas it needs, and sign the configuration transactions from an offline admin machine. The pass signer needs no gas. These actions require owner approval and have **not** been executed here.
 
@@ -85,7 +85,7 @@ Configure Compose's non-secret host settings:
 cd /opt/clutch/repo
 cp deploy/ec2/compose.env.example deploy/ec2/compose.env
 ${EDITOR:-vi} deploy/ec2/compose.env
-# ENGINE_DOMAIN=your API hostname; ACME_EMAIL=your email; set IMAGE_TAG to the reviewed commit.
+# ENGINE_DOMAIN=your API hostname; set IMAGE_TAG to the reviewed image tag.
 sudo docker compose --env-file deploy/ec2/compose.env -f deploy/ec2/compose.yaml config --quiet
 sudo docker compose --env-file deploy/ec2/compose.env -f deploy/ec2/compose.yaml build --pull engine
 # Read-only role/address/chain preflight; this does not start runners or send transactions.
@@ -162,3 +162,5 @@ Separate earlier backend validation (not a Docker or public-network test) used c
 - Docker's Ubuntu installation procedure: https://docs.docker.com/engine/install/ubuntu/
 - pnpm production workspace deployment: https://pnpm.io/10.x/cli/deploy
 - Caddy HTTPS/WebSocket proxy behavior: https://caddyserver.com/docs/caddyfile/directives/reverse_proxy
+
+The applied Rajat environment, verified public URLs, real transaction evidence and exact restart commands are documented in [the environment runbook](environments/rajat-testnet/README.md). Caddy does not require a contact email.
