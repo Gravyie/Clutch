@@ -318,7 +318,7 @@ export class Hub extends EventEmitter {
     for (const r of video) if (r.unproductive && !r.state.watching) r.benchedUntil = now + BENCH_MS;
     const likely = (c?: string) => (c === "fps" || c === "battle-royale" || c === "sports" || c === "moba" ? 2e8 : c === "irl" || c === "other" ? 0 : 1e8);
     const rank = (r: VideoRunner) => (r.active ? 1e9 : 0) + likely(r.state.category) + r.state.watching * 1e6 + (r.state.platformViewers ?? 0);
-    const want = video.filter((r) => r.active || (r.wantsVision && (r.benchedUntil < now || r.state.watching > 0))).sort((a, b) => rank(b) - rank(a));
+    const want = video.filter((r) => r.active || ((r.row.pool_id || config.ownerKey) && r.wantsVision && (r.benchedUntil < now || r.state.watching > 0))).sort((a, b) => rank(b) - rank(a));
     // With the AI switched off nothing is read (and no frames are pulled), so it costs nothing.
     const granted = new Set(ZeroG.enabled ? want.slice(0, config.maxVideoStreams) : []);
     for (const r of video) {
