@@ -38,7 +38,6 @@ services:
     ports: ['80:80', '443:443', '443:443/udp']
     environment:
       ENGINE_DOMAIN: ${ENGINE_DOMAIN:?Set ENGINE_DOMAIN}
-      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
