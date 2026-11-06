@@ -25,7 +25,7 @@ WORKDIR /app/engine
 COPY --from=build --chown=node:node /runtime/ ./
 ARG DEPLOYMENT_MANIFEST=contracts/deployments/84532.json
 COPY --chown=node:node ${DEPLOYMENT_MANIFEST} /app/contracts/deployments/84532.json
-COPY deploy/ec2/healthcheck.mjs /app/healthcheck.mjs
+COPY --chown=node:node --chmod=0444 deploy/ec2/healthcheck.mjs /app/healthcheck.mjs
 RUN mkdir -p /app/engine/data && chown node:node /app/engine/data
 USER node
 EXPOSE 8787

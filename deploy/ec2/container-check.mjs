@@ -64,6 +64,8 @@ try{
     await delay(200);
   }
   assert.ok(ready,`Bundled engine did not become ready: ${logs}`);
+  const healthProbe = spawn(process.execPath, ['/app/healthcheck.mjs'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  assert.equal(await new Promise(resolve => healthProbe.on('exit', resolve)), 0, 'The image healthcheck must run as the non-root user');
   const health=await fetch('http://127.0.0.1:8787/health',{headers:{Origin:'https://example.vercel.app'}});
   assert.equal(health.headers.get('access-control-allow-origin'),'https://example.vercel.app');
   assert.equal((await health.json()).chainId,84532);
