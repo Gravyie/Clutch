@@ -1,3 +1,4 @@
+import { DotType } from "@/components/dot-type";
 import Link from "next/link";
 import type { Metadata } from "next";
 
@@ -6,7 +7,7 @@ export const metadata: Metadata = { title: "Responsible play" };
 export default function ResponsiblePlay() {
   return (
     <div className="mx-auto max-w-[720px] px-4 py-10 sm:px-6">
-      <h1 className="display text-[2.9rem]">Responsible play</h1>
+      <DotType as="h1" start speed={34} text="Responsible play" className="display text-[2.9rem]" />
       <p className="mt-4 text-lg leading-relaxed text-muted-foreground">Clutch is for adults, for fun, with money you can afford to lose. These controls are built into the contracts, not just the app.</p>
       <div className="mt-10 space-y-8 text-[15px] leading-relaxed">
         <section>

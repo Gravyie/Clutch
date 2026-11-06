@@ -1,5 +1,6 @@
 "use client";
 
+import { DotType } from "@/components/dot-type";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
@@ -52,7 +53,7 @@ export default function AgentsPage() {
           <div className="eyebrow flex items-center gap-2 text-brand">
             <RobotIcon size={14} weight="bold" /> World ID Agent Pass
           </div>
-          <h1 className="display mt-3 text-[2.9rem] sm:text-[3.6rem]">Let an agent trade for you.</h1>
+          <DotType as="h1" start speed={34} text="Let an agent trade for you." className="display mt-3 text-[2.9rem] sm:text-[3.6rem]" />
           <p className="mt-4 max-w-[58ch] text-[15px] leading-relaxed text-muted-foreground">
             Markets last thirty seconds, so agents will trade them. On Clutch an agent always acts for one verified person: you approve it with World ID, and
             its pass carries your human ID, so it shares your daily limit onchain. It can never spend past what you could.

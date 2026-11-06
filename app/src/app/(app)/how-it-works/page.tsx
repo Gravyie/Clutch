@@ -1,3 +1,4 @@
+import { DotType } from "@/components/dot-type";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ const RULES = [
 export default function HowItWorks() {
   return (
     <div className="mx-auto max-w-[1000px] px-4 py-10 sm:px-6">
-      <h1 className="display max-w-[18ch] text-[2.9rem] sm:text-[3.6rem]">Fair markets on live moments</h1>
+      <DotType as="h1" start speed={34} text="Fair markets on live moments" className="display max-w-[18ch] text-[2.9rem] sm:text-[3.6rem]" />
       <p className="mt-4 max-w-[60ch] text-lg leading-relaxed text-muted-foreground">Clutch turns tense moments into short markets with a fixed trading window, a separate event window, and an onchain settlement. Here's what happens to every single one.</p>
 
       <ol className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-2">

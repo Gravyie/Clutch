@@ -1,5 +1,6 @@
 "use client";
 
+import { DotType } from "@/components/dot-type";
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -27,7 +28,7 @@ export default function AccountPage() {
         <span className="grid size-14 place-items-center rounded-2xl bg-raised text-muted-foreground">
           <UserIcon size={26} />
         </span>
-        <h1 className="display mt-4 text-[2.2rem]">Your account</h1>
+        <DotType as="h1" start speed={34} text="Your account" className="display mt-4 text-[2.2rem]" />
         <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">Sign in to see your wallet and network, your daily limit, optional World ID verification, and self-exclusion controls.</p>
         <Button className="mt-5 h-11 rounded-full bg-foreground px-6 font-medium text-background hover:bg-foreground/90" onClick={() => open()}>
           Sign in
@@ -39,7 +40,7 @@ export default function AccountPage() {
   const excluded = acct.excludedUntil > Date.now() / 1000;
   return (
     <div className="mx-auto max-w-[760px] space-y-6 px-4 py-6 sm:px-6">
-      <h1 className="display text-[2.6rem]">Account</h1>
+      <DotType as="h1" start speed={34} text="Account" className="display text-[2.6rem]" />
       <Profile />
 
       <section className="surface p-5">

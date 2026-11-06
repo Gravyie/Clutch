@@ -1,5 +1,6 @@
 "use client";
 
+import { DotType } from "@/components/dot-type";
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -85,7 +86,7 @@ function Hero({ children }: { children: React.ReactNode }) {
       <div className="grid size-14 place-items-center rounded-2xl bg-raised">
         <BroadcastIcon size={28} />
       </div>
-      <h1 className="display mt-5 text-[2.9rem]">Turn your stream into markets</h1>
+      <DotType as="h1" start speed={34} text="Turn your stream into markets" className="display mt-5 text-[2.9rem]" />
       <p className="mt-3 max-w-[50ch] text-muted-foreground">Twitch, Kick, YouTube or Lichess. Clutch's AI watches your stream, opens markets on the tense moments, and pays you 0.5% of every market's volume.</p>
       <div className="mt-7">{children}</div>
     </div>
@@ -130,7 +131,7 @@ function Setup(props: { me: Me; token: string; onDone: () => void }) {
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-8 sm:px-6">
       <div>
-        <h1 className="display text-[2.6rem]">Bring your stream</h1>
+        <DotType as="h1" start speed={34} text="Bring your stream" className="display text-[2.6rem]" />
         <p className="mt-1 text-muted-foreground">Clutch's AI watches your stream and opens markets on the tense moments. You earn 0.5% of every market's volume.</p>
       </div>
       <div className="flex gap-2">

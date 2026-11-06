@@ -1,5 +1,6 @@
 "use client";
 
+import { DotType } from "@/components/dot-type";
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -34,7 +35,7 @@ export default function PortfolioPage() {
     return (
       <Center>
         <ChartLineUpIcon size={36} className="text-faint" />
-        <h1 className="display mt-4 text-[2.2rem]">Your positions live here</h1>
+        <DotType as="h1" start speed={34} text="Your positions live here" className="display mt-4 text-[2.2rem]" />
         <p className="mt-1 text-sm text-muted-foreground">Sign in to track open trades, winnings and history.</p>
         <Button className="mt-5 rounded-xl" onClick={() => open()}>
           Sign in

@@ -1,5 +1,6 @@
 "use client";
 
+import { DotType } from "@/components/dot-type";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -61,7 +62,7 @@ export default function ChannelPage() {
     return (
       <div className="grid min-h-[60dvh] place-items-center px-4 text-center">
         <div>
-          <h1 className="display text-[2.2rem]">Channel not found</h1>
+          <DotType as="h1" start speed={34} text="Channel not found" className="display text-[2.2rem]" />
           <p className="mt-1 text-sm text-muted-foreground">It may have been removed or the link is wrong.</p>
           <Button asChild className="mt-4 rounded-xl">
             <Link href="/browse">Browse channels</Link>

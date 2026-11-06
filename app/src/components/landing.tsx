@@ -26,7 +26,7 @@ import type { AgentState, ChainState, MarketView, Receipt, StreamSummary } from 
 import { DotType } from "@/components/dot-type";
 import { LogoMark, Wordmark } from "@/components/brand";
 import { channelRank } from "@/components/shell";
-import { PlatformIcon, frameUrl } from "@/components/stream";
+import { LiveBoard, PlatformIcon, frameUrl } from "@/components/stream";
 import { isOpen } from "@/components/market";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { BlurFade } from "@/components/ui/blur-fade";
@@ -49,11 +49,11 @@ type Stats = { markets: number; volume: number; traders: number; voids: number; 
 const twitchPreview = (s: StreamSummary) => (s.media?.kind === "video" && s.media.platform === "twitch" ? `https://static-cdn.jtvnw.net/previews-ttv/live_user_${s.media.channel}-1280x720.jpg` : undefined);
 
 /** The engine's last frame, falling back to the platform's own live thumbnail. */
-function StreamImage({ s, alt = "", className }: { s: StreamSummary; alt?: string; className?: string }) {
+function StreamImage({ s, alt = "", className, quiet }: { s: StreamSummary; alt?: string; className?: string; quiet?: boolean }) {
   const [failed, setFailed] = useState<string | undefined>();
   const first = frameUrl(s) ?? twitchPreview(s);
   const src = failed === first ? twitchPreview(s) : first;
-  if (!src || failed === src) return <div className={cn("bg-[var(--l-night-2)]", className)} />;
+  if (!src || failed === src) return quiet ? null : <div className={cn("bg-[var(--l-night-2)]", className)} />;
   return <img key={src} src={src} alt={alt} onError={() => setFailed(src)} className={className} />;
 }
 
@@ -1070,8 +1070,29 @@ const THUMB: Record<string, string> = {
   VOID: "radial-gradient(90% 80% at 50% 10%, #c9c3d8 0%, #8a7fa3 45%, #2f2a3c 100%)",
 };
 
+/** Soft verdict-coloured wash over the channel picture, darker at the bottom so the label reads. */
+const TINT: Record<string, string> = {
+  YES: "linear-gradient(180deg, rgb(47 157 126 / 0.18), rgb(10 30 25 / 0.7))",
+  NO: "linear-gradient(180deg, rgb(216 96 79 / 0.18), rgb(40 12 10 / 0.7))",
+  VOID: "linear-gradient(180deg, rgb(138 127 163 / 0.18), rgb(25 22 32 / 0.72))",
+};
+
+/** The channel the market ran on: its latest frame for video, its board for chess; the gradient shows if neither loads. */
+function ReceiptThumb({ s }: { s?: StreamSummary }) {
+  if (!s) return null;
+  if (s.media?.kind === "video") return <StreamImage s={s} quiet className="absolute inset-0 size-full object-cover" />;
+  return (
+    <div className="absolute inset-0 grid place-items-center bg-[#2a2622]">
+      <div className="pointer-events-none aspect-square h-[120%] -rotate-6 opacity-90">
+        <LiveBoard id={`rc-${s.slug}`} fen={s.fen} lastMove={s.lastMove} orientation={s.orientation} animate={false} />
+      </div>
+    </div>
+  );
+}
+
 function Receipts({ d }: { d: D }) {
   const list = d.receipts.slice(0, 12);
+  const bySlug = new Map(d.list.map((s) => [s.slug, s]));
   return (
     <section data-tone="night" className="border-t border-[var(--l-night-line)] bg-[var(--l-night)] py-24 text-[var(--l-snow)] sm:py-28">
       <Container className="flex items-end justify-between gap-6">
@@ -1086,7 +1107,8 @@ function Receipts({ d }: { d: D }) {
             {list.map((r) => (
               <Link key={r.marketId} href={`/m/${r.marketId}`} className="group block w-[270px]">
                 <div className="relative aspect-[16/10] overflow-hidden rounded-[14px]" style={{ background: THUMB[r.verdict] }}>
-                  <div aria-hidden className="absolute -left-8 top-1/2 h-24 w-[140%] -rotate-12 bg-white/15 blur-xl transition-transform duration-500 group-hover:translate-x-6" />
+                  <ReceiptThumb s={bySlug.get(r.slug)} />
+                  <div aria-hidden className="absolute inset-0" style={{ background: TINT[r.verdict] }} />
                   <span className="absolute bottom-3 left-3 rounded-md bg-black/35 px-2 py-0.5 font-mono text-[10.5px] text-white backdrop-blur">{r.verdict === "VOID" ? "Refunded" : `Settled ${r.verdict}`}</span>
                 </div>
                 <div className="mt-3 font-mono text-[11px] text-[var(--l-snow-3)]">

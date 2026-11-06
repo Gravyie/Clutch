@@ -57,6 +57,7 @@
   --shadow-card: 0 1px 2px rgb(40 30 20 / 0.04), 0 14px 40px -24px rgb(40 30 20 / 0.28);
   --shadow-float: 0 40px 120px -40px rgb(40 30 20 / 0.4), 0 0 0 1px rgb(23 22 20 / 0.07);
   --ease: cubic-bezier(0.2, 0.75, 0.25, 1);
+  --l-dot: #7c93a6;
   --sidebar: var(--background);
   --sidebar-foreground: var(--muted-foreground);
   --sidebar-primary: var(--foreground);
@@ -95,6 +96,7 @@
 
   --primary: #f1efe9;
   --primary-foreground: #131211;
+  --l-dot: #8fa6ba;
   --ring: rgb(184 243 107 / 0.6);
 
   --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 18px 44px -26px rgb(0 0 0 / 0.8);
@@ -361,7 +363,7 @@ body.overlay {
   font-weight: 400;
 }
 /* a glyph drawn in dots: the "not yet solid" state of the type-in effect */
-.landing .stipple {
+.stipple {
   color: transparent;
   background-image: radial-gradient(circle, var(--l-dot) 0.026em, transparent 0.036em);
   background-size: 0.072em 0.072em;
