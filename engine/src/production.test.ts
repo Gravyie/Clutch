@@ -53,3 +53,12 @@ test('production configuration permits no owner key and rejects owner keys or a 
   assert.notEqual(spawnSync(process.execPath, args, { env: { ...env, CHAIN_ID: '31337' } }).status, 0);
   assert.notEqual(spawnSync(process.execPath, args, { env: { ...env, AUTH_SECRET: 'REPLACE_WITH_RANDOM_64_HEX_CHARACTERS' } }).status, 0);
 });
+
+
+test('production preflight rejects the reported shared owner/agent/pass-signer configuration', async () => {
+  const shared = '0x3750134287b3Fa078817ee2bAce1a69b372F3F8C' as const;
+  const f = fixture({ engine: shared, resolver: shared, owner: shared, signer: shared });
+  f.args.agentAddress = shared;
+  f.args.passAddress = shared;
+  await assert.rejects(checkProductionDeployment(f.args), /Separate the owner/);
+});

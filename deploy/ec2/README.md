@@ -10,7 +10,7 @@ The engine unit suite is `pnpm --filter @clutch/engine test`; TypeScript is `pnp
 
 ## Deployment blockers to resolve before public startup
 
-The supplied `contracts/deployments/84532.json` is the source of truth. It currently records:
+The checkout's `contracts/deployments/84532.json` is retained unchanged and must be confirmed as the intended deployment before any cloud or on-chain action. It currently records:
 
 - Chain: **84532 (Base Sepolia)**
 - ClutchHook: `0x6826872452e7Eea21D8a022E8533CEA0F4236888`
@@ -19,26 +19,13 @@ The supplied `contracts/deployments/84532.json` is the source of truth. It curre
 - HumanPassGate: `0xb5cc8d4f0A9d81BE6ff704d0eBd48cf382eee5f2`
 - LPVault: `0xb7dccDbeA0A05CaF3804382eaB824379F1615319`
 
-The current main-branch manifest already records separate owner (`0x83e60BfbB74b20F1E1279e02F879594527D176da`), agent (`0x5Fc7EC11Fac094DAAa7a75F0Eb52c035533A4E44`), and pass signer (`0x8Af096a0C69B9Dd514cAaf3B51D6d5D3685c57d8`). This PR preserves that manifest byte-for-byte. Supply only the dedicated agent/pass-signer keys at runtime; never the owner key. Startup verifies the actual on-chain roles and component addresses with read-only calls. No role-rotation transaction is required if those getters already match. The manifest's role fields are deployment-time metadata; on-chain getters remain authoritative.
+The operator reports that the intended contracts still authorize `0x3750134287b3Fa078817ee2bAce1a69b372F3F8C` as owner, agent and pass signer; dedicated keys have not been created. The current checkout retains main's recorded manifest, which differs from that report and must be confirmed as the canonical deployment before proceeding. Do not rewrite addresses or reuse the owner key to get past startup checks. The runtime checks actual on-chain getters and deliberately rejects a shared owner/runtime configuration.
+
+See [the planned Secrets Manager integration](secrets/README.md) for the two exact planned secret names, read-only IAM policy, approval boundaries and public-role verification before key retrieval. No secret record, ARN, hostname or private-key file is assumed to exist.
 
 The existing contracts permit role separation without redeployment: the owner calls `ClutchHook.configure(engine,resolver,treasury,gate,vault)` and `HumanPassGate.setSigner(signer)`. This engine uses one dedicated agent for engine+resolver and another key for pass signing. Creating/importing an unrelated third resolver key is not supported by this runtime. Generate dedicated keys securely, fund the agent with only the gas it needs, and sign the configuration transactions from an offline admin machine. The pass signer needs no gas. These actions require owner approval and have **not** been executed here.
 
-Only if roles need changing: example owner commands, for review and later authorized execution only (Foundry encrypted keystore `clutch-owner`; never pass a raw owner key):
-
-```sh
-export BASE_RPC='https://YOUR_BASE_SEPOLIA_RPC'
-export HOOK='0x6826872452e7Eea21D8a022E8533CEA0F4236888'
-export GATE='0xb5cc8d4f0A9d81BE6ff704d0eBd48cf382eee5f2'
-export NEW_AGENT='0xYOUR_DEDICATED_AGENT_ADDRESS'
-export NEW_PASS_SIGNER='0xYOUR_DIFFERENT_PASS_SIGNER_ADDRESS'
-TREASURY=$(cast call "$HOOK" 'treasury()(address)' --rpc-url "$BASE_RPC")
-VAULT=$(cast call "$HOOK" 'vault()(address)' --rpc-url "$BASE_RPC")
-cast send "$HOOK" 'configure(address,address,address,address,address)' \
-  "$NEW_AGENT" "$NEW_AGENT" "$TREASURY" "$GATE" "$VAULT" \
-  --rpc-url "$BASE_RPC" --chain 84532 --account clutch-owner
-cast send "$GATE" 'setSigner(address)' "$NEW_PASS_SIGNER" \
-  --rpc-url "$BASE_RPC" --chain 84532 --account clutch-owner
-```
+No owner transaction should be run until the operator confirms the canonical contracts and approves the new public addresses. Then use the existing contracts' configuration/setter functions from an offline owner wallet while preserving the current treasury, gate and vault. This preparation does not authorize roles or deploy contracts.
 
 Public production startup also requires World verification configuration; it fails closed rather than exposing the existing development pass issuer. Configure a valid World staging setup for Base Sepolia testing. Existing role changes invalidate previously issued passes; users obtain fresh passes.
 

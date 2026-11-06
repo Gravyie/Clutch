@@ -32,6 +32,20 @@ const rpc=https.createServer({key:readFileSync('/run/check/tls.key'),cert:readFi
   try{const q=JSON.parse(raw);res.setHeader('Content-Type','application/json');res.end(JSON.stringify(Array.isArray(q)?q.map(respond):respond(q)));}catch{res.writeHead(400).end();}
 });
 rpc.listen(19443,'127.0.0.1');await once(rpc,'listening');
+async function publicRoleCheck(agentAddress, passAddress) {
+  const child=spawn(process.execPath,['dist/role-check.mjs'],{env:{...process.env,
+    RPC_URL:'https://localhost:19443',NODE_EXTRA_CA_CERTS:'/run/check/tls.crt',
+    AGENT_PRIVATE_KEY:'',PASS_SIGNER_PRIVATE_KEY:'',WORLD_APP_ID:'',WORLD_RP_ID:'',WORLD_RP_SIGNING_KEY:'',
+    CLUTCH_EXPECTED_HOOK:manifest.clutchHook,CLUTCH_EXPECTED_AGENT:agentAddress,CLUTCH_EXPECTED_PASS_SIGNER:passAddress,
+  },stdio:['ignore','pipe','pipe']});
+  child.stdout.resume();child.stderr.resume();
+  const [code]=await once(child,'exit');return code;
+}
+assert.equal(await publicRoleCheck(agent,signer),0,'Public roles must be checkable without any wallet or World keys');
+const sharedOwner='0x3750134287b3Fa078817ee2bAce1a69b372F3F8C';
+for(const name of ['engine','resolver','owner','signer']) selectors.set(toFunctionSelector(`${name}()`),encodeAbiParameters([{type:'address'}],[sharedOwner]));
+assert.notEqual(await publicRoleCheck(sharedOwner,sharedOwner),0,'Shared owner/agent/signer must be rejected');
+for(const [name,value] of Object.entries(values)) selectors.set(toFunctionSelector(`${name}()`),encodeAbiParameters([{type:'address'}],[value]));
 const child=spawn(process.execPath,['dist/main.mjs'],{env:{...process.env,RPC_URL:'https://localhost:19443',NODE_EXTRA_CA_CERTS:'/run/check/tls.crt'},stdio:['ignore','pipe','pipe']});
 let logs='';child.stdout.on('data',c=>logs+=c);child.stderr.on('data',c=>logs+=c);
 let exit;
@@ -57,6 +71,6 @@ try{
   await snapshot();await snapshot();
   assert.equal(writes,0,'Container check must never submit a transaction');
   child.kill('SIGTERM');await once(child,'exit');assert.equal(exit,0);
-  console.log(JSON.stringify({ok:true,rpc:'LOCAL TLS FIXTURE',chainId:84532,bundledEngine:true,ready:true,cors:true,websocketReconnect:true,shutdown:true,transactionsSent:writes}));
+  console.log(JSON.stringify({ok:true,rpc:'LOCAL TLS FIXTURE',chainId:84532,bundledEngine:true,publicRolesWithoutKeys:true,sharedOwnerRejected:true,ready:true,cors:true,websocketReconnect:true,shutdown:true,transactionsSent:writes}));
 }catch(e){child.kill('SIGKILL');throw e;}
 finally{rpc.close();}
