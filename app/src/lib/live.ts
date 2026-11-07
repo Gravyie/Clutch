@@ -114,7 +114,7 @@ export function useNow(ms = 250) {
 }
 
 export async function api<T = any>(path: string, opts: { body?: unknown; token?: string } = {}): Promise<T> {
-  const res = await fetch(ENGINE_URL + path, {
+  const res = await fetch("/api/engine" + path, {
     method: opts.body === undefined ? "GET" : "POST",
     headers: { ...(opts.body !== undefined ? { "Content-Type": "application/json" } : {}), ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}) },
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),

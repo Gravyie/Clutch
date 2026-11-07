@@ -155,6 +155,12 @@ pnpm sim                                 # Blackout Guard economics → sim/out/
 Configuration: [`engine/.env.example`](engine/.env.example). Without `ZG_API_KEY` the engine uses labelled base rates;
 without World credentials the app shows a labelled dev verifier with four personas (adult, adult, streamer, under-18).
 
+For hosted apps, set `NEXT_PUBLIC_ENGINE_URL` to the engine's public HTTPS URL before building. HTTP API calls use
+the app's `/api/engine/*` rewrite so custom domains and Vercel URLs work without a cross-origin browser request.
+WebSockets connect directly to the engine; its public endpoint must support WSS. Redeploy the app after changing
+the engine URL. Direct HTTP clients in other websites still need their exact origins in the engine's comma-separated
+`APP_ORIGIN` setting.
+
 Pages: `/` (landing, live data) · `/live` · `/browse` · `/c/:channel` (watch and trade) · `/m/:id` (market and receipt) · `/portfolio` · `/agents` · `/leaderboard` · `/studio` (creators) · `/vault` (LPs) · `/account` · `/overlay/:channel` (OBS, 1920×1080).
 
 Why these sponsors, and what we learned from Twitch Predictions, CRSHMARKET, Polymarket/Kalshi and Bet Streams:

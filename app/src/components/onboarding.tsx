@@ -47,10 +47,10 @@ export function Onboarding() {
 
   return (
     <Dialog open={onboarding && !wallet.authOpen} onOpenChange={(o) => !o && !wallet.authOpen && closeOnboarding()}>
-      <DialogContent className="gap-0 overflow-hidden rounded-2xl border-border bg-surface p-0 sm:max-w-[440px]">
-        <div className="flex items-center gap-3 border-b border-border px-6 pb-4 pt-6">
-          <LogoMark className="size-8" />
-          <div>
+      <DialogContent className="gap-0 rounded-2xl border-border bg-surface p-0 sm:max-w-[440px]">
+        <div className="flex items-center gap-3 border-b border-border py-6 pl-6 pr-10">
+          <LogoMark className="size-8 shrink-0" />
+          <div className="min-w-0">
             <DialogTitle className="text-base font-semibold">{verifying ? "Raise your limits" : step === "done" ? "You're in" : "Setting up"}</DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">{verifying ? "One World ID check. Your limit follows you, not your wallet." : "A few seconds. Every trade is one tap after this."}</DialogDescription>
           </div>
@@ -158,7 +158,7 @@ function StarterStep() {
 function HumanStep() {
   const wallet = useWallet();
   const acct = useAccount();
-  const { data: cfg } = useConfig();
+  const { data: cfg, isError, refetch } = useConfig();
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [rp, setRp] = useState<any>(null);
@@ -193,14 +193,23 @@ function HumanStep() {
         title="Prove you're one real person"
         body="One World ID check, Proof of Human only. It unlocks free test funds every day, a place on the leaderboard and a higher daily limit, each once per person however many wallets you use. We never see your name or documents."
       />
-      {cfg?.world.configured ? (
+      {!cfg ? (
+        <div role="status" className="text-sm text-muted-foreground">
+          {isError ? (
+            <>
+              <p>We couldn't load verification settings. Please try again.</p>
+              <Button variant="outline" className="mt-3" onClick={() => void refetch()}>Try again</Button>
+            </>
+          ) : "Loading verification settings…"}
+        </div>
+      ) : cfg.world.configured ? (
         <Button size="lg" className="h-11 w-full rounded-[10px] text-sm font-semibold" onClick={world}>
           Verify with World ID
           <ArrowRightIcon />
         </Button>
       ) : (
         <div>
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
             <span className="text-xs font-medium text-muted-foreground">Test verifier</span>
             <span className="text-[11px] text-faint">World ID isn't configured on this network</span>
           </div>

@@ -120,7 +120,7 @@ function TopBar() {
         <SidebarTrigger className="-ml-1 size-9 text-muted-foreground" />
         <Separator orientation="vertical" className="mx-1 hidden !h-5 md:block" />
         <Link href="/" className="flex shrink-0 items-center rounded-lg md:hidden" aria-label="Clutch home">
-          <Logo />
+          <Logo className="max-sm:[&>span]:hidden" />
         </Link>
         <button
           onClick={() => setCommand(true)}
@@ -163,9 +163,9 @@ function TopBar() {
           {!connected && <span className="hidden text-xs text-warn sm:inline">Reconnecting…</span>}
           {wallet.address ? (
             <>
-              <button onClick={() => (acct.pass ? setWallet(true) : open())} className="flex h-9 items-center gap-2 rounded-full border border-border bg-raised px-3.5 text-sm transition hover:border-border-strong" aria-label="Wallet balance">
+              <button onClick={() => (acct.pass ? setWallet(true) : open())} className="flex h-9 items-center gap-2 rounded-full border border-border bg-raised px-2.5 text-sm transition hover:border-border-strong sm:px-3.5" aria-label="Wallet balance">
                 <WalletIcon size={16} className="text-muted-foreground" />
-                <NumberFlow value={acct.spendable} format={{ style: "currency", currency: "USD" }} className="font-medium tabular" />
+                <NumberFlow value={acct.spendable} format={{ style: "currency", currency: "USD" }} className="hidden font-medium tabular sm:inline-block" />
               </button>
               {acct.onboarded ? (
                 <Button size="sm" className="hidden h-9 rounded-full bg-foreground px-4 font-medium text-background hover:bg-foreground/90 sm:inline-flex" onClick={() => setWallet("deposit")}>
@@ -173,7 +173,8 @@ function TopBar() {
                 </Button>
               ) : (
                 <Button size="sm" className="h-9 rounded-full bg-foreground px-4 font-medium text-background hover:bg-foreground/90" onClick={() => open()}>
-                  Finish setup
+                  <span className="sm:hidden">Set up</span>
+                  <span className="hidden sm:inline">Finish setup</span>
                 </Button>
               )}
               <AccountMenu />
