@@ -41,7 +41,7 @@ WORLD_APP_ID=app_b75cfc24185b3dc51a24fdb77fda936c
 WORLD_RP_ID=rp_309f1eb9e956b112
 WORLD_RP_SIGNING_KEY=…                            # signer 0xCB5C7fBac4Bbbce6a2b79716EbeE80F0C716F220
 WORLD_ENVIRONMENT=staging
-APP_ORIGIN=https://<vercel-domain>                # CORS; comma-separate several
+APP_ORIGIN=https://clutch.rajatsrivastav.dev,https://try-clutch.vercel.app   # every app origin, comma-separated
 ```
 
 Check: `https://<engine-domain>/ready` → `{"ok":true,…}`, and `/config` shows `"world":{"configured":true,…}`.
@@ -72,6 +72,8 @@ Check: `https://<engine-domain>/ready` → `{"ok":true,…}`, and `/config` show
 ```bash
 ENGINE_URL=https://<engine-domain> ADMIN_TOKEN=<token> pnpm ai on       # status | off
 ```
+
+Or open `https://<app-domain>/operator`, paste the `ADMIN_TOKEN` and press Turn on / Turn off (not linked from the app).
 
 Saved in the engine's database, so it survives restarts. If the 0G account has no balance, the engine pauses itself
 (one warning, retries every 3 minutes) and the app says "0G out of credits".

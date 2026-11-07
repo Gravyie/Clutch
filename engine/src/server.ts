@@ -6,7 +6,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { isAddress } from "viem";
 import type { ClientMessage, ServerMessage } from "@clutch/shared";
 import { config, isLocalChain } from "./config";
-import { sendFreeFunds } from "./faucet";
+import { faucetAddress, sendFreeFunds } from "./faucet";
 import { log } from "./log";
 import type { Hub } from "./stream/hub";
 import { VideoRunner } from "./stream/video";
@@ -81,7 +81,7 @@ export function serve(hub: Hub) {
         // public by design (it identifies the app, it doesn't authenticate it); lets viewers connect Twitch chat
         twitchClientId: process.env.TWITCH_CLIENT_ID,
         passDailyCap: config.passDailyCapUsdc,
-        faucet: { starter: config.faucetStarterUsdc, humanDaily: config.faucetHumanDailyUsdc },
+        faucet: { starter: config.faucetStarterUsdc, humanDaily: config.faucetHumanDailyUsdc, address: faucetAddress ?? null },
         starterDailyCap: config.starterDailyCapUsdc,
       }),
     },
@@ -234,15 +234,16 @@ export function serve(hub: Hub) {
         }
         // Claim first (so two tabs can't both pass the check), release it if sending fails.
         await kvSet(mark, String(Date.now()));
-        await kvSet(`faucet:ip:${ip}:${day}`, String(ipCount + 1));
-        let sent;
         try {
-          sent = await sendFreeFunds(to, usdc);
-        } catch (e) {
-          await kvSet(mark, "");
-          throw e;
+          const sent = await sendFreeFunds(to, usdc);
+          await kvSet(`faucet:ip:${ip}:${day}`, String(ipCount + 1));
+          return { ...sent, human: Boolean(human) };
+        } catch (e: any) {
+          await kvSet(mark, "").catch(() => {});
+          if (e?.status) throw e;
+          log.error("faucet:", e?.shortMessage ?? e?.message, faucetAddress ? `(from ${faucetAddress})` : "");
+          throw Object.assign(httpError(503, "Couldn't send your free funds just now. Try again in a minute."), { code: "faucet" });
         }
-        return { ...sent, human: Boolean(human) };
       },
     },
 
@@ -443,7 +444,7 @@ function cors(req: IncomingMessage, res: ServerResponse) {
   const allowed = config.appOrigin.split(",").map((s) => s.trim());
   res.setHeader("Access-Control-Allow-Origin", origin && (allowed.includes(origin) || isLocalChain) ? origin : allowed[0]);
   res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Token");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
 }
 
