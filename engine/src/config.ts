@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { normalizeWorldRpId } from "./world-config";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = (k: string, d?: string) => process.env[k] ?? d;
@@ -111,7 +112,7 @@ export const config = {
   /** accepted authentication classes for authorizing an agent */
   worldIdpAcr: (env("WORLD_IDP_ACR", "https://world.org/oidc/acr/orb") ?? "").split(",").filter(Boolean),
   agentPassTtlSec: Number(env("AGENT_PASS_TTL_SEC", "86400")),
-  worldRpId: env("WORLD_RP_ID"),
+  worldRpId: normalizeWorldRpId(env("WORLD_RP_ID")),
   worldSigningKey: env("WORLD_RP_SIGNING_KEY"),
   worldAction: env("WORLD_ACTION", "clutch-human-pass")!,
   worldEnvironment: env("WORLD_ENVIRONMENT", "staging") as "production" | "staging",
