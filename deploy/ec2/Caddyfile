@@ -1,6 +1,15 @@
 {$ENGINE_DOMAIN} {
   encode zstd gzip
-  reverse_proxy engine:8787
+  @blocked expression `{http.request.header.Origin} != "" && {http.request.header.Origin} != "https://try-clutch.vercel.app"`
+  respond @blocked "Origin not allowed" 403
+  @untrustedSocket {
+    header Upgrade websocket
+    not header Origin https://try-clutch.vercel.app
+  }
+  respond @untrustedSocket "Origin not allowed" 403
+  reverse_proxy engine:8787 {
+    header_down Access-Control-Allow-Origin https://try-clutch.vercel.app
+  }
   header {
     X-Content-Type-Options nosniff
     Referrer-Policy strict-origin-when-cross-origin

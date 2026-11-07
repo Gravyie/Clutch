@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { APP_ORIGIN } from "./origins";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const env = (k: string, d?: string) => process.env[k] ?? d;
@@ -48,7 +49,7 @@ export const config = {
   root,
   port: Number(env("PORT", env("ENGINE_PORT", "8787"))),
   publicUrl: env("ENGINE_PUBLIC_URL", "http://localhost:8787")!,
-  appOrigin: env("APP_ORIGIN", "http://localhost:3000")!,
+  appOrigin: APP_ORIGIN,
   dataDir: env("DATA_DIR", join(root, "engine/data"))!,
   authSecret: env("AUTH_SECRET", "dev-only-secret-change-me")!,
 

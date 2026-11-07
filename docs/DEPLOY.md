@@ -41,7 +41,7 @@ WORLD_APP_ID=app_b75cfc24185b3dc51a24fdb77fda936c
 WORLD_RP_ID=rp_309f1eb9e956b112
 WORLD_RP_SIGNING_KEY=…                            # signer 0xCB5C7fBac4Bbbce6a2b79716EbeE80F0C716F220
 WORLD_ENVIRONMENT=staging
-APP_ORIGIN=https://clutch.rajatsrivastav.dev,https://try-clutch.vercel.app   # every app origin, comma-separated
+APP_ORIGIN=https://try-clutch.vercel.app   # fixed browser allowlist; other domains are rejected
 ```
 
 Check: `https://<engine-domain>/ready` → `{"ok":true,…}`, and `/config` shows `"world":{"configured":true,…}`.
@@ -56,8 +56,9 @@ Check: `https://<engine-domain>/ready` → `{"ok":true,…}`, and `/config` show
    NEXT_PUBLIC_RPC_URL=https://base-sepolia-rpc.publicnode.com
    NEXT_PUBLIC_PRIVY_APP_ID=cmw54nuzs01440gl34dx4lbdb
    ```
-3. Deploy (`next build` passes locally with these values). Then set the engine's `APP_ORIGIN` to the Vercel domain
-   and restart it.
+3. Deploy to `https://try-clutch.vercel.app`. Deploy the updated engine as well: HTTP requests with other browser
+   origins and WebSocket handshakes from other or missing origins are rejected. Originless HTTP health checks and
+   server clients remain supported; origin checks are not authentication for non-browser clients.
 
 ## 3. Point the providers at the app's domain
 
