@@ -30,7 +30,6 @@ import { LiveBoard, PlatformIcon, frameUrl } from "@/components/stream";
 import { isOpen } from "@/components/market";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { BlurFade } from "@/components/ui/blur-fade";
-import { DotPattern } from "@/components/ui/dot-pattern";
 import { Marquee } from "@/components/ui/marquee";
 import { TextReveal } from "@/components/ui/text-reveal";
 import { api, useLive, useNow } from "@/lib/live";
@@ -46,15 +45,16 @@ import { cn } from "@/lib/utils";
 
 type Stats = { markets: number; volume: number; traders: number; voids: number; agent: AgentState; chain: ChainState };
 
-const twitchPreview = (s: StreamSummary) => (s.media?.kind === "video" && s.media.platform === "twitch" ? `https://static-cdn.jtvnw.net/previews-ttv/live_user_${s.media.channel}-1280x720.jpg` : undefined);
+const twitchPreview = (s: StreamSummary, big = false) =>
+  s.media?.kind === "video" && s.media.platform === "twitch" ? `https://static-cdn.jtvnw.net/previews-ttv/live_user_${s.media.channel}-${big ? "1280x720" : "640x360"}.jpg` : undefined;
 
 /** The engine's last frame, falling back to the platform's own live thumbnail. */
-function StreamImage({ s, alt = "", className, quiet }: { s: StreamSummary; alt?: string; className?: string; quiet?: boolean }) {
+function StreamImage({ s, alt = "", className, quiet, priority }: { s: StreamSummary; alt?: string; className?: string; quiet?: boolean; priority?: boolean }) {
   const [failed, setFailed] = useState<string | undefined>();
-  const first = frameUrl(s) ?? twitchPreview(s);
-  const src = failed === first ? twitchPreview(s) : first;
+  const first = frameUrl(s) ?? twitchPreview(s, priority);
+  const src = failed === first ? twitchPreview(s, priority) : first;
   if (!src || failed === src) return quiet ? null : <div className={cn("bg-[var(--l-night-2)]", className)} />;
-  return <img key={src} src={src} alt={alt} onError={() => setFailed(src)} className={className} />;
+  return <img key={src} src={src} alt={alt} onError={() => setFailed(src)} className={className} loading={priority ? "eager" : "lazy"} decoding="async" fetchPriority={priority ? "high" : "auto"} />;
 }
 
 function useLanding() {
@@ -71,7 +71,12 @@ function useLanding() {
   const market = open.find((m) => m.slug === featured?.slug);
   const settled = receipts.filter((r) => r.verdict !== "VOID");
   const proof = settled.find((r) => r.rule.adapter === "vision") ?? settled[0] ?? receipts[0];
-  return { list, video, live: list.filter((s) => s.live), featured, market, receipts, proof, stats, agent: agentLive ?? stats?.agent, reading: list.filter((s) => s.reading).length };
+  // The hero plays real gameplay a market could be opened on: shooters and battle royale first, never chat or reruns.
+  const GAMEPLAY: Record<string, number> = { fps: 3, "battle-royale": 3, moba: 2, sports: 2 };
+  const twitch = video.filter((s) => s.media?.kind === "video" && s.media.platform === "twitch" && GAMEPLAY[s.category ?? ""]);
+  const score = (s: StreamSummary) => (s.market?.phase === "trading" ? 100 : 0) + (s.vision?.state.mode === "gameplay" ? 50 : 0) + GAMEPLAY[s.category ?? ""] * 10;
+  const playable = [...twitch].sort((a, b) => score(b) - score(a))[0] ?? featured;
+  return { list, video, open, playable, live: list.filter((s) => s.live), featured, market, receipts, proof, stats, agent: agentLive ?? stats?.agent, reading: list.filter((s) => s.reading).length };
 }
 type D = ReturnType<typeof useLanding>;
 
@@ -195,7 +200,7 @@ function Hero({ d }: { d: D }) {
   const scale = useTransform(scrollYProgress, [0, 0.6], [1, 1.02]);
   return (
     <section ref={ref} data-tone="paper" className="relative overflow-hidden pt-[132px] sm:pt-[156px]">
-      <DotPattern width={22} height={22} cr={0.9} className="text-[rgb(23_22_20/0.13)] [mask-image:radial-gradient(70%_60%_at_50%_30%,#000_40%,transparent_100%)]" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 [background-image:radial-gradient(rgb(23_22_20/0.14)_0.9px,transparent_1.2px)] [background-size:22px_22px] [mask-image:radial-gradient(70%_60%_at_50%_30%,#000_40%,transparent_100%)]" />
       <Container className="relative flex flex-col items-center text-center">
         <BlurFade delay={0.05} inView={false}>
           <span className="inline-flex items-center gap-2 rounded-full bg-[var(--l-card)] px-3 py-1.5 text-[12.5px] text-[var(--l-ink-2)] shadow-[0_1px_0_rgb(255_255_255/0.8)_inset] ring-1 ring-[var(--l-line)]">
@@ -244,8 +249,18 @@ function Hero({ d }: { d: D }) {
 
 /** A real Clutch watch screen in miniature: the stream on the left, its live market on the right. */
 function ProductWindow({ d }: { d: D }) {
-  const s = d.featured;
-  const m = d.market;
+  // Pin one channel: rankings shift every few seconds, and a moving pick would reload the video each time.
+  const [pin, setPin] = useState<string>();
+  const pinned = pin ? d.list.find((x) => x.slug === pin) : undefined;
+  const next = d.playable?.slug;
+  // Move on if the pinned channel goes offline, or the AI sees it leave gameplay (menu, lobby, break) while another
+  // channel is confirmed in gameplay. A still image can switch freely; it never reloads anything.
+  const leftGameplay = !!pinned?.vision && pinned.vision.state.mode !== "gameplay" && d.playable?.vision?.state.mode === "gameplay";
+  useEffect(() => {
+    if ((!pinned || !pinned.live || leftGameplay) && next && next !== pin) setPin(next);
+  }, [pinned, next, pin, leftGameplay]);
+  const s = pinned ?? d.playable;
+  const m = d.open.find((x) => x.slug === s?.slug);
   const paused = !!d.agent && (d.agent.mode !== "full" || !!d.agent.outOfCredits);
   return (
     <div className="overflow-hidden rounded-[22px] bg-[var(--l-card)] p-2 shadow-[0_40px_120px_-40px_rgb(40_30_20/0.35),0_0_0_1px_var(--l-line)]">
@@ -261,8 +276,8 @@ function ProductWindow({ d }: { d: D }) {
       <div className="grid grid-cols-1 gap-2 rounded-[16px] bg-[var(--l-paper)] p-2 md:grid-cols-[minmax(0,1fr)_340px]">
         <div className="overflow-hidden rounded-[12px] bg-[var(--l-night)]">
           <div className="relative aspect-video">
-            {s ? <StreamImage s={s} className="absolute inset-0 size-full object-cover" /> : <div className="absolute inset-0 animate-pulse bg-[var(--l-night-2)]" />}
-            <div className="absolute left-3 top-3 flex items-center gap-1.5">
+            {s ? <HeroShot key={s.slug} s={s} /> : <div className="absolute inset-0 animate-pulse bg-[var(--l-night-2)]" />}
+            <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-1.5">
               <span className="rounded-[5px] bg-[#ff755f] px-1.5 py-px text-[10.5px] font-bold text-[#1a0703]">LIVE</span>
               {s && <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-white/90 backdrop-blur">{s.title}</span>}
             </div>
@@ -276,6 +291,37 @@ function ProductWindow({ d }: { d: D }) {
         <HeroMarket m={m} s={s} receipts={d.receipts} />
       </div>
     </div>
+  );
+}
+
+/**
+ * The hero's picture: Twitch's own full-resolution live thumbnail of the pinned gameplay channel, fetched once and held
+ * steady (no flicker), so it reads like a crisp screenshot. Falls back to the engine's last frame if Twitch has none.
+ */
+function HeroShot({ s }: { s: StreamSummary }) {
+  const channel = s.media?.kind === "video" && s.media.platform === "twitch" ? s.media.channel : undefined;
+  const [stamp] = useState(() => Math.floor(Date.now() / 300_000)); // Twitch refreshes previews every few minutes
+  const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const src = channel && !failed ? `https://static-cdn.jtvnw.net/previews-ttv/live_user_${channel}-1920x1080.jpg?t=${stamp}` : undefined;
+  return (
+    <>
+      {src ? (
+        <img
+          src={src}
+          alt={`${s.title} live${s.game ? `, playing ${s.game}` : ""}`}
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          className={cn("absolute inset-0 size-full object-cover transition-opacity duration-500", loaded ? "opacity-100" : "opacity-0")}
+        />
+      ) : (
+        <StreamImage s={s} priority className="absolute inset-0 size-full object-cover" />
+      )}
+      {src && !loaded && <div className="absolute inset-0 animate-pulse bg-[var(--l-night-2)]" />}
+    </>
   );
 }
 
@@ -966,7 +1012,7 @@ function ScaledOverlay({ slug }: { slug: string }) {
   return (
     <div ref={ref} className="absolute inset-0">
       {scale > 0 && (
-        <iframe src={`/overlay/${slug}`} title="Clutch OBS overlay" tabIndex={-1} className="pointer-events-none absolute left-0 top-0 origin-top-left border-0" style={{ width: 1920, height: 1080, transform: `scale(${scale})` }} />
+        <iframe src={`/overlay/${slug}`} loading="lazy" title="Clutch OBS overlay" tabIndex={-1} className="pointer-events-none absolute left-0 top-0 origin-top-left border-0" style={{ width: 1920, height: 1080, transform: `scale(${scale})` }} />
       )}
     </div>
   );
