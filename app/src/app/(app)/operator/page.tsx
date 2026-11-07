@@ -5,7 +5,6 @@ import { CircleNotchIcon, PowerIcon } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ENGINE_URL } from "@/lib/env";
 import type { AgentState } from "@clutch/shared";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +24,7 @@ export default function OperatorPage() {
       setToken(sessionStorage.getItem(KEY) ?? "");
     } catch {}
     const load = () =>
-      fetch(`${ENGINE_URL}/admin/ai`)
+      fetch("/api/engine/admin/ai")
         .then((r) => r.json())
         .then(setAi)
         .catch(() => {});
@@ -37,7 +36,7 @@ export default function OperatorPage() {
   const flip = async (enabled: boolean) => {
     setBusy(true);
     try {
-      const r = await fetch(`${ENGINE_URL}/admin/ai`, {
+      const r = await fetch("/api/engine/admin/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Admin-Token": token },
         body: JSON.stringify({ enabled }),
