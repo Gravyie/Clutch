@@ -6,6 +6,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { isAddress } from "viem";
 import type { ClientMessage, ServerMessage } from "@clutch/shared";
 import { config, isLocalChain } from "./config";
+import { applyCors, browserOriginAllowed } from "./origins";
 import { faucetAddress, sendFreeFunds } from "./faucet";
 import { log } from "./log";
 import type { Hub } from "./stream/hub";
@@ -328,7 +329,7 @@ export function serve(hub: Hub) {
   ];
 
   const server = createServer(async (req, res) => {
-    cors(req, res);
+    if (!applyCors(req, res, isLocalChain && process.env.NODE_ENV !== "production")) return;
     if (req.method === "OPTIONS") return res.writeHead(204).end();
     const url = new URL(req.url ?? "/", "http://x");
 
@@ -369,7 +370,9 @@ export function serve(hub: Hub) {
   });
 
   // ── WebSocket: subscribe to "global" and "stream:<slug>" channels ──
-  const wss = new WebSocketServer({ server, path: "/ws", maxPayload: 16 * 1024 });
+  const wss = new WebSocketServer({ server, path: "/ws", maxPayload: 16 * 1024,
+    verifyClient: ({ origin }, done) => done(browserOriginAllowed(origin, isLocalChain && process.env.NODE_ENV !== "production"), 403, "Origin not allowed"),
+  });
   const subs = new Map<WebSocket, Set<string>>();
   const countFor = (slug: string) => [...subs.values()].filter((s) => s.has(`stream:${slug}`)).length;
   const recount = (channels: Iterable<string>) => {
@@ -437,15 +440,6 @@ function send(ws: WebSocket, m: ServerMessage) {
 function wallet(a: unknown): `0x${string}` {
   if (typeof a !== "string" || !isAddress(a)) throw httpError(400, "invalid wallet address");
   return a;
-}
-
-function cors(req: IncomingMessage, res: ServerResponse) {
-  const origin = req.headers.origin;
-  const allowed = config.appOrigin.split(",").map((s) => s.trim());
-  res.setHeader("Access-Control-Allow-Origin", origin && (allowed.includes(origin) || isLocalChain) ? origin : allowed[0]);
-  res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Token");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
 }
 
 function json(res: ServerResponse, status: number, body: unknown) {

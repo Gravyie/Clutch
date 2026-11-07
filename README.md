@@ -158,8 +158,8 @@ without World credentials the app shows a labelled dev verifier with four person
 For hosted apps, set `NEXT_PUBLIC_ENGINE_URL` to the engine's public HTTPS URL before building. HTTP API calls use
 the app's `/api/engine/*` rewrite so custom domains and Vercel URLs work without a cross-origin browser request.
 WebSockets connect directly to the engine; its public endpoint must support WSS. Redeploy the app after changing
-the engine URL. Direct HTTP clients in other websites still need their exact origins in the engine's comma-separated
-`APP_ORIGIN` setting.
+the engine URL. The deployed engine accepts browser HTTP and WebSocket origins only from
+`https://try-clutch.vercel.app`. Loopback HTTP origins are allowed only on a local development chain outside production.
 
 Pages: `/` (landing, live data) · `/live` · `/browse` · `/c/:channel` (watch and trade) · `/m/:id` (market and receipt) · `/portfolio` · `/agents` · `/leaderboard` · `/studio` (creators) · `/vault` (LPs) · `/account` · `/overlay/:channel` (OBS, 1920×1080).
 

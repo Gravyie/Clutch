@@ -6,7 +6,7 @@ services:
         DEPLOYMENT_MANIFEST: deploy/ec2/environments/rajat-testnet/84532.json
     environment:
       ENGINE_PUBLIC_URL: https://api.rajatsrivastav.dev
-      APP_ORIGIN: https://clutch.rajatsrivastav.dev,https://try-clutch.vercel.app
+      APP_ORIGIN: https://try-clutch.vercel.app
   caddy:
     environment:
       ENGINE_DOMAIN: api.rajatsrivastav.dev
